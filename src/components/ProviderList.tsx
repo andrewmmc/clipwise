@@ -12,7 +12,7 @@ interface Props {
 const typeLabel: Record<string, string> = {
   openai: "OpenAI-compatible",
   anthropic: "Anthropic",
-  cli: "CLI (claude/codex)",
+  cli: "CLI (claude/codex/copilot)",
 };
 
 export default function ProviderList({ config, onRefresh }: Props) {

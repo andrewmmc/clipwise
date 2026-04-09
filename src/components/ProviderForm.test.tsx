@@ -88,6 +88,39 @@ describe("ProviderForm", () => {
     expect(screen.getByPlaceholderText("e.g. claude")).toBeInTheDocument();
   });
 
+  it("defaults new CLI providers to a -p argument", async () => {
+    const user = userEvent.setup();
+    render(<ProviderForm onSave={onSave} onCancel={onCancel} />);
+    const typeSelect = screen.getByDisplayValue("Anthropic");
+    await user.selectOptions(typeSelect, "cli");
+    expect(screen.getByDisplayValue("-p")).toBeInTheDocument();
+  });
+
+  it("shows a command path hint in CLI mode", async () => {
+    const user = userEvent.setup();
+    render(<ProviderForm onSave={onSave} onCancel={onCancel} />);
+    const typeSelect = screen.getByDisplayValue("Anthropic");
+    await user.selectOptions(typeSelect, "cli");
+    const hint = screen.getByText(/find the installed binary path with/i);
+    expect(hint).toBeInTheDocument();
+    expect(screen.getByText("where claude")).toBeInTheDocument();
+    expect(screen.getByText("where codex")).toBeInTheDocument();
+    expect(screen.getByText("where copilot")).toBeInTheDocument();
+    expect(screen.getByText("where claude")).toHaveClass("bg-gray-100");
+    expect(hint).not.toHaveClass("bg-gray-50");
+  });
+
+  it("shows a headless mode hint for CLI arguments", async () => {
+    const user = userEvent.setup();
+    render(<ProviderForm onSave={onSave} onCancel={onCancel} />);
+    const typeSelect = screen.getByDisplayValue("Anthropic");
+    await user.selectOptions(typeSelect, "cli");
+    expect(
+      screen.getByText(/configure the cli to run in headless mode/i),
+    ).toBeInTheDocument();
+    expect(screen.getByText("-p")).toBeInTheDocument();
+  });
+
   // ── Validation ────────────────────────────────────────────────────────────
 
   it("shows error when name is empty on submit", async () => {
@@ -173,6 +206,7 @@ describe("ProviderForm", () => {
           name: "My CLI",
           type: "cli",
           command: "claude",
+          args: ["-p"],
         }),
       ),
     );

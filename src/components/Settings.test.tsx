@@ -50,6 +50,27 @@ describe("SettingsPanel", () => {
     expect(toggle).toHaveAttribute("aria-checked", "false");
   });
 
+  it("syncs the toggle when config changes", () => {
+    const { rerender } = render(
+      <SettingsPanel config={mockConfig} onRefresh={onRefresh} />,
+    );
+
+    rerender(
+      <SettingsPanel
+        config={{
+          ...mockConfig,
+          settings: {
+            ...mockConfig.settings,
+            showNotificationOnComplete: false,
+          },
+        }}
+        onRefresh={onRefresh}
+      />,
+    );
+
+    expect(screen.getByRole("switch")).toHaveAttribute("aria-checked", "false");
+  });
+
   it("changing max tokens input updates the value", async () => {
     const user = userEvent.setup();
     render(<SettingsPanel config={mockConfig} onRefresh={onRefresh} />);
@@ -114,6 +135,10 @@ describe("SettingsPanel", () => {
     expect(
       screen.getByText("LLM Actions", { selector: "strong" }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByText(/After configuring your actions, copy text/i),
+    ).toBeInTheDocument();
+    expect(screen.getByText("(c) 2026 Andrew Mok")).toBeInTheDocument();
   });
 
   it("saves updated notification setting after toggling", async () => {

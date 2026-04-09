@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { Action, AppConfig } from "../types/config";
-import { ArrowLeft, RotateCcw, Save } from "lucide-react";
+import { ArrowLeft, ChevronDown, RotateCcw, Save } from "lucide-react";
 
 interface Props {
   config: AppConfig;
@@ -15,6 +15,9 @@ export default function ActionForm({
   onSave,
   onCancel,
 }: Props) {
+  const fieldClassName =
+    "w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-400";
+  const selectClassName = `${fieldClassName} appearance-none bg-white pr-9`;
   const [name, setName] = useState(initial?.name ?? "");
   const [providerId, setProviderId] = useState(
     initial?.providerId ?? config.providers[0]?.id ?? "",
@@ -79,7 +82,7 @@ export default function ActionForm({
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="e.g. Refine wording"
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-400"
+            className={fieldClassName}
           />
           <p className="mt-1 text-xs text-gray-400">
             Shown in the LLM Actions menu bar popup.
@@ -90,18 +93,24 @@ export default function ActionForm({
           <label className="mb-1 block text-xs font-medium text-gray-700">
             Provider <span className="text-red-500">*</span>
           </label>
-          <select
-            value={providerId}
-            onChange={(e) => setProviderId(e.target.value)}
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-400"
-          >
-            <option value="">Select a provider…</option>
-            {config.providers.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name} ({p.type})
-              </option>
-            ))}
-          </select>
+          <div className="relative">
+            <select
+              value={providerId}
+              onChange={(e) => setProviderId(e.target.value)}
+              className={selectClassName}
+            >
+              <option value="">Select a provider…</option>
+              {config.providers.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name} ({p.type})
+                </option>
+              ))}
+            </select>
+            <ChevronDown
+              size={16}
+              className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-gray-400"
+            />
+          </div>
         </div>
 
         <div>
@@ -113,7 +122,7 @@ export default function ActionForm({
             onChange={(e) => setUserPrompt(e.target.value)}
             rows={3}
             placeholder="e.g. Refine this text, improve clarity and grammar while keeping the original meaning"
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-400"
+            className={fieldClassName}
           />
           <p className="mt-1 text-xs text-gray-400">
             The selected text will be appended to this prompt.
@@ -130,7 +139,7 @@ export default function ActionForm({
             value={model}
             onChange={(e) => setModel(e.target.value)}
             placeholder="Leave blank to use provider default"
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none"
+            className={fieldClassName}
           />
         </div>
 

@@ -1,12 +1,21 @@
 import { useState } from "react";
 import type { Provider, ProviderType } from "../types/config";
-import { ArrowLeft, RotateCcw, Save, Plus, Trash2 } from "lucide-react";
+import {
+  ArrowLeft,
+  ChevronDown,
+  RotateCcw,
+  Save,
+  Plus,
+  Trash2,
+} from "lucide-react";
 
 interface Props {
   initial?: Provider;
   onSave: (data: Omit<Provider, "id">) => Promise<void>;
   onCancel: () => void;
 }
+
+const DEFAULT_CLI_ARGS = ["-p"];
 
 export default function ProviderForm({ initial, onSave, onCancel }: Props) {
   const [name, setName] = useState(initial?.name ?? "");
@@ -15,7 +24,9 @@ export default function ProviderForm({ initial, onSave, onCancel }: Props) {
   const [apiKey, setApiKey] = useState(initial?.apiKey ?? "");
   const [defaultModel, setDefaultModel] = useState(initial?.defaultModel ?? "");
   const [command, setCommand] = useState(initial?.command ?? "");
-  const [args, setArgs] = useState<string[]>(initial?.args ?? []);
+  const [args, setArgs] = useState<string[]>(
+    initial?.type === "cli" ? (initial.args ?? []) : [],
+  );
   const [headers, setHeaders] = useState<[string, string][]>(
     Object.entries(initial?.headers ?? {}),
   );
@@ -61,6 +72,14 @@ export default function ProviderForm({ initial, onSave, onCancel }: Props) {
     openai: "https://api.openai.com/v1/chat/completions",
     anthropic: "https://api.anthropic.com/v1/messages",
   };
+  const fieldClassName =
+    "w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-400";
+  const selectClassName = `${fieldClassName} appearance-none bg-white pr-9`;
+  const cliInputProps = {
+    autoCapitalize: "none" as const,
+    autoCorrect: "off" as const,
+    spellCheck: false,
+  };
 
   return (
     <div className="space-y-4">
@@ -96,22 +115,34 @@ export default function ProviderForm({ initial, onSave, onCancel }: Props) {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. Anthropic Claude"
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none"
+              className={fieldClassName}
             />
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-700">
               Type <span className="text-red-500">*</span>
             </label>
-            <select
-              value={type}
-              onChange={(e) => setType(e.target.value as ProviderType)}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-400"
-            >
-              <option value="anthropic">Anthropic</option>
-              <option value="openai">OpenAI-compatible</option>
-              <option value="cli">CLI (claude/codex)</option>
-            </select>
+            <div className="relative">
+              <select
+                value={type}
+                onChange={(e) => {
+                  const nextType = e.target.value as ProviderType;
+                  setType(nextType);
+                  if (nextType === "cli" && !initial && args.length === 0) {
+                    setArgs(DEFAULT_CLI_ARGS);
+                  }
+                }}
+                className={selectClassName}
+              >
+                <option value="anthropic">Anthropic</option>
+                <option value="openai">OpenAI-compatible</option>
+                <option value="cli">CLI (claude/codex/copilot)</option>
+              </select>
+              <ChevronDown
+                size={16}
+                className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-gray-400"
+              />
+            </div>
           </div>
         </div>
 
@@ -127,7 +158,7 @@ export default function ProviderForm({ initial, onSave, onCancel }: Props) {
                 value={endpoint}
                 onChange={(e) => setEndpoint(e.target.value)}
                 placeholder={defaultEndpoints[type] ?? "https://..."}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none"
+                className={fieldClassName}
               />
             </div>
 
@@ -140,7 +171,7 @@ export default function ProviderForm({ initial, onSave, onCancel }: Props) {
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
                 placeholder="sk-..."
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none"
+                className={fieldClassName}
               />
             </div>
 
@@ -155,7 +186,7 @@ export default function ProviderForm({ initial, onSave, onCancel }: Props) {
                 placeholder={
                   type === "anthropic" ? "claude-sonnet-4-20250514" : "gpt-4o"
                 }
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none"
+                className={fieldClassName}
               />
             </div>
 
@@ -223,12 +254,28 @@ export default function ProviderForm({ initial, onSave, onCancel }: Props) {
               <label className="mb-1 block text-xs font-medium text-gray-700">
                 Command <span className="text-red-500">*</span>
               </label>
+              <p className="mb-1 text-xs text-gray-400">
+                Find the installed binary path with{" "}
+                <code className="rounded bg-gray-100 px-1 py-0.5 text-gray-600">
+                  where claude
+                </code>
+                ,{" "}
+                <code className="rounded bg-gray-100 px-1 py-0.5 text-gray-600">
+                  where codex
+                </code>
+                , or{" "}
+                <code className="rounded bg-gray-100 px-1 py-0.5 text-gray-600">
+                  where copilot
+                </code>
+                .
+              </p>
               <input
                 type="text"
                 value={command}
                 onChange={(e) => setCommand(e.target.value)}
                 placeholder="e.g. claude"
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none"
+                className={`${fieldClassName} font-mono`}
+                {...cliInputProps}
               />
             </div>
 
@@ -246,6 +293,14 @@ export default function ProviderForm({ initial, onSave, onCancel }: Props) {
                   Add arg
                 </button>
               </div>
+              <p className="mb-2 text-xs text-gray-400">
+                Configure the CLI to run in headless mode so LLM Actions can
+                capture the output from stdout. For example,{" "}
+                <code className="rounded bg-gray-100 px-1 py-0.5 text-gray-600">
+                  -p
+                </code>
+                .
+              </p>
               <div className="space-y-2">
                 {args.map((arg, i) => (
                   <div key={i} className="flex gap-2">
@@ -260,7 +315,8 @@ export default function ProviderForm({ initial, onSave, onCancel }: Props) {
                         )
                       }
                       placeholder="e.g. --print"
-                      className="flex-1 rounded border border-gray-200 px-2 py-1 text-xs focus:border-blue-400 focus:outline-none"
+                      className="flex-1 rounded border border-gray-200 px-2 py-1 text-xs font-mono focus:border-blue-400 focus:outline-none"
+                      {...cliInputProps}
                     />
                     <button
                       type="button"
@@ -300,7 +356,7 @@ export default function ProviderForm({ initial, onSave, onCancel }: Props) {
               setApiKey(initial?.apiKey ?? "");
               setDefaultModel(initial?.defaultModel ?? "");
               setCommand(initial?.command ?? "");
-              setArgs(initial?.args ?? []);
+              setArgs(initial?.type === "cli" ? (initial.args ?? []) : []);
               setHeaders(Object.entries(initial?.headers ?? {}));
               setError(null);
             }}

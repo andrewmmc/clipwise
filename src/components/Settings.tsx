@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { tauriCommands } from "../lib/tauri";
 import type { AppConfig, AppSettings } from "../types/config";
 import { RotateCcw, Save } from "lucide-react";
@@ -15,6 +15,10 @@ export default function SettingsPanel({ config, onRefresh }: Props) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setSettings({ ...config.settings });
+  }, [config.settings]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -56,8 +60,10 @@ export default function SettingsPanel({ config, onRefresh }: Props) {
               </p>
             </div>
             <button
+              type="button"
               role="switch"
               aria-checked={settings.showNotificationOnComplete}
+              aria-label="Show notification on complete"
               onClick={() =>
                 setSettings((s) => ({
                   ...s,
@@ -65,18 +71,19 @@ export default function SettingsPanel({ config, onRefresh }: Props) {
                 }))
               }
               className={[
-                "relative h-5 w-9 rounded-full transition-colors",
+                "relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2",
                 settings.showNotificationOnComplete
                   ? "bg-blue-600"
                   : "bg-gray-200",
               ].join(" ")}
             >
               <span
+                aria-hidden="true"
                 className={[
-                  "absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform",
+                  "pointer-events-none absolute left-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform",
                   settings.showNotificationOnComplete
                     ? "translate-x-4"
-                    : "translate-x-0.5",
+                    : "translate-x-0",
                 ].join(" ")}
               />
             </button>
@@ -139,13 +146,11 @@ export default function SettingsPanel({ config, onRefresh }: Props) {
           </p>
           <p>macOS text transformation via LLM APIs &amp; CLI tools.</p>
           <p className="mt-2">
-            After configuring actions, copy text, open the menu bar icon, and
-            choose an item from <strong>Transform Clipboard</strong>. The
-            transformed result is copied back to the clipboard.
+            After configuring your actions, copy text and open the menu bar
+            icon, then choose an action directly from the menu. The transformed
+            result is copied back to your clipboard.
           </p>
-          <p className="mt-1 text-gray-400">
-            Config: ~/Library/Application Support/llm-actions/config.json
-          </p>
+          <p className="mt-1 text-gray-400">(c) 2026 Andrew Mok</p>
         </div>
       </div>
     </div>
