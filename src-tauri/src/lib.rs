@@ -3,9 +3,11 @@ mod config;
 mod error;
 mod models;
 mod providers;
+pub mod service;
 
-use commands::{config_cmd::*, llm_cmd::*, validate_cmd::*};
+use commands::{config_cmd::*, llm_cmd::*, service_cmd::*, validate_cmd::*};
 use config::{load_config, ConfigState};
+use service::ServiceState;
 use std::sync::Mutex;
 use tauri::{
     menu::{Menu, MenuItem},
@@ -13,14 +15,18 @@ use tauri::{
     Manager, Runtime,
 };
 
+// ── App bootstrap ─────────────────────────────────────────────────────────────
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let config = load_config().unwrap_or_default();
+    let service_state = ServiceState::new();
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
         .manage(ConfigState(Mutex::new(config)))
+        .manage(service_state.clone())
         .invoke_handler(tauri::generate_handler![
             // Config commands
             get_config,
@@ -37,12 +43,29 @@ pub fn run() {
             test_action,
             // Validation
             validate_llm_response,
+            // Services / picker
+            get_pending_text,
+            run_and_paste,
         ])
-        .setup(|app| {
+        .setup(move |app| {
             setup_tray(app)?;
-            // Hide the Dock icon (menu bar app behavior)
+
             #[cfg(target_os = "macos")]
-            app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+            {
+                // Hide the Dock icon (menu bar app).
+                app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+
+                // Wire up the Services provider.
+                let handle = app.handle().clone();
+                service::init(service_state.clone(), move || {
+                    if let Some(win) = handle.get_webview_window("picker") {
+                        let _ = win.show();
+                        let _ = win.set_focus();
+                    }
+                });
+                service::register_service_provider();
+            }
+
             Ok(())
         })
         .run(tauri::generate_context!())

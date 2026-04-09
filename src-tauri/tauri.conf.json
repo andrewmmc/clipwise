@@ -18,6 +18,16 @@
         "resizable": true,
         "visible": false,
         "label": "settings"
+      },
+      {
+        "label": "picker",
+        "title": "LLM Actions",
+        "width": 320,
+        "height": 380,
+        "visible": false,
+        "decorations": true,
+        "alwaysOnTop": true,
+        "resizable": false
       }
     ],
     "security": {
@@ -35,7 +45,8 @@
       "icons/icon.ico"
     ],
     "macOS": {
-      "entitlements": "entitlements.plist"
+      "entitlements": "entitlements.plist",
+      "infoPlist": "Info.plist"
     }
   }
 }

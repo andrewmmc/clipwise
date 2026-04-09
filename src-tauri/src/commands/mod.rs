@@ -1,3 +1,4 @@
 pub mod config_cmd;
 pub mod llm_cmd;
+pub mod service_cmd;
 pub mod validate_cmd;
