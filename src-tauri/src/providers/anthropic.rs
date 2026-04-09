@@ -63,3 +63,250 @@ pub async fn call_anthropic(
 
     serde_json::from_str(content).map_err(|_| AppError::InvalidResponse)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::ProviderType;
+    use wiremock::matchers::{body_string_contains, header, method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    fn make_provider(server_uri: &str) -> Provider {
+        Provider {
+            id: "test-anthropic".into(),
+            name: "Test Anthropic".into(),
+            provider_type: ProviderType::Anthropic,
+            endpoint: Some(format!("{}/v1/messages", server_uri)),
+            api_key: Some("test-key".into()),
+            headers: serde_json::Map::new(),
+            default_model: None,
+            command: None,
+            args: vec![],
+        }
+    }
+
+    fn success_body(text: &str) -> serde_json::Value {
+        serde_json::json!({
+            "id": "msg_test",
+            "type": "message",
+            "role": "assistant",
+            "content": [{ "type": "text", "text": text }],
+            "model": "claude-sonnet-4-20250514",
+            "stop_reason": "end_turn"
+        })
+    }
+
+    #[tokio::test]
+    async fn test_missing_api_key_returns_config_error() {
+        let mut provider = make_provider("http://localhost:9999");
+        provider.api_key = None;
+        let result = call_anthropic(&provider, "test", None, 1024).await;
+        assert!(matches!(result, Err(AppError::Config(_))));
+    }
+
+    #[tokio::test]
+    async fn test_successful_response_returns_parsed_value() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/v1/messages"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(success_body(r#"{"result": "improved text"}"#)),
+            )
+            .mount(&server)
+            .await;
+
+        let result = call_anthropic(&make_provider(&server.uri()), "hello", None, 1024).await;
+        assert!(result.is_ok(), "expected Ok, got {:?}", result);
+        assert_eq!(result.unwrap()["result"], "improved text");
+    }
+
+    #[tokio::test]
+    async fn test_http_401_returns_llm_error() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .respond_with(ResponseTemplate::new(401).set_body_string("Unauthorized"))
+            .mount(&server)
+            .await;
+
+        let result = call_anthropic(&make_provider(&server.uri()), "test", None, 1024).await;
+        assert!(matches!(result, Err(AppError::Llm(_))));
+        if let Err(AppError::Llm(msg)) = result {
+            assert!(msg.contains("401"));
+        }
+    }
+
+    #[tokio::test]
+    async fn test_http_429_rate_limit_returns_llm_error() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .respond_with(ResponseTemplate::new(429).set_body_string("Rate limited"))
+            .mount(&server)
+            .await;
+
+        let result = call_anthropic(&make_provider(&server.uri()), "test", None, 1024).await;
+        assert!(matches!(result, Err(AppError::Llm(_))));
+    }
+
+    #[tokio::test]
+    async fn test_http_500_returns_llm_error() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .respond_with(ResponseTemplate::new(500).set_body_string("Server Error"))
+            .mount(&server)
+            .await;
+
+        let result = call_anthropic(&make_provider(&server.uri()), "test", None, 1024).await;
+        assert!(matches!(result, Err(AppError::Llm(_))));
+    }
+
+    #[tokio::test]
+    async fn test_empty_content_array_returns_invalid_response() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(serde_json::json!({"content": []})),
+            )
+            .mount(&server)
+            .await;
+
+        let result = call_anthropic(&make_provider(&server.uri()), "test", None, 1024).await;
+        assert!(matches!(result, Err(AppError::InvalidResponse)));
+    }
+
+    #[tokio::test]
+    async fn test_non_json_text_returns_invalid_response() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(success_body("this is plain text, not JSON")),
+            )
+            .mount(&server)
+            .await;
+
+        let result = call_anthropic(&make_provider(&server.uri()), "test", None, 1024).await;
+        assert!(matches!(result, Err(AppError::InvalidResponse)));
+    }
+
+    #[tokio::test]
+    async fn test_model_override_is_sent_in_request_body() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(body_string_contains("claude-3-haiku"))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(success_body(r#"{"result": "ok"}"#)),
+            )
+            .mount(&server)
+            .await;
+
+        let result = call_anthropic(
+            &make_provider(&server.uri()),
+            "test",
+            Some("claude-3-haiku"),
+            1024,
+        )
+        .await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_falls_back_to_claude_sonnet_when_no_model_set() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(body_string_contains("claude-sonnet-4-20250514"))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(success_body(r#"{"result": "ok"}"#)),
+            )
+            .mount(&server)
+            .await;
+
+        let result = call_anthropic(&make_provider(&server.uri()), "test", None, 1024).await;
+        assert!(
+            result.is_ok(),
+            "expected Ok when falling back to claude-sonnet"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_provider_default_model_used_when_no_override() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(body_string_contains("claude-3-opus"))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(success_body(r#"{"result": "ok"}"#)),
+            )
+            .mount(&server)
+            .await;
+
+        let mut provider = make_provider(&server.uri());
+        provider.default_model = Some("claude-3-opus".into());
+        let result = call_anthropic(&provider, "test", None, 1024).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_x_api_key_header_is_sent() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(header("x-api-key", "test-key"))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(success_body(r#"{"result": "ok"}"#)),
+            )
+            .mount(&server)
+            .await;
+
+        let result = call_anthropic(&make_provider(&server.uri()), "test", None, 1024).await;
+        assert!(result.is_ok(), "x-api-key header must be sent");
+    }
+
+    #[tokio::test]
+    async fn test_anthropic_version_header_is_sent() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(header("anthropic-version", "2023-06-01"))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(success_body(r#"{"result": "ok"}"#)),
+            )
+            .mount(&server)
+            .await;
+
+        let result = call_anthropic(&make_provider(&server.uri()), "test", None, 1024).await;
+        assert!(result.is_ok(), "anthropic-version header must be sent");
+    }
+
+    #[tokio::test]
+    async fn test_custom_headers_are_forwarded() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(header("x-org-id", "org-123"))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(success_body(r#"{"result": "ok"}"#)),
+            )
+            .mount(&server)
+            .await;
+
+        let mut provider = make_provider(&server.uri());
+        provider.headers.insert(
+            "x-org-id".into(),
+            serde_json::Value::String("org-123".into()),
+        );
+        let result = call_anthropic(&provider, "test", None, 1024).await;
+        assert!(result.is_ok(), "custom header must be forwarded");
+    }
+
+    #[tokio::test]
+    async fn test_system_prompt_is_included_in_request() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(body_string_contains("text transformation assistant"))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(success_body(r#"{"result": "ok"}"#)),
+            )
+            .mount(&server)
+            .await;
+
+        let result = call_anthropic(&make_provider(&server.uri()), "test", None, 1024).await;
+        assert!(result.is_ok(), "system prompt must appear in request body");
+    }
+}

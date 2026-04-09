@@ -62,4 +62,47 @@ mod tests {
         let raw = "  \n{\"result\": \"clean\"}\n  ";
         assert_eq!(validate_response_str(raw).unwrap(), "clean");
     }
+
+    #[test]
+    fn test_unicode_result() {
+        let raw = r#"{"result": "こんにちは世界"}"#;
+        assert_eq!(validate_response_str(raw).unwrap(), "こんにちは世界");
+    }
+
+    #[test]
+    fn test_result_with_embedded_newline() {
+        let raw = "{\"result\": \"line1\\nline2\"}";
+        let result = validate_response_str(raw).unwrap();
+        assert!(result.contains('\n'));
+    }
+
+    #[test]
+    fn test_json_array_at_root_is_rejected() {
+        let raw = r#"[{"result": "hello"}]"#;
+        assert!(validate_response_str(raw).is_err());
+    }
+
+    #[test]
+    fn test_result_null_is_rejected() {
+        let raw = r#"{"result": null}"#;
+        assert!(validate_response_str(raw).is_err());
+    }
+
+    #[test]
+    fn test_result_object_is_rejected() {
+        let raw = r#"{"result": {"nested": "value"}}"#;
+        assert!(validate_response_str(raw).is_err());
+    }
+
+    #[test]
+    fn test_result_array_is_rejected() {
+        let raw = r#"{"result": ["a", "b"]}"#;
+        assert!(validate_response_str(raw).is_err());
+    }
+
+    #[test]
+    fn test_result_boolean_is_rejected() {
+        let raw = r#"{"result": true}"#;
+        assert!(validate_response_str(raw).is_err());
+    }
 }

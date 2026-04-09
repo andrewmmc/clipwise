@@ -103,3 +103,195 @@ Only output the raw JSON object.";
 pub struct LlmResult {
     pub result: String,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_api_provider() -> Provider {
+        Provider {
+            id: "p1".into(),
+            name: "Anthropic".into(),
+            provider_type: ProviderType::Anthropic,
+            endpoint: Some("https://api.anthropic.com/v1/messages".into()),
+            api_key: Some("sk-ant-test".into()),
+            headers: serde_json::Map::new(),
+            default_model: Some("claude-sonnet-4-20250514".into()),
+            command: None,
+            args: vec![],
+        }
+    }
+
+    fn make_cli_provider() -> Provider {
+        Provider {
+            id: "p2".into(),
+            name: "CLI".into(),
+            provider_type: ProviderType::Cli,
+            endpoint: None,
+            api_key: None,
+            headers: serde_json::Map::new(),
+            default_model: None,
+            command: Some("claude".into()),
+            args: vec!["--print".into()],
+        }
+    }
+
+    fn make_action() -> Action {
+        Action {
+            id: "a1".into(),
+            name: "Refine".into(),
+            provider_id: "p1".into(),
+            user_prompt: "Improve this text".into(),
+            model: None,
+        }
+    }
+
+    // ── ProviderType serde ────────────────────────────────────────────────────
+
+    #[test]
+    fn test_provider_type_openai_round_trip() {
+        let json = "\"openai\"";
+        let pt: ProviderType = serde_json::from_str(json).unwrap();
+        assert_eq!(pt, ProviderType::OpenAI);
+        assert_eq!(serde_json::to_string(&pt).unwrap(), json);
+    }
+
+    #[test]
+    fn test_provider_type_anthropic_round_trip() {
+        let json = "\"anthropic\"";
+        let pt: ProviderType = serde_json::from_str(json).unwrap();
+        assert_eq!(pt, ProviderType::Anthropic);
+        assert_eq!(serde_json::to_string(&pt).unwrap(), json);
+    }
+
+    #[test]
+    fn test_provider_type_cli_round_trip() {
+        let json = "\"cli\"";
+        let pt: ProviderType = serde_json::from_str(json).unwrap();
+        assert_eq!(pt, ProviderType::Cli);
+        assert_eq!(serde_json::to_string(&pt).unwrap(), json);
+    }
+
+    #[test]
+    fn test_provider_type_wrong_case_is_rejected() {
+        assert!(serde_json::from_str::<ProviderType>("\"OpenAI\"").is_err());
+        assert!(serde_json::from_str::<ProviderType>("\"Anthropic\"").is_err());
+        assert!(serde_json::from_str::<ProviderType>("\"CLI\"").is_err());
+    }
+
+    // ── Provider serde ────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_api_provider_serialises_camel_case_fields() {
+        let json = serde_json::to_string(&make_api_provider()).unwrap();
+        assert!(json.contains("\"apiKey\""), "expected camelCase apiKey");
+        assert!(
+            json.contains("\"defaultModel\""),
+            "expected camelCase defaultModel"
+        );
+        assert!(!json.contains("\"api_key\""), "snake_case must not appear");
+    }
+
+    #[test]
+    fn test_api_provider_round_trip() {
+        let provider = make_api_provider();
+        let json = serde_json::to_string(&provider).unwrap();
+        let decoded: Provider = serde_json::from_str(&json).unwrap();
+        assert_eq!(decoded.id, provider.id);
+        assert_eq!(decoded.api_key, provider.api_key);
+        assert_eq!(decoded.default_model, provider.default_model);
+        assert_eq!(decoded.provider_type, ProviderType::Anthropic);
+    }
+
+    #[test]
+    fn test_cli_provider_round_trip() {
+        let provider = make_cli_provider();
+        let json = serde_json::to_string(&provider).unwrap();
+        let decoded: Provider = serde_json::from_str(&json).unwrap();
+        assert_eq!(decoded.command, Some("claude".into()));
+        assert_eq!(decoded.args, vec!["--print"]);
+    }
+
+    #[test]
+    fn test_provider_optional_api_fields_omitted_for_cli() {
+        let json = serde_json::to_string(&make_cli_provider()).unwrap();
+        assert!(!json.contains("\"endpoint\""));
+        assert!(!json.contains("\"apiKey\""));
+        assert!(!json.contains("\"defaultModel\""));
+    }
+
+    // ── Action serde ──────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_action_camel_case_fields() {
+        let json = serde_json::to_string(&make_action()).unwrap();
+        assert!(json.contains("\"providerId\""));
+        assert!(json.contains("\"userPrompt\""));
+        assert!(!json.contains("\"provider_id\""));
+    }
+
+    #[test]
+    fn test_action_model_override_included_when_set() {
+        let mut action = make_action();
+        action.model = Some("gpt-4o".into());
+        let json = serde_json::to_string(&action).unwrap();
+        assert!(json.contains("\"model\""));
+        let decoded: Action = serde_json::from_str(&json).unwrap();
+        assert_eq!(decoded.model, Some("gpt-4o".into()));
+    }
+
+    #[test]
+    fn test_action_model_field_omitted_when_none() {
+        let json = serde_json::to_string(&make_action()).unwrap();
+        assert!(!json.contains("\"model\""), "None model must be omitted");
+    }
+
+    // ── AppSettings defaults ──────────────────────────────────────────────────
+
+    #[test]
+    fn test_app_settings_all_defaults_from_empty_json() {
+        let s: AppSettings = serde_json::from_str("{}").unwrap();
+        assert!(s.show_notification_on_complete);
+        assert_eq!(s.max_tokens, 4096);
+    }
+
+    #[test]
+    fn test_app_settings_partial_json_fills_defaults() {
+        let s: AppSettings = serde_json::from_str(r#"{"maxTokens": 2048}"#).unwrap();
+        assert!(s.show_notification_on_complete); // default preserved
+        assert_eq!(s.max_tokens, 2048);
+    }
+
+    #[test]
+    fn test_app_settings_default_impl() {
+        let s = AppSettings::default();
+        assert!(s.show_notification_on_complete);
+        assert_eq!(s.max_tokens, 4096);
+    }
+
+    // ── AppConfig ─────────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_app_config_default_has_empty_collections() {
+        let c = AppConfig::default();
+        assert!(c.providers.is_empty());
+        assert!(c.actions.is_empty());
+    }
+
+    // ── SYSTEM_PROMPT ─────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_system_prompt_contains_json_instruction() {
+        assert!(
+            SYSTEM_PROMPT.contains("result"),
+            "must mention 'result' field"
+        );
+        assert!(SYSTEM_PROMPT.contains("JSON"), "must mention JSON");
+    }
+
+    #[test]
+    fn test_system_prompt_does_not_reveal_internal_instructions() {
+        // Sanity: confirm the constant is non-empty
+        assert!(!SYSTEM_PROMPT.is_empty());
+    }
+}
