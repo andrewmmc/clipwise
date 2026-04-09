@@ -73,6 +73,20 @@ npm run tauri build
 
 Produces a `.app` bundle and `.dmg` in `src-tauri/target/release/bundle/`.
 
+### Debug build (for testing macOS Services)
+
+macOS only registers Services from installed `.app` bundles — they don't appear when running `npm run tauri dev`. Use a debug build to test Services integration without a full release build:
+
+```bash
+npm run tauri build -- --debug
+```
+
+Open the app from `src-tauri/target/debug/bundle/macos/`. To force macOS to refresh the Services menu after installing:
+
+```bash
+/System/Library/CoreServices/pbs -update
+```
+
 ## License
 
 Private — all rights reserved.
