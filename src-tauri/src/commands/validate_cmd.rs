@@ -1,4 +1,5 @@
 use crate::error::AppError;
+use serde_json::{json, Value};
 
 /// Validates that a string is valid JSON with a top-level `result` string field.
 /// Returns the extracted result string on success, or an error.
@@ -8,13 +9,71 @@ pub fn validate_llm_response(raw: String) -> Result<String, AppError> {
 }
 
 pub fn validate_response_str(raw: &str) -> Result<String, AppError> {
-    let parsed: serde_json::Value =
-        serde_json::from_str(raw.trim()).map_err(|_| AppError::InvalidResponse)?;
-    let result = parsed
-        .get("result")
-        .and_then(|v| v.as_str())
-        .ok_or(AppError::InvalidResponse)?;
-    Ok(result.to_string())
+    let parsed: Value = serde_json::from_str(raw.trim()).map_err(|_| AppError::InvalidResponse)?;
+    extract_result_from_value(parsed)
+}
+
+pub fn normalize_response_str(raw: &str) -> Result<Value, AppError> {
+    Ok(json!({ "result": normalize_result(raw)? }))
+}
+
+fn normalize_result(raw: &str) -> Result<String, AppError> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Err(AppError::InvalidResponse);
+    }
+
+    if let Ok(parsed) = serde_json::from_str::<Value>(trimmed) {
+        return extract_result_from_value(parsed);
+    }
+
+    if let Some(candidate) = extract_json_object(trimmed) {
+        if let Ok(parsed) = serde_json::from_str::<Value>(candidate) {
+            return extract_result_from_value(parsed);
+        }
+    }
+
+    Ok(strip_code_fences(trimmed).to_string())
+}
+
+fn extract_result_from_value(parsed: Value) -> Result<String, AppError> {
+    match parsed {
+        Value::Object(map) => map
+            .get("result")
+            .and_then(|value| value.as_str())
+            .map(ToOwned::to_owned)
+            .ok_or(AppError::InvalidResponse),
+        Value::String(result) => Ok(result),
+        _ => Err(AppError::InvalidResponse),
+    }
+}
+
+fn extract_json_object(raw: &str) -> Option<&str> {
+    let start = raw.find('{')?;
+    let end = raw.rfind('}')?;
+    (end >= start).then_some(&raw[start..=end])
+}
+
+fn strip_code_fences(raw: &str) -> &str {
+    let stripped = raw.trim();
+    if !stripped.starts_with("```") || !stripped.ends_with("```") {
+        return stripped;
+    }
+
+    let inner = stripped
+        .strip_prefix("```")
+        .and_then(|s| s.strip_suffix("```"))
+        .unwrap_or(stripped)
+        .trim();
+
+    if let Some(newline_idx) = inner.find('\n') {
+        let first_line = &inner[..newline_idx];
+        if !first_line.contains('{') {
+            return inner[newline_idx + 1..].trim();
+        }
+    }
+
+    inner
 }
 
 #[cfg(test)]
@@ -104,5 +163,50 @@ mod tests {
     fn test_result_boolean_is_rejected() {
         let raw = r#"{"result": true}"#;
         assert!(validate_response_str(raw).is_err());
+    }
+
+    #[test]
+    fn test_json_string_is_accepted() {
+        let raw = r#""plain transformed text""#;
+        assert_eq!(
+            normalize_response_str(raw).unwrap(),
+            json!({ "result": "plain transformed text" })
+        );
+    }
+
+    #[test]
+    fn test_json_with_preamble_is_accepted() {
+        let raw = r#"Here you go: {"result":"cleaned up"}"#;
+        assert_eq!(
+            normalize_response_str(raw).unwrap(),
+            json!({ "result": "cleaned up" })
+        );
+    }
+
+    #[test]
+    fn test_plain_text_is_accepted() {
+        let raw = "cleaned up";
+        assert_eq!(
+            normalize_response_str(raw).unwrap(),
+            json!({ "result": "cleaned up" })
+        );
+    }
+
+    #[test]
+    fn test_code_fenced_text_is_accepted() {
+        let raw = "```json\n{\"result\":\"cleaned up\"}\n```";
+        assert_eq!(
+            normalize_response_str(raw).unwrap(),
+            json!({ "result": "cleaned up" })
+        );
+    }
+
+    #[test]
+    fn test_normalize_response_str_wraps_result() {
+        let raw = "plain transformed text";
+        assert_eq!(
+            normalize_response_str(raw).unwrap(),
+            json!({ "result": "plain transformed text" })
+        );
     }
 }

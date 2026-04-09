@@ -1,3 +1,4 @@
+use crate::commands::validate_cmd::normalize_response_str;
 use crate::error::AppError;
 use crate::models::{Provider, SYSTEM_PROMPT};
 use reqwest::Client;
@@ -60,10 +61,7 @@ pub async fn call_openai_with_client(
         return Err(AppError::Llm(format!("OpenAI HTTP {}: {}", status, body)));
     }
 
-    let body_text = resp
-        .text()
-        .await
-        .map_err(AppError::Http)?;
+    let body_text = resp.text().await.map_err(AppError::Http)?;
     let json: serde_json::Value = serde_json::from_str(&body_text)
         .map_err(|_| AppError::Llm(format!("Failed to parse response as JSON: {}", body_text)))?;
 
@@ -72,7 +70,7 @@ pub async fn call_openai_with_client(
         .as_str()
         .ok_or(AppError::InvalidResponse)?;
 
-    serde_json::from_str(content).map_err(|_| AppError::InvalidResponse)
+    normalize_response_str(content)
 }
 
 #[cfg(test)]
@@ -131,8 +129,14 @@ mod tests {
             .mount(&server)
             .await;
 
-        let result =
-            call_openai_with_client(&make_provider(&server.uri()), "hello", None, 1024, &no_proxy_client()).await;
+        let result = call_openai_with_client(
+            &make_provider(&server.uri()),
+            "hello",
+            None,
+            1024,
+            &no_proxy_client(),
+        )
+        .await;
         assert!(result.is_ok(), "expected Ok, got {:?}", result);
         assert_eq!(result.unwrap()["result"], "refined text");
     }
@@ -145,7 +149,14 @@ mod tests {
             .mount(&server)
             .await;
 
-        let result = call_openai_with_client(&make_provider(&server.uri()), "test", None, 1024, &no_proxy_client()).await;
+        let result = call_openai_with_client(
+            &make_provider(&server.uri()),
+            "test",
+            None,
+            1024,
+            &no_proxy_client(),
+        )
+        .await;
         assert!(matches!(result, Err(AppError::Llm(_))));
         if let Err(AppError::Llm(msg)) = result {
             assert!(
@@ -163,7 +174,14 @@ mod tests {
             .mount(&server)
             .await;
 
-        let result = call_openai_with_client(&make_provider(&server.uri()), "test", None, 1024, &no_proxy_client()).await;
+        let result = call_openai_with_client(
+            &make_provider(&server.uri()),
+            "test",
+            None,
+            1024,
+            &no_proxy_client(),
+        )
+        .await;
         assert!(matches!(result, Err(AppError::Llm(_))));
     }
 
@@ -175,7 +193,14 @@ mod tests {
             .mount(&server)
             .await;
 
-        let result = call_openai_with_client(&make_provider(&server.uri()), "test", None, 1024, &no_proxy_client()).await;
+        let result = call_openai_with_client(
+            &make_provider(&server.uri()),
+            "test",
+            None,
+            1024,
+            &no_proxy_client(),
+        )
+        .await;
         assert!(matches!(result, Err(AppError::Llm(_))));
     }
 
@@ -189,7 +214,14 @@ mod tests {
             .mount(&server)
             .await;
 
-        let result = call_openai_with_client(&make_provider(&server.uri()), "test", None, 1024, &no_proxy_client()).await;
+        let result = call_openai_with_client(
+            &make_provider(&server.uri()),
+            "test",
+            None,
+            1024,
+            &no_proxy_client(),
+        )
+        .await;
         assert!(matches!(result, Err(AppError::InvalidResponse)));
     }
 
@@ -204,8 +236,42 @@ mod tests {
             .mount(&server)
             .await;
 
-        let result = call_openai_with_client(&make_provider(&server.uri()), "test", None, 1024, &no_proxy_client()).await;
-        assert!(matches!(result, Err(AppError::InvalidResponse)));
+        let result = call_openai_with_client(
+            &make_provider(&server.uri()),
+            "test",
+            None,
+            1024,
+            &no_proxy_client(),
+        )
+        .await;
+        assert!(
+            result.is_ok(),
+            "expected plain text content to be normalized"
+        );
+        assert_eq!(result.unwrap()["result"], "this is plain text, not json");
+    }
+
+    #[tokio::test]
+    async fn test_message_content_with_json_preamble_is_normalized() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(success_body(r#"Here is the result: {"result": "ok"}"#)),
+            )
+            .mount(&server)
+            .await;
+
+        let result = call_openai_with_client(
+            &make_provider(&server.uri()),
+            "test",
+            None,
+            1024,
+            &no_proxy_client(),
+        )
+        .await;
+        assert!(result.is_ok(), "expected embedded JSON to be normalized");
+        assert_eq!(result.unwrap()["result"], "ok");
     }
 
     #[tokio::test]
@@ -246,7 +312,8 @@ mod tests {
             .await;
 
         let provider = make_provider(&server.uri()); // no default_model set
-        let result = call_openai_with_client(&provider, "test", None, 1024, &no_proxy_client()).await;
+        let result =
+            call_openai_with_client(&provider, "test", None, 1024, &no_proxy_client()).await;
         assert!(result.is_ok(), "expected Ok when falling back to gpt-4o");
     }
 
@@ -263,7 +330,8 @@ mod tests {
 
         let mut provider = make_provider(&server.uri());
         provider.default_model = Some("gpt-4-custom".into());
-        let result = call_openai_with_client(&provider, "test", None, 1024, &no_proxy_client()).await;
+        let result =
+            call_openai_with_client(&provider, "test", None, 1024, &no_proxy_client()).await;
         assert!(
             result.is_ok(),
             "expected Ok when using provider default model"
@@ -281,7 +349,14 @@ mod tests {
             .mount(&server)
             .await;
 
-        let result = call_openai_with_client(&make_provider(&server.uri()), "test", None, 1024, &no_proxy_client()).await;
+        let result = call_openai_with_client(
+            &make_provider(&server.uri()),
+            "test",
+            None,
+            1024,
+            &no_proxy_client(),
+        )
+        .await;
         assert!(
             result.is_ok(),
             "expected Ok when authorization header matches"
@@ -304,7 +379,8 @@ mod tests {
             "x-custom-header".into(),
             serde_json::Value::String("my-value".into()),
         );
-        let result = call_openai_with_client(&provider, "test", None, 1024, &no_proxy_client()).await;
+        let result =
+            call_openai_with_client(&provider, "test", None, 1024, &no_proxy_client()).await;
         assert!(
             result.is_ok(),
             "expected Ok when custom header matches mock"
@@ -322,7 +398,14 @@ mod tests {
             .mount(&server)
             .await;
 
-        let result = call_openai_with_client(&make_provider(&server.uri()), "test", None, 1024, &no_proxy_client()).await;
+        let result = call_openai_with_client(
+            &make_provider(&server.uri()),
+            "test",
+            None,
+            1024,
+            &no_proxy_client(),
+        )
+        .await;
         assert!(
             result.is_ok(),
             "system prompt must be included in request body"

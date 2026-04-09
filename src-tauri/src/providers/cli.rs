@@ -1,5 +1,8 @@
+use crate::commands::validate_cmd::normalize_response_str;
 use crate::error::AppError;
 use crate::models::{Provider, SYSTEM_PROMPT};
+use std::env;
+use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use tokio::process::Command;
 
@@ -11,20 +14,25 @@ pub async fn call_cli(
         .command
         .as_deref()
         .ok_or_else(|| AppError::Config("CLI provider missing command".into()))?;
+    let (resolved_command, inline_args) = prepare_command(command)?;
 
     // Build full message: inject system prompt + user message
     let full_prompt = format!("{}\n\n{}", SYSTEM_PROMPT, user_message);
 
-    let mut cmd = Command::new(command);
+    let mut cmd = Command::new(&resolved_command);
+    cmd.args(&inline_args);
     cmd.args(&provider.args);
     cmd.arg(&full_prompt);
     cmd.stdout(Stdio::piped());
     cmd.stderr(Stdio::piped());
 
-    let output = cmd
-        .output()
-        .await
-        .map_err(|e| AppError::Llm(format!("Failed to spawn CLI '{}': {}", command, e)))?;
+    let output = cmd.output().await.map_err(|e| {
+        AppError::Llm(format!(
+            "Failed to spawn CLI '{}': {}. Try an absolute path like '/opt/homebrew/bin/claude'.",
+            resolved_command.display(),
+            e
+        ))
+    })?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -41,14 +49,42 @@ pub async fn call_cli(
         return Err(AppError::Llm("CLI produced no output".into()));
     }
 
-    // Try to extract JSON from stdout (strip any leading/trailing text)
-    let json_str = extract_json(stdout)
-        .ok_or_else(|| AppError::Llm(format!("CLI output is not valid JSON: {}", stdout)))?;
+    normalize_response_str(stdout)
+}
 
-    serde_json::from_str(json_str).map_err(|_| AppError::InvalidResponse)
+fn prepare_command(command: &str) -> Result<(PathBuf, Vec<String>), AppError> {
+    let parts = shlex::split(command)
+        .filter(|parts| !parts.is_empty())
+        .ok_or_else(|| AppError::Config("CLI provider command is empty or invalid".into()))?;
+    let executable = resolve_command_path(&parts[0]).unwrap_or_else(|| PathBuf::from(&parts[0]));
+    Ok((executable, parts[1..].to_vec()))
+}
+
+fn resolve_command_path(command: &str) -> Option<PathBuf> {
+    let candidate = PathBuf::from(command);
+    if command.contains(std::path::MAIN_SEPARATOR) {
+        return is_executable_file(&candidate).then_some(candidate);
+    }
+
+    env::var_os("PATH")
+        .into_iter()
+        .flat_map(|paths| env::split_paths(&paths).collect::<Vec<_>>())
+        .chain([
+            PathBuf::from("/opt/homebrew/bin"),
+            PathBuf::from("/usr/local/bin"),
+            PathBuf::from("/usr/bin"),
+            PathBuf::from("/bin"),
+        ])
+        .map(|dir| dir.join(command))
+        .find(|path| is_executable_file(path))
+}
+
+fn is_executable_file(path: &Path) -> bool {
+    path.is_file()
 }
 
 /// Finds the first {...} block in a string (handles models that add extra text).
+#[cfg(test)]
 fn extract_json(s: &str) -> Option<&str> {
     let start = s.find('{')?;
     let end = s.rfind('}')?;
@@ -167,6 +203,17 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_call_cli_command_field_can_include_inline_args() {
+        let provider = make_cli_provider(
+            Some(r#"sh -c "printf '{\"result\":\"inline args\"}'""#),
+            vec![],
+        );
+        let result = call_cli(&provider, "hello world").await;
+        assert!(result.is_ok(), "expected Ok, got {:?}", result);
+        assert_eq!(result.unwrap()["result"], "inline args");
+    }
+
+    #[tokio::test]
     async fn test_call_cli_non_zero_exit_returns_error() {
         let provider = make_cli_provider(Some("sh"), vec!["-c", "exit 1"]);
         let result = call_cli(&provider, "test").await;
@@ -193,7 +240,11 @@ mod tests {
     async fn test_call_cli_non_json_output_returns_error() {
         let provider = make_cli_provider(Some("sh"), vec!["-c", "echo 'plain text output'"]);
         let result = call_cli(&provider, "test").await;
-        assert!(result.is_err(), "expected error for non-JSON output");
+        assert!(
+            result.is_ok(),
+            "expected plain text output to be normalized"
+        );
+        assert_eq!(result.unwrap()["result"], "plain text output");
     }
 
     #[tokio::test]
@@ -206,5 +257,25 @@ mod tests {
         let result = call_cli(&provider, "test").await;
         assert!(result.is_ok(), "expected Ok, got {:?}", result);
         assert_eq!(result.unwrap()["result"], "extracted");
+    }
+
+    #[tokio::test]
+    async fn test_call_cli_code_fenced_json_is_normalized() {
+        let provider = make_cli_provider(
+            Some("sh"),
+            vec!["-c", r#"printf '```json\n{"result":"fenced"}\n```'"#],
+        );
+        let result = call_cli(&provider, "test").await;
+        assert!(result.is_ok(), "expected fenced JSON to be normalized");
+        assert_eq!(result.unwrap()["result"], "fenced");
+    }
+
+    #[test]
+    fn test_resolve_command_path_finds_common_homebrew_location() {
+        let resolved = resolve_command_path("claude");
+        assert!(
+            resolved.is_some(),
+            "expected claude to resolve from PATH or common bin directories"
+        );
     }
 }

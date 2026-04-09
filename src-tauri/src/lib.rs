@@ -11,9 +11,10 @@ use models::AppConfig;
 use std::sync::mpsc;
 use std::sync::Mutex;
 use tauri::{
-    menu::{Menu, MenuItem, Submenu},
+    menu::Menu,
+    menu::MenuItem,
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Manager, Runtime,
+    AppHandle, Manager, Runtime, WindowEvent,
 };
 use tauri_plugin_notification::NotificationExt;
 
@@ -50,6 +51,7 @@ pub fn run() {
         ])
         .setup(move |app| {
             setup_tray(app)?;
+            setup_settings_window(app)?;
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
             Ok(())
@@ -76,7 +78,7 @@ fn build_tray_menu<R: Runtime, M: Manager<R>>(
         vec![MenuItem::with_id(
             app,
             "tray_no_actions",
-            "No actions configured",
+            "(No custom actions)",
             false,
             None::<&str>,
         )?]
@@ -95,23 +97,20 @@ fn build_tray_menu<R: Runtime, M: Manager<R>>(
             })
             .collect::<tauri::Result<Vec<_>>>()?
     };
-    let action_refs: Vec<&dyn tauri::menu::IsMenuItem<R>> = action_items
-        .iter()
-        .map(|item| item as &dyn tauri::menu::IsMenuItem<R>)
-        .collect();
-    let actions_submenu = Submenu::with_id_and_items(
-        app,
-        "tray_actions",
-        "Transform Clipboard",
-        true,
-        &action_refs,
-    )?;
 
     let open_settings =
         MenuItem::with_id(app, "open_settings", "Open Settings...", true, None::<&str>)?;
     let separator = tauri::menu::PredefinedMenuItem::separator(app)?;
     let quit = MenuItem::with_id(app, "quit", "Quit LLM Actions", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&actions_submenu, &separator, &open_settings, &quit])?;
+    let mut menu_items: Vec<&dyn tauri::menu::IsMenuItem<R>> = action_items
+        .iter()
+        .map(|item| item as &dyn tauri::menu::IsMenuItem<R>)
+        .collect();
+    menu_items.push(&separator as &dyn tauri::menu::IsMenuItem<R>);
+    menu_items.push(&open_settings as &dyn tauri::menu::IsMenuItem<R>);
+    menu_items.push(&quit as &dyn tauri::menu::IsMenuItem<R>);
+
+    let menu = Menu::with_items(app, &menu_items)?;
     Ok(menu)
 }
 
@@ -187,10 +186,7 @@ fn run_tray_action<R: Runtime>(app: AppHandle<R>, action_id: String) {
                     return;
                 }
             };
-            (
-                action.name,
-                config.settings.show_notification_on_complete,
-            )
+            (action.name, config.settings.show_notification_on_complete)
         };
 
         let result = {
@@ -253,7 +249,10 @@ fn setup_tray<R: Runtime>(app: &tauri::App<R>) -> tauri::Result<()> {
                 app.exit(0);
             }
             id if id.starts_with(TRAY_ACTION_PREFIX) => {
-                run_tray_action(app.clone(), id.trim_start_matches(TRAY_ACTION_PREFIX).to_string());
+                run_tray_action(
+                    app.clone(),
+                    id.trim_start_matches(TRAY_ACTION_PREFIX).to_string(),
+                );
             }
             _ => {}
         })
@@ -272,6 +271,20 @@ fn setup_tray<R: Runtime>(app: &tauri::App<R>) -> tauri::Result<()> {
             }
         })
         .build(app)?;
+
+    Ok(())
+}
+
+fn setup_settings_window<R: Runtime>(app: &tauri::App<R>) -> tauri::Result<()> {
+    if let Some(window) = app.get_webview_window("settings") {
+        let window_handle = window.clone();
+        window.on_window_event(move |event| {
+            if let WindowEvent::CloseRequested { api, .. } = event {
+                api.prevent_close();
+                let _ = window_handle.hide();
+            }
+        });
+    }
 
     Ok(())
 }
