@@ -152,9 +152,66 @@ mod macos {
             fn AXIsProcessTrustedWithOptions(options: *const std::ffi::c_void) -> bool;
         }
 
+        #[link(name = "CoreFoundation", kind = "framework")]
+        unsafe extern "C" {
+            fn kCFBooleanTrue() -> *const std::ffi::c_void;
+            fn CFDictionaryCreate(
+                allocator: *const std::ffi::c_void,
+                keys: *const *const std::ffi::c_void,
+                values: *const *const std::ffi::c_void,
+                numValues: std::os::raw::c_long,
+                keyCallBacks: *const std::ffi::c_void,
+                valueCallBacks: *const std::ffi::c_void,
+            ) -> *const std::ffi::c_void;
+            fn kCFTypeDictionaryKeyCallBacks() -> *const std::ffi::c_void;
+            fn kCFTypeDictionaryValueCallBacks() -> *const std::ffi::c_void;
+            fn CFRelease(cf: *const std::ffi::c_void);
+        }
+
+        // AXTrustedCheckOptionPrompt as a CFString
+        let option_name = "AXTrustedCheckOptionPrompt\0";
+        let option_name_ptr = option_name.as_ptr() as *const std::os::raw::c_char;
+
+        // Create CFString for the key - using CFStringCreateWithCString
+        #[link(name = "CoreFoundation", kind = "framework")]
+        unsafe extern "C" {
+            fn CFStringCreateWithCString(
+                alloc: *const std::ffi::c_void,
+                cStr: *const std::os::raw::c_char,
+                encoding: u32,
+            ) -> *const std::ffi::c_void;
+        }
+
+        const K_CF_STRING_ENCODING_UTF8: u32 = 0x08000100;
+
         unsafe {
-            // According to Apple's docs, passing NULL prompts the user if not trusted
-            AXIsProcessTrustedWithOptions(std::ptr::null())
+            let key = CFStringCreateWithCString(
+                std::ptr::null(),
+                option_name_ptr,
+                K_CF_STRING_ENCODING_UTF8,
+            );
+
+            let value = kCFBooleanTrue();
+
+            let keys = [key];
+            let values = [value];
+
+            let dict = CFDictionaryCreate(
+                std::ptr::null(),
+                keys.as_ptr(),
+                values.as_ptr(),
+                1,
+                kCFTypeDictionaryKeyCallBacks(),
+                kCFTypeDictionaryValueCallBacks(),
+            );
+
+            let result = AXIsProcessTrustedWithOptions(dict);
+
+            // Clean up
+            CFRelease(dict);
+            CFRelease(key);
+
+            result
         }
     }
 
