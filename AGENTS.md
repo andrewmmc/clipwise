@@ -27,9 +27,27 @@ npm run format        # Prettier --write
 npm run typecheck     # tsc --noEmit
 npm test              # Vitest run
 npm run build         # tsc + vite build (frontend only)
-npm run tauri dev     # Full Tauri dev
-npm run tauri build   # Production build
+npm run tauri:dev     # Full Tauri dev
+npm run tauri:build   # Production build
+npm run tauri:build-debug  # Debug .app bundle (for testing macOS Services)
 cd src-tauri && cargo test  # Rust tests
+```
+
+## Testing macOS Services
+
+macOS Services integration requires a built .app bundle - it doesn't work in dev mode:
+
+```bash
+# Build debug .app (faster than release)
+npm run tauri:build-debug
+
+# The .app will be at:
+# src-tauri/target/debug/bundle/macos/LLM Actions.app
+
+# To test:
+# 1. Open the .app directly
+# 2. Or copy to /Applications/ and launch from there
+# 3. Select text in any app, right-click > Services > LLM Actions
 ```
 
 ## Rules

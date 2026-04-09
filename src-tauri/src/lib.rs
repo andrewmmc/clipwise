@@ -6,6 +6,9 @@ mod providers;
 pub mod service;
 
 use commands::{config_cmd::*, llm_cmd::*, service_cmd::*, validate_cmd::*};
+
+// Export the accessibility check functions for use in main
+pub use service::is_accessibility_trusted;
 use config::{load_config, ConfigState};
 use service::ServiceState;
 use std::sync::Mutex;
@@ -46,6 +49,8 @@ pub fn run() {
             // Services / picker
             get_pending_text,
             run_and_paste,
+            check_accessibility,
+            request_accessibility,
         ])
         .setup(move |app| {
             setup_tray(app)?;

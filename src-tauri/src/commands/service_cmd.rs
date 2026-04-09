@@ -10,6 +10,27 @@ pub fn get_pending_text(service_state: State<'_, ServiceState>) -> Option<String
     service_state.take_pending_text()
 }
 
+/// Check if the app has Accessibility permission.
+#[tauri::command]
+pub fn check_accessibility() -> bool {
+    #[cfg(target_os = "macos")]
+    return crate::service::is_accessibility_trusted();
+
+    #[cfg(not(target_os = "macos"))]
+    return true;
+}
+
+/// Prompt the user to grant Accessibility permission.
+/// Returns true if already trusted, false otherwise (dialog shown).
+#[tauri::command]
+pub fn request_accessibility() -> bool {
+    #[cfg(target_os = "macos")]
+    return crate::service::request_accessibility_permission();
+
+    #[cfg(not(target_os = "macos"))]
+    return true;
+}
+
 /// Runs `action_id` on `text`, then pastes the result back into the
 /// originating app using a CGEvent Cmd+V simulation.
 #[tauri::command]
