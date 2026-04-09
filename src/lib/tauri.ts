@@ -27,11 +27,4 @@ export const tauriCommands = {
   // LLM
   testAction: (actionId: string, sampleText: string): Promise<string> =>
     invoke("test_action", { actionId, sampleText }),
-
-  // Services / picker
-  getPendingText: (): Promise<string | null> => invoke("get_pending_text"),
-  runAndPaste: (actionId: string, text: string): Promise<void> =>
-    invoke("run_and_paste", { actionId, text }),
-  checkAccessibility: (): Promise<boolean> => invoke("check_accessibility"),
-  requestAccessibility: (): Promise<boolean> => invoke("request_accessibility"),
 };

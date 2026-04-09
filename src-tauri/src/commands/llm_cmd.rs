@@ -4,13 +4,10 @@ use crate::models::{LlmResult, ProviderType};
 use crate::providers::{anthropic, cli, openai};
 use tauri::State;
 
-/// Runs an action on the given text. Returns the transformed text, or an error.
-/// On any error, the caller (Swift/JS) must NOT replace the original text.
-#[tauri::command]
-pub async fn run_action(
+pub(crate) async fn run_action_inner(
     action_id: String,
     selected_text: String,
-    state: State<'_, ConfigState>,
+    state: &ConfigState,
 ) -> Result<String, AppError> {
     let (action, provider, max_tokens) = {
         let config = state.0.lock().unwrap();
@@ -50,6 +47,17 @@ pub async fn run_action(
     Ok(result.result)
 }
 
+/// Runs an action on the given text. Returns the transformed text, or an error.
+/// On any error, the caller (Swift/JS) must NOT replace the original text.
+#[tauri::command]
+pub async fn run_action(
+    action_id: String,
+    selected_text: String,
+    state: State<'_, ConfigState>,
+) -> Result<String, AppError> {
+    run_action_inner(action_id, selected_text, &state).await
+}
+
 /// Test an action from the settings UI. Same as run_action but called from the frontend.
 #[tauri::command]
 pub async fn test_action(
@@ -57,5 +65,5 @@ pub async fn test_action(
     sample_text: String,
     state: State<'_, ConfigState>,
 ) -> Result<String, AppError> {
-    run_action(action_id, sample_text, state).await
+    run_action_inner(action_id, sample_text, &state).await
 }

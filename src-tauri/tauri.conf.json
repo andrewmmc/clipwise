@@ -18,16 +18,6 @@
         "resizable": true,
         "visible": false,
         "label": "settings"
-      },
-      {
-        "label": "picker",
-        "title": "LLM Actions",
-        "width": 320,
-        "height": 380,
-        "visible": false,
-        "decorations": true,
-        "alwaysOnTop": true,
-        "resizable": false
       }
     ],
     "security": {

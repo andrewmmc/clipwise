@@ -20,8 +20,6 @@ pub enum AppError {
     ActionNotFound(String),
     #[error("Service error: {0}")]
     Service(String),
-    #[error("Accessibility permission denied — grant access in System Settings > Privacy & Security > Accessibility")]
-    AccessibilityPermissionDenied,
 }
 
 impl serde::Serialize for AppError {

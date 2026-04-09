@@ -1,11 +1,10 @@
 import { useEffect, useState } from "react";
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import { tauriCommands } from "./lib/tauri";
 import type { AppConfig } from "./types/config";
 import ActionList from "./components/ActionList";
 import ProviderList from "./components/ProviderList";
 import SettingsPanel from "./components/Settings";
-import { Zap, Server, SlidersHorizontal, ShieldAlert } from "lucide-react";
+import { Zap, Server, SlidersHorizontal } from "lucide-react";
 
 type Tab = "actions" | "providers" | "settings";
 
@@ -13,51 +12,6 @@ export default function App() {
   const [config, setConfig] = useState<AppConfig | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>("actions");
   const [error, setError] = useState<string | null>(null);
-  const [needsA11y, setNeedsA11y] = useState<boolean>(false);
-  const [checkedA11y, setCheckedA11y] = useState(false);
-  const [readyToShow, setReadyToShow] = useState(false);
-
-  const showWindow = async () => {
-    try {
-      const win = getCurrentWindow();
-      await win.show();
-      await win.setFocus();
-    } catch (e) {
-      console.error("Failed to show window:", e);
-    }
-  };
-
-  const requestA11y = async () => {
-    try {
-      await tauriCommands.requestAccessibility();
-      // Check again after a short delay (user may need time to grant)
-      setTimeout(async () => {
-        try {
-          const hasPermission = await tauriCommands.checkAccessibility();
-          setNeedsA11y(!hasPermission);
-          if (hasPermission) {
-            await showWindow();
-          }
-        } catch (e) {
-          console.error("Accessibility check failed:", e);
-        }
-      }, 500);
-    } catch (e) {
-      console.error("Request accessibility failed:", e);
-    }
-  };
-
-  const verifyA11y = async () => {
-    try {
-      const hasPermission = await tauriCommands.checkAccessibility();
-      setNeedsA11y(!hasPermission);
-      if (hasPermission) {
-        await showWindow();
-      }
-    } catch (e) {
-      console.error("Verify accessibility failed:", e);
-    }
-  };
 
   const refresh = () => {
     tauriCommands
@@ -71,24 +25,7 @@ export default function App() {
       .getConfig()
       .then(setConfig)
       .catch((e) => setError(String(e)));
-
-    // Check accessibility permission
-    tauriCommands.checkAccessibility().then((hasPermission) => {
-      setNeedsA11y(!hasPermission);
-      setCheckedA11y(true);
-      // If already has permission or we're skipping, show window when ready
-      if (hasPermission) {
-        setReadyToShow(true);
-      }
-    });
   }, []);
-
-  // Show window when both config is loaded and we're ready
-  useEffect(() => {
-    if (config && readyToShow) {
-      showWindow();
-    }
-  }, [config, readyToShow]);
 
   if (error) {
     return (
@@ -114,53 +51,6 @@ export default function App() {
     return (
       <div className="flex h-screen items-center justify-center bg-gray-50">
         <div className="text-sm text-gray-400">Loading…</div>
-      </div>
-    );
-  }
-
-  if (needsA11y && checkedA11y) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-gray-50 p-6">
-        <div className="w-full max-w-md rounded-lg border border-amber-200 bg-amber-50 p-6 text-center shadow-sm">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-amber-100">
-            <ShieldAlert className="h-6 w-6 text-amber-600" />
-          </div>
-          <h2 className="text-lg font-semibold text-amber-800">
-            Accessibility Permission Required
-          </h2>
-          <p className="mt-2 text-sm text-amber-700">
-            LLM Actions needs Accessibility permission to paste transformed text
-            back into your apps. This is required for the Services menu
-            integration to work.
-          </p>
-          <p className="mt-3 text-xs text-amber-600">
-            You'll be prompted to grant permission. After granting, click
-            "Verify" below.
-          </p>
-          <div className="mt-5 flex gap-3">
-            <button
-              onClick={requestA11y}
-              className="flex-1 rounded bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700"
-            >
-              Grant Permission
-            </button>
-            <button
-              onClick={verifyA11y}
-              className="rounded bg-amber-200 px-4 py-2 text-sm font-medium text-amber-800 hover:bg-amber-300"
-            >
-              Verify
-            </button>
-          </div>
-          <button
-            onClick={() => {
-              setNeedsA11y(false);
-              showWindow();
-            }}
-            className="mt-3 text-xs text-amber-600 underline hover:text-amber-800"
-          >
-            Skip (features will be limited)
-          </button>
-        </div>
       </div>
     );
   }

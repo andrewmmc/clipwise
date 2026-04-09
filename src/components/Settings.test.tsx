@@ -111,7 +111,9 @@ describe("SettingsPanel", () => {
   it("renders the About section", () => {
     render(<SettingsPanel config={mockConfig} onRefresh={onRefresh} />);
     expect(screen.getByText("About")).toBeInTheDocument();
-    expect(screen.getByText(/LLM Actions/)).toBeInTheDocument();
+    expect(
+      screen.getByText("LLM Actions", { selector: "strong" }),
+    ).toBeInTheDocument();
   });
 
   it("saves updated notification setting after toggling", async () => {

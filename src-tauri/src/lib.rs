@@ -5,31 +5,32 @@ mod models;
 mod providers;
 pub mod service;
 
-use commands::{config_cmd::*, llm_cmd::*, service_cmd::*, validate_cmd::*};
-
-// Export the accessibility check functions for use in main
-pub use service::is_accessibility_trusted;
+use commands::{config_cmd::*, llm_cmd::*, validate_cmd::*};
 use config::{load_config, ConfigState};
-use service::ServiceState;
+use models::AppConfig;
+use std::sync::mpsc;
 use std::sync::Mutex;
 use tauri::{
-    menu::{Menu, MenuItem},
+    menu::{Menu, MenuItem, Submenu},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    Manager, Runtime,
+    AppHandle, Manager, Runtime,
 };
+use tauri_plugin_notification::NotificationExt;
+
+const TRAY_ID: &str = "main";
+const TRAY_ACTION_PREFIX: &str = "tray_action:";
+const NOTIFICATION_PREVIEW_LIMIT: usize = 120;
 
 // ── App bootstrap ─────────────────────────────────────────────────────────────
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let config = load_config().unwrap_or_default();
-    let service_state = ServiceState::new();
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
         .manage(ConfigState(Mutex::new(config)))
-        .manage(service_state.clone())
         .invoke_handler(tauri::generate_handler![
             // Config commands
             get_config,
@@ -46,30 +47,10 @@ pub fn run() {
             test_action,
             // Validation
             validate_llm_response,
-            // Services / picker
-            get_pending_text,
-            run_and_paste,
-            check_accessibility,
-            request_accessibility,
         ])
         .setup(move |app| {
             setup_tray(app)?;
-
-            #[cfg(target_os = "macos")]
-            {
-                // Hide the Dock icon (menu bar app).
-                app.set_activation_policy(tauri::ActivationPolicy::Accessory);
-
-                // Wire up the Services provider.
-                let handle = app.handle().clone();
-                service::init(service_state.clone(), move || {
-                    if let Some(win) = handle.get_webview_window("picker") {
-                        let _ = win.show();
-                        let _ = win.set_focus();
-                    }
-                });
-                service::register_service_provider();
-            }
+            app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
             Ok(())
         })
@@ -77,15 +58,187 @@ pub fn run() {
         .expect("error while running tauri application");
 }
 
-fn setup_tray<R: Runtime>(app: &tauri::App<R>) -> tauri::Result<()> {
+pub(crate) fn refresh_tray_menu<R: Runtime>(
+    app: &AppHandle<R>,
+    config: &AppConfig,
+) -> tauri::Result<()> {
+    if let Some(tray) = app.tray_by_id(TRAY_ID) {
+        tray.set_menu(Some(build_tray_menu(app, config)?))?;
+    }
+    Ok(())
+}
+
+fn build_tray_menu<R: Runtime, M: Manager<R>>(
+    app: &M,
+    config: &AppConfig,
+) -> tauri::Result<Menu<R>> {
+    let action_items: Vec<MenuItem<R>> = if config.actions.is_empty() {
+        vec![MenuItem::with_id(
+            app,
+            "tray_no_actions",
+            "No actions configured",
+            false,
+            None::<&str>,
+        )?]
+    } else {
+        config
+            .actions
+            .iter()
+            .map(|action| {
+                MenuItem::with_id(
+                    app,
+                    format!("{TRAY_ACTION_PREFIX}{}", action.id),
+                    &action.name,
+                    true,
+                    None::<&str>,
+                )
+            })
+            .collect::<tauri::Result<Vec<_>>>()?
+    };
+    let action_refs: Vec<&dyn tauri::menu::IsMenuItem<R>> = action_items
+        .iter()
+        .map(|item| item as &dyn tauri::menu::IsMenuItem<R>)
+        .collect();
+    let actions_submenu = Submenu::with_id_and_items(
+        app,
+        "tray_actions",
+        "Transform Clipboard",
+        true,
+        &action_refs,
+    )?;
+
     let open_settings =
         MenuItem::with_id(app, "open_settings", "Open Settings...", true, None::<&str>)?;
     let separator = tauri::menu::PredefinedMenuItem::separator(app)?;
     let quit = MenuItem::with_id(app, "quit", "Quit LLM Actions", true, None::<&str>)?;
+    let menu = Menu::with_items(app, &[&actions_submenu, &separator, &open_settings, &quit])?;
+    Ok(menu)
+}
 
-    let menu = Menu::with_items(app, &[&open_settings, &separator, &quit])?;
+fn notification_preview(text: &str) -> String {
+    let single_line = text.split_whitespace().collect::<Vec<_>>().join(" ");
+    if single_line.chars().count() <= NOTIFICATION_PREVIEW_LIMIT {
+        return single_line;
+    }
 
-    let _tray = TrayIconBuilder::new()
+    single_line
+        .chars()
+        .take(NOTIFICATION_PREVIEW_LIMIT)
+        .collect::<String>()
+        + "..."
+}
+
+fn read_clipboard_text<R: Runtime>(app: &AppHandle<R>) -> Result<Option<String>, String> {
+    let (tx, rx) = mpsc::channel();
+    app.run_on_main_thread(move || {
+        let _ = tx.send(crate::service::read_clipboard_text());
+    })
+    .map_err(|e| e.to_string())?;
+    rx.recv().map_err(|e| e.to_string())
+}
+
+fn write_clipboard_text<R: Runtime>(app: &AppHandle<R>, text: String) -> Result<(), String> {
+    let (tx, rx) = mpsc::channel();
+    app.run_on_main_thread(move || {
+        crate::service::write_clipboard_text(&text);
+        let _ = tx.send(());
+    })
+    .map_err(|e| e.to_string())?;
+    rx.recv().map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+fn run_tray_action<R: Runtime>(app: AppHandle<R>, action_id: String) {
+    tauri::async_runtime::spawn(async move {
+        let clipboard_text = match read_clipboard_text(&app) {
+            Ok(Some(text)) if !text.trim().is_empty() => text,
+            Ok(_) => {
+                let _ = app
+                    .notification()
+                    .builder()
+                    .title("LLM Actions")
+                    .body("Clipboard does not contain any text to transform.")
+                    .show();
+                return;
+            }
+            Err(err) => {
+                let _ = app
+                    .notification()
+                    .builder()
+                    .title("LLM Actions")
+                    .body(format!("Could not read the clipboard: {err}"))
+                    .show();
+                return;
+            }
+        };
+
+        let (action_name, show_notification_on_complete) = {
+            let config_state = app.state::<ConfigState>();
+            let config = config_state.0.lock().unwrap();
+            let action = match config.actions.iter().find(|a| a.id == action_id) {
+                Some(action) => action.clone(),
+                None => {
+                    let _ = app
+                        .notification()
+                        .builder()
+                        .title("LLM Actions")
+                        .body("That action could not be found.")
+                        .show();
+                    return;
+                }
+            };
+            (
+                action.name,
+                config.settings.show_notification_on_complete,
+            )
+        };
+
+        let result = {
+            let config_state = app.state::<ConfigState>();
+            run_action_inner(action_id, clipboard_text, &config_state).await
+        };
+
+        match result {
+            Ok(text) => {
+                if let Err(err) = write_clipboard_text(&app, text.clone()) {
+                    let _ = app
+                        .notification()
+                        .builder()
+                        .title("LLM Actions")
+                        .body(format!("Could not write the clipboard: {err}"))
+                        .show();
+                    return;
+                }
+
+                if show_notification_on_complete {
+                    let preview = notification_preview(&text);
+                    let _ = app
+                        .notification()
+                        .builder()
+                        .title("LLM Actions")
+                        .body(format!(
+                            "\"{action_name}\" finished. Copied to clipboard: {preview}"
+                        ))
+                        .show();
+                }
+            }
+            Err(err) => {
+                let _ = app
+                    .notification()
+                    .builder()
+                    .title("LLM Actions")
+                    .body(err.to_string())
+                    .show();
+            }
+        }
+    });
+}
+
+fn setup_tray<R: Runtime>(app: &tauri::App<R>) -> tauri::Result<()> {
+    let config = app.state::<ConfigState>().0.lock().unwrap().clone();
+    let menu = build_tray_menu(app, &config)?;
+
+    let _tray = TrayIconBuilder::with_id(TRAY_ID)
         .icon(app.default_window_icon().unwrap().clone())
         .menu(&menu)
         .show_menu_on_left_click(true)
@@ -98,6 +251,9 @@ fn setup_tray<R: Runtime>(app: &tauri::App<R>) -> tauri::Result<()> {
             }
             "quit" => {
                 app.exit(0);
+            }
+            id if id.starts_with(TRAY_ACTION_PREFIX) => {
+                run_tray_action(app.clone(), id.trim_start_matches(TRAY_ACTION_PREFIX).to_string());
             }
             _ => {}
         })

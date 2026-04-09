@@ -82,7 +82,7 @@ export default function ActionForm({
             className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-400"
           />
           <p className="mt-1 text-xs text-gray-400">
-            Shown in the right-click Services menu.
+            Shown in the LLM Actions menu bar popup.
           </p>
         </div>
 

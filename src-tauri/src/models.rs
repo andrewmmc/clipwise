@@ -37,13 +37,13 @@ pub enum ProviderType {
     Cli,
 }
 
-/// A user-defined action that appears in the right-click Services menu.
+/// A user-defined action that appears in the menu bar popup.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Action {
     #[serde(default)]
     pub id: String,
-    /// Display name shown in the Services menu
+    /// Display name shown in the menu bar popup
     pub name: String,
     /// ID of the provider to use
     pub provider_id: String,

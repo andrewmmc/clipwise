@@ -1,7 +1,7 @@
 use crate::config::{save_config, ConfigState};
 use crate::error::AppError;
 use crate::models::{Action, AppConfig, AppSettings, Provider};
-use tauri::State;
+use tauri::{AppHandle, State};
 use uuid::Uuid;
 
 // ── Pure business-logic helpers (pub(crate) so tests can call them) ──────────
@@ -66,61 +66,101 @@ pub fn get_config(state: State<ConfigState>) -> Result<AppConfig, AppError> {
 }
 
 #[tauri::command]
-pub fn save_settings(settings: AppSettings, state: State<ConfigState>) -> Result<(), AppError> {
+pub fn save_settings(
+    settings: AppSettings,
+    state: State<ConfigState>,
+    app: AppHandle,
+) -> Result<(), AppError> {
     let mut config = state.0.lock().unwrap();
     config.settings = settings;
-    save_config(&config)
+    save_config(&config)?;
+    crate::refresh_tray_menu(&app, &config).map_err(|e| AppError::Service(e.to_string()))
 }
 
 #[tauri::command]
-pub fn add_provider(provider: Provider, state: State<ConfigState>) -> Result<Provider, AppError> {
+pub fn add_provider(
+    provider: Provider,
+    state: State<ConfigState>,
+    app: AppHandle,
+) -> Result<Provider, AppError> {
     let mut config = state.0.lock().unwrap();
     let result = insert_provider(&mut config, provider);
     save_config(&config)?;
+    crate::refresh_tray_menu(&app, &config).map_err(|e| AppError::Service(e.to_string()))?;
     Ok(result)
 }
 
 #[tauri::command]
-pub fn update_provider(provider: Provider, state: State<ConfigState>) -> Result<(), AppError> {
+pub fn update_provider(
+    provider: Provider,
+    state: State<ConfigState>,
+    app: AppHandle,
+) -> Result<(), AppError> {
     let mut config = state.0.lock().unwrap();
     replace_provider(&mut config, provider)?;
-    save_config(&config)
+    save_config(&config)?;
+    crate::refresh_tray_menu(&app, &config).map_err(|e| AppError::Service(e.to_string()))
 }
 
 #[tauri::command]
-pub fn delete_provider(id: String, state: State<ConfigState>) -> Result<(), AppError> {
+pub fn delete_provider(
+    id: String,
+    state: State<ConfigState>,
+    app: AppHandle,
+) -> Result<(), AppError> {
     let mut config = state.0.lock().unwrap();
     remove_provider(&mut config, &id);
-    save_config(&config)
+    save_config(&config)?;
+    crate::refresh_tray_menu(&app, &config).map_err(|e| AppError::Service(e.to_string()))
 }
 
 #[tauri::command]
-pub fn add_action(action: Action, state: State<ConfigState>) -> Result<Action, AppError> {
+pub fn add_action(
+    action: Action,
+    state: State<ConfigState>,
+    app: AppHandle,
+) -> Result<Action, AppError> {
     let mut config = state.0.lock().unwrap();
     let result = insert_action(&mut config, action);
     save_config(&config)?;
+    crate::refresh_tray_menu(&app, &config).map_err(|e| AppError::Service(e.to_string()))?;
     Ok(result)
 }
 
 #[tauri::command]
-pub fn update_action(action: Action, state: State<ConfigState>) -> Result<(), AppError> {
+pub fn update_action(
+    action: Action,
+    state: State<ConfigState>,
+    app: AppHandle,
+) -> Result<(), AppError> {
     let mut config = state.0.lock().unwrap();
     replace_action(&mut config, action)?;
-    save_config(&config)
+    save_config(&config)?;
+    crate::refresh_tray_menu(&app, &config).map_err(|e| AppError::Service(e.to_string()))
 }
 
 #[tauri::command]
-pub fn delete_action(id: String, state: State<ConfigState>) -> Result<(), AppError> {
+pub fn delete_action(
+    id: String,
+    state: State<ConfigState>,
+    app: AppHandle,
+) -> Result<(), AppError> {
     let mut config = state.0.lock().unwrap();
     remove_action(&mut config, &id);
-    save_config(&config)
+    save_config(&config)?;
+    crate::refresh_tray_menu(&app, &config).map_err(|e| AppError::Service(e.to_string()))
 }
 
 #[tauri::command]
-pub fn reorder_actions(ids: Vec<String>, state: State<ConfigState>) -> Result<(), AppError> {
+pub fn reorder_actions(
+    ids: Vec<String>,
+    state: State<ConfigState>,
+    app: AppHandle,
+) -> Result<(), AppError> {
     let mut config = state.0.lock().unwrap();
     apply_action_reorder(&mut config, &ids);
-    save_config(&config)
+    save_config(&config)?;
+    crate::refresh_tray_menu(&app, &config).map_err(|e| AppError::Service(e.to_string()))
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────

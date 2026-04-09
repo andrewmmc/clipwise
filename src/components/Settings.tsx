@@ -139,9 +139,9 @@ export default function SettingsPanel({ config, onRefresh }: Props) {
           </p>
           <p>macOS text transformation via LLM APIs &amp; CLI tools.</p>
           <p className="mt-2">
-            After configuring actions, they appear in the{" "}
-            <strong>Services submenu</strong> of the right-click context menu in
-            any app.
+            After configuring actions, copy text, open the menu bar icon, and
+            choose an item from <strong>Transform Clipboard</strong>. The
+            transformed result is copied back to the clipboard.
           </p>
           <p className="mt-1 text-gray-400">
             Config: ~/Library/Application Support/llm-actions/config.json

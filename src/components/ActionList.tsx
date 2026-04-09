@@ -75,7 +75,8 @@ export default function ActionList({ config, onRefresh }: Props) {
         <div>
           <h2 className="text-base font-semibold text-gray-800">Actions</h2>
           <p className="text-xs text-gray-500">
-            Each action appears in the macOS right-click Services menu.
+            Your actions appear in the LLM Actions menu bar popup and transform
+            the current clipboard text.
           </p>
         </div>
         <button

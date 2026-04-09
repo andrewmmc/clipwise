@@ -27,6 +27,11 @@ anyhow = "1"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"
+objc2-core-foundation = { version = "0.3", features = [
+  "CFDictionary",
+  "CFNumber",
+  "CFString",
+] }
 objc2-app-kit = { version = "0.3", features = [
   "NSApplication",
   "NSPasteboard",

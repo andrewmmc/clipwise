@@ -71,7 +71,7 @@ describe("ActionList", () => {
     expect(screen.getByText("Actions")).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Each action appears in the macOS right-click Services menu.",
+        /your actions appear in the llm actions menu bar popup/i,
       ),
     ).toBeInTheDocument();
   });
