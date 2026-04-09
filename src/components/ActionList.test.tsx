@@ -70,7 +70,9 @@ describe("ActionList", () => {
     render(<ActionList config={mockConfig} onRefresh={onRefresh} />);
     expect(screen.getByText("Actions")).toBeInTheDocument();
     expect(
-      screen.getByText("Each action appears in the macOS right-click Services menu.")
+      screen.getByText(
+        "Each action appears in the macOS right-click Services menu.",
+      ),
     ).toBeInTheDocument();
   });
 
@@ -89,12 +91,15 @@ describe("ActionList", () => {
     render(<ActionList config={mockConfig} onRefresh={onRefresh} />);
 
     await user.click(screen.getByRole("button", { name: /add action/i }));
-    await user.type(screen.getByPlaceholderText("e.g. Refine wording"), "New Action");
+    await user.type(
+      screen.getByPlaceholderText("e.g. Refine wording"),
+      "New Action",
+    );
     await user.type(screen.getByPlaceholderText(/refine this text/i), "Do it");
     await user.click(screen.getByRole("button", { name: /save action/i }));
 
     await waitFor(() =>
-      expect(mockInvoke).toHaveBeenCalledWith("add_action", expect.anything())
+      expect(mockInvoke).toHaveBeenCalledWith("add_action", expect.anything()),
     );
     await waitFor(() => expect(onRefresh).toHaveBeenCalled());
   });
@@ -108,7 +113,7 @@ describe("ActionList", () => {
 
     await user.click(screen.getByTitle("Delete"));
     await waitFor(() =>
-      expect(mockInvoke).toHaveBeenCalledWith("delete_action", { id: "a1" })
+      expect(mockInvoke).toHaveBeenCalledWith("delete_action", { id: "a1" }),
     );
     await waitFor(() => expect(onRefresh).toHaveBeenCalled());
   });
@@ -144,10 +149,12 @@ describe("ActionList", () => {
     await waitFor(() =>
       expect(mockInvoke).toHaveBeenCalledWith(
         "test_action",
-        expect.objectContaining({ actionId: "a1" })
-      )
+        expect.objectContaining({ actionId: "a1" }),
+      ),
     );
-    await waitFor(() => expect(screen.getByText("refined output")).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText("refined output")).toBeInTheDocument(),
+    );
   });
 
   it("Test button uses custom input when provided", async () => {
@@ -155,14 +162,17 @@ describe("ActionList", () => {
     const user = userEvent.setup();
     render(<ActionList config={mockConfig} onRefresh={onRefresh} />);
 
-    await user.type(screen.getByPlaceholderText("Test input text…"), "custom text");
+    await user.type(
+      screen.getByPlaceholderText("Test input text…"),
+      "custom text",
+    );
     await user.click(screen.getByRole("button", { name: /^test$/i }));
 
     await waitFor(() =>
       expect(mockInvoke).toHaveBeenCalledWith(
         "test_action",
-        expect.objectContaining({ sampleText: "custom text" })
-      )
+        expect.objectContaining({ sampleText: "custom text" }),
+      ),
     );
   });
 
@@ -173,7 +183,7 @@ describe("ActionList", () => {
 
     await user.click(screen.getByRole("button", { name: /^test$/i }));
     await waitFor(() =>
-      expect(screen.getByText(/Error: Error: API error/)).toBeInTheDocument()
+      expect(screen.getByText(/Error: Error: API error/)).toBeInTheDocument(),
     );
   });
 
@@ -184,7 +194,7 @@ describe("ActionList", () => {
 
     await user.click(screen.getByRole("button", { name: /^test$/i }));
     await waitFor(() =>
-      expect(screen.getByRole("button", { name: /testing/i })).toBeDisabled()
+      expect(screen.getByRole("button", { name: /testing/i })).toBeDisabled(),
     );
   });
 });

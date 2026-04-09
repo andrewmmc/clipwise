@@ -25,7 +25,13 @@ describe("tauriCommands", () => {
   });
 
   it("addProvider calls invoke with 'add_provider'", async () => {
-    const provider = { name: "Test", type: "anthropic" as const, apiKey: "k", headers: {}, args: [] };
+    const provider = {
+      name: "Test",
+      type: "anthropic" as const,
+      apiKey: "k",
+      headers: {},
+      args: [],
+    };
     mockInvoke.mockResolvedValue({ ...provider, id: "new-id" });
     await tauriCommands.addProvider(provider);
     expect(mockInvoke).toHaveBeenCalledWith("add_provider", { provider });
@@ -33,7 +39,14 @@ describe("tauriCommands", () => {
 
   it("updateProvider calls invoke with 'update_provider'", async () => {
     mockInvoke.mockResolvedValue(undefined);
-    const provider = { id: "p1", name: "T", type: "anthropic" as const, apiKey: "k", headers: {}, args: [] };
+    const provider = {
+      id: "p1",
+      name: "T",
+      type: "anthropic" as const,
+      apiKey: "k",
+      headers: {},
+      args: [],
+    };
     await tauriCommands.updateProvider(provider);
     expect(mockInvoke).toHaveBeenCalledWith("update_provider", { provider });
   });
@@ -53,7 +66,12 @@ describe("tauriCommands", () => {
 
   it("updateAction calls invoke with 'update_action'", async () => {
     mockInvoke.mockResolvedValue(undefined);
-    const action = { id: "a1", name: "Refine", providerId: "p1", userPrompt: "Fix it" };
+    const action = {
+      id: "a1",
+      name: "Refine",
+      providerId: "p1",
+      userPrompt: "Fix it",
+    };
     await tauriCommands.updateAction(action);
     expect(mockInvoke).toHaveBeenCalledWith("update_action", { action });
   });
@@ -67,7 +85,9 @@ describe("tauriCommands", () => {
   it("reorderActions calls invoke with 'reorder_actions' and ids array", async () => {
     mockInvoke.mockResolvedValue(undefined);
     await tauriCommands.reorderActions(["a2", "a1"]);
-    expect(mockInvoke).toHaveBeenCalledWith("reorder_actions", { ids: ["a2", "a1"] });
+    expect(mockInvoke).toHaveBeenCalledWith("reorder_actions", {
+      ids: ["a2", "a1"],
+    });
   });
 
   it("testAction calls invoke with 'test_action'", async () => {

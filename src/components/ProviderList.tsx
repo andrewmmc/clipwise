@@ -23,7 +23,7 @@ export default function ProviderList({ config, onRefresh }: Props) {
     const usedBy = config.actions.filter((a) => a.providerId === id);
     if (usedBy.length > 0) {
       alert(
-        `Cannot delete: ${usedBy.length} action(s) use this provider. Remove them first.`
+        `Cannot delete: ${usedBy.length} action(s) use this provider. Remove them first.`,
       );
       return;
     }

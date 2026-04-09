@@ -79,7 +79,7 @@ describe("ProviderList", () => {
     render(<ProviderList config={mockConfig} onRefresh={onRefresh} />);
     expect(screen.getByText("Providers")).toBeInTheDocument();
     expect(
-      screen.getByText("Configure LLM API or CLI providers.")
+      screen.getByText("Configure LLM API or CLI providers."),
     ).toBeInTheDocument();
   });
 
@@ -98,12 +98,18 @@ describe("ProviderList", () => {
     render(<ProviderList config={mockConfig} onRefresh={onRefresh} />);
 
     await user.click(screen.getByRole("button", { name: /add provider/i }));
-    await user.type(screen.getByPlaceholderText("e.g. Anthropic Claude"), "New Provider");
+    await user.type(
+      screen.getByPlaceholderText("e.g. Anthropic Claude"),
+      "New Provider",
+    );
     await user.type(screen.getByPlaceholderText("sk-..."), "sk-test");
     await user.click(screen.getByRole("button", { name: /save provider/i }));
 
     await waitFor(() =>
-      expect(mockInvoke).toHaveBeenCalledWith("add_provider", expect.anything())
+      expect(mockInvoke).toHaveBeenCalledWith(
+        "add_provider",
+        expect.anything(),
+      ),
     );
     await waitFor(() => expect(onRefresh).toHaveBeenCalled());
   });
@@ -116,7 +122,7 @@ describe("ProviderList", () => {
     render(<ProviderList config={mockConfig} onRefresh={onRefresh} />);
     await user.click(screen.getByTitle("Delete"));
     expect(window.alert).toHaveBeenCalledWith(
-      expect.stringContaining("action(s) use this provider")
+      expect.stringContaining("action(s) use this provider"),
     );
     expect(mockInvoke).not.toHaveBeenCalled();
   });
@@ -129,7 +135,7 @@ describe("ProviderList", () => {
 
     await user.click(screen.getByTitle("Delete"));
     await waitFor(() =>
-      expect(mockInvoke).toHaveBeenCalledWith("delete_provider", { id: "p1" })
+      expect(mockInvoke).toHaveBeenCalledWith("delete_provider", { id: "p1" }),
     );
     await waitFor(() => expect(onRefresh).toHaveBeenCalled());
   });
@@ -163,7 +169,10 @@ describe("ProviderList", () => {
     await user.click(screen.getByRole("button", { name: /save provider/i }));
 
     await waitFor(() =>
-      expect(mockInvoke).toHaveBeenCalledWith("update_provider", expect.anything())
+      expect(mockInvoke).toHaveBeenCalledWith(
+        "update_provider",
+        expect.anything(),
+      ),
     );
     await waitFor(() => expect(onRefresh).toHaveBeenCalled());
   });

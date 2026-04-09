@@ -1,8 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor, cleanup } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { invoke } from "@tauri-apps/api/core";
-
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 
 const { default: ProviderForm } = await import("./ProviderForm");
@@ -30,18 +28,38 @@ describe("ProviderForm", () => {
   });
 
   it("shows 'Edit Provider' heading in edit mode", () => {
-    render(<ProviderForm initial={mockProvider} onSave={onSave} onCancel={onCancel} />);
+    render(
+      <ProviderForm
+        initial={mockProvider}
+        onSave={onSave}
+        onCancel={onCancel}
+      />,
+    );
     expect(screen.getByText("Edit Provider")).toBeInTheDocument();
   });
 
   it("pre-fills name field from initial prop", () => {
-    render(<ProviderForm initial={mockProvider} onSave={onSave} onCancel={onCancel} />);
+    render(
+      <ProviderForm
+        initial={mockProvider}
+        onSave={onSave}
+        onCancel={onCancel}
+      />,
+    );
     expect(screen.getByDisplayValue("Anthropic Claude")).toBeInTheDocument();
   });
 
   it("pre-fills default model from initial prop", () => {
-    render(<ProviderForm initial={mockProvider} onSave={onSave} onCancel={onCancel} />);
-    expect(screen.getByDisplayValue("claude-sonnet-4-20250514")).toBeInTheDocument();
+    render(
+      <ProviderForm
+        initial={mockProvider}
+        onSave={onSave}
+        onCancel={onCancel}
+      />,
+    );
+    expect(
+      screen.getByDisplayValue("claude-sonnet-4-20250514"),
+    ).toBeInTheDocument();
   });
 
   it("shows API fields by default (anthropic type)", () => {
@@ -50,7 +68,13 @@ describe("ProviderForm", () => {
   });
 
   it("shows CLI fields when initial type is cli", () => {
-    render(<ProviderForm initial={mockCliProvider} onSave={onSave} onCancel={onCancel} />);
+    render(
+      <ProviderForm
+        initial={mockCliProvider}
+        onSave={onSave}
+        onCancel={onCancel}
+      />,
+    );
     expect(screen.getByDisplayValue("claude")).toBeInTheDocument();
     expect(screen.queryByPlaceholderText("sk-...")).not.toBeInTheDocument();
   });
@@ -79,10 +103,12 @@ describe("ProviderForm", () => {
     render(<ProviderForm onSave={onSave} onCancel={onCancel} />);
     await user.type(
       screen.getByPlaceholderText("e.g. Anthropic Claude"),
-      "My Provider"
+      "My Provider",
     );
     await user.click(screen.getByRole("button", { name: /save provider/i }));
-    expect(screen.getByText("API key is required for API providers.")).toBeInTheDocument();
+    expect(
+      screen.getByText("API key is required for API providers."),
+    ).toBeInTheDocument();
     expect(onSave).not.toHaveBeenCalled();
   });
 
@@ -91,12 +117,14 @@ describe("ProviderForm", () => {
     render(<ProviderForm onSave={onSave} onCancel={onCancel} />);
     await user.type(
       screen.getByPlaceholderText("e.g. Anthropic Claude"),
-      "My CLI"
+      "My CLI",
     );
     const typeSelect = screen.getByDisplayValue("Anthropic");
     await user.selectOptions(typeSelect, "cli");
     await user.click(screen.getByRole("button", { name: /save provider/i }));
-    expect(screen.getByText("Command is required for CLI providers.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Command is required for CLI providers."),
+    ).toBeInTheDocument();
     expect(onSave).not.toHaveBeenCalled();
   });
 
@@ -107,7 +135,10 @@ describe("ProviderForm", () => {
     const user = userEvent.setup();
     render(<ProviderForm onSave={onSave} onCancel={onCancel} />);
 
-    await user.type(screen.getByPlaceholderText("e.g. Anthropic Claude"), "Test Provider");
+    await user.type(
+      screen.getByPlaceholderText("e.g. Anthropic Claude"),
+      "Test Provider",
+    );
     await user.type(screen.getByPlaceholderText("sk-..."), "sk-ant-key");
     await user.click(screen.getByRole("button", { name: /save provider/i }));
 
@@ -117,8 +148,8 @@ describe("ProviderForm", () => {
           name: "Test Provider",
           type: "anthropic",
           apiKey: "sk-ant-key",
-        })
-      )
+        }),
+      ),
     );
   });
 
@@ -127,7 +158,10 @@ describe("ProviderForm", () => {
     const user = userEvent.setup();
     render(<ProviderForm onSave={onSave} onCancel={onCancel} />);
 
-    await user.type(screen.getByPlaceholderText("e.g. Anthropic Claude"), "My CLI");
+    await user.type(
+      screen.getByPlaceholderText("e.g. Anthropic Claude"),
+      "My CLI",
+    );
     const typeSelect = screen.getByDisplayValue("Anthropic");
     await user.selectOptions(typeSelect, "cli");
     await user.type(screen.getByPlaceholderText("e.g. claude"), "claude");
@@ -135,8 +169,12 @@ describe("ProviderForm", () => {
 
     await waitFor(() =>
       expect(onSave).toHaveBeenCalledWith(
-        expect.objectContaining({ name: "My CLI", type: "cli", command: "claude" })
-      )
+        expect.objectContaining({
+          name: "My CLI",
+          type: "cli",
+          command: "claude",
+        }),
+      ),
     );
   });
 
@@ -164,8 +202,8 @@ describe("ProviderForm", () => {
 
     await waitFor(() =>
       expect(onSave).toHaveBeenCalledWith(
-        expect.objectContaining({ headers: {} })
-      )
+        expect.objectContaining({ headers: {} }),
+      ),
     );
   });
 
@@ -173,9 +211,17 @@ describe("ProviderForm", () => {
 
   it("Add arg button adds an argument row in CLI mode", async () => {
     const user = userEvent.setup();
-    render(<ProviderForm initial={mockCliProvider} onSave={onSave} onCancel={onCancel} />);
+    render(
+      <ProviderForm
+        initial={mockCliProvider}
+        onSave={onSave}
+        onCancel={onCancel}
+      />,
+    );
     await user.click(screen.getByRole("button", { name: /add arg/i }));
-    expect(screen.getAllByPlaceholderText("e.g. --print").length).toBeGreaterThan(1);
+    expect(
+      screen.getAllByPlaceholderText("e.g. --print").length,
+    ).toBeGreaterThan(1);
   });
 
   // ── Cancel ────────────────────────────────────────────────────────────────

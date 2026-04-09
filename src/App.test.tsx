@@ -24,10 +24,18 @@ describe("App", () => {
   it("renders the main layout after config loads", async () => {
     mockInvoke.mockResolvedValue(mockConfig);
     render(<App />);
-    await waitFor(() => expect(screen.getByText("LLM Actions")).toBeInTheDocument());
-    expect(screen.getByRole("button", { name: /actions/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /providers/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /settings/i })).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByText("LLM Actions")).toBeInTheDocument(),
+    );
+    expect(
+      screen.getByRole("button", { name: /actions/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /providers/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /settings/i }),
+    ).toBeInTheDocument();
   });
 
   it("defaults to the Actions tab", async () => {
@@ -42,7 +50,7 @@ describe("App", () => {
     mockInvoke.mockRejectedValue(new Error("disk error"));
     render(<App />);
     await waitFor(() =>
-      expect(screen.getByText("Failed to load config")).toBeInTheDocument()
+      expect(screen.getByText("Failed to load config")).toBeInTheDocument(),
     );
     expect(screen.getByText(/disk error/)).toBeInTheDocument();
   });
@@ -56,7 +64,9 @@ describe("App", () => {
 
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: /retry/i }));
-    await waitFor(() => expect(screen.getByText("LLM Actions")).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText("LLM Actions")).toBeInTheDocument(),
+    );
   });
 
   it("clicking Providers tab shows provider list", async () => {
@@ -67,7 +77,9 @@ describe("App", () => {
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: /providers/i }));
     await waitFor(() =>
-      expect(screen.getByText("Configure LLM API or CLI providers.")).toBeInTheDocument()
+      expect(
+        screen.getByText("Configure LLM API or CLI providers."),
+      ).toBeInTheDocument(),
     );
   });
 
@@ -79,7 +91,9 @@ describe("App", () => {
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: /settings/i }));
     await waitFor(() =>
-      expect(screen.getByText("General application settings.")).toBeInTheDocument()
+      expect(
+        screen.getByText("General application settings."),
+      ).toBeInTheDocument(),
     );
   });
 });

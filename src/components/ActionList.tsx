@@ -24,8 +24,7 @@ export default function ActionList({ config, onRefresh }: Props) {
 
   const handleTest = async (action: Action) => {
     const input =
-      testInputs[action.id] ||
-      "The quick brown fox jumps over the lazy dog.";
+      testInputs[action.id] || "The quick brown fox jumps over the lazy dog.";
     setTesting(action.id);
     setTestResults((r) => ({ ...r, [action.id]: "" }));
     try {

@@ -9,10 +9,15 @@ interface Props {
   onCancel: () => void;
 }
 
-export default function ActionForm({ config, initial, onSave, onCancel }: Props) {
+export default function ActionForm({
+  config,
+  initial,
+  onSave,
+  onCancel,
+}: Props) {
   const [name, setName] = useState(initial?.name ?? "");
   const [providerId, setProviderId] = useState(
-    initial?.providerId ?? config.providers[0]?.id ?? ""
+    initial?.providerId ?? config.providers[0]?.id ?? "",
   );
   const [userPrompt, setUserPrompt] = useState(initial?.userPrompt ?? "");
   const [model, setModel] = useState(initial?.model ?? "");
@@ -55,7 +60,10 @@ export default function ActionForm({ config, initial, onSave, onCancel }: Props)
         </h2>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-4 rounded-lg border border-gray-200 bg-white p-5">
+      <form
+        onSubmit={handleSubmit}
+        className="space-y-4 rounded-lg border border-gray-200 bg-white p-5"
+      >
         {error && (
           <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
             {error}

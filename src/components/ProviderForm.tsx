@@ -17,7 +17,7 @@ export default function ProviderForm({ initial, onSave, onCancel }: Props) {
   const [command, setCommand] = useState(initial?.command ?? "");
   const [args, setArgs] = useState<string[]>(initial?.args ?? []);
   const [headers, setHeaders] = useState<[string, string][]>(
-    Object.entries(initial?.headers ?? {})
+    Object.entries(initial?.headers ?? {}),
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -39,9 +39,7 @@ export default function ProviderForm({ initial, onSave, onCancel }: Props) {
     setSaving(true);
     setError(null);
     try {
-      const headersObj = Object.fromEntries(
-        headers.filter(([k]) => k.trim())
-      );
+      const headersObj = Object.fromEntries(headers.filter(([k]) => k.trim()));
       await onSave({
         name: name.trim(),
         type,
@@ -185,8 +183,8 @@ export default function ProviderForm({ initial, onSave, onCancel }: Props) {
                       onChange={(e) =>
                         setHeaders((h) =>
                           h.map((item, idx) =>
-                            idx === i ? [e.target.value, item[1]] : item
-                          )
+                            idx === i ? [e.target.value, item[1]] : item,
+                          ),
                         )
                       }
                       placeholder="Header name"
@@ -198,8 +196,8 @@ export default function ProviderForm({ initial, onSave, onCancel }: Props) {
                       onChange={(e) =>
                         setHeaders((h) =>
                           h.map((item, idx) =>
-                            idx === i ? [item[0], e.target.value] : item
-                          )
+                            idx === i ? [item[0], e.target.value] : item,
+                          ),
                         )
                       }
                       placeholder="Value"
@@ -257,8 +255,8 @@ export default function ProviderForm({ initial, onSave, onCancel }: Props) {
                       onChange={(e) =>
                         setArgs((a) =>
                           a.map((item, idx) =>
-                            idx === i ? e.target.value : item
-                          )
+                            idx === i ? e.target.value : item,
+                          ),
                         )
                       }
                       placeholder="e.g. --print"

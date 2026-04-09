@@ -25,7 +25,9 @@ describe("SettingsPanel", () => {
   it("renders the settings heading", () => {
     render(<SettingsPanel config={mockConfig} onRefresh={onRefresh} />);
     expect(screen.getByText("Settings")).toBeInTheDocument();
-    expect(screen.getByText("General application settings.")).toBeInTheDocument();
+    expect(
+      screen.getByText("General application settings."),
+    ).toBeInTheDocument();
   });
 
   it("renders the notification toggle in correct initial state", () => {
@@ -65,7 +67,7 @@ describe("SettingsPanel", () => {
     await waitFor(() =>
       expect(mockInvoke).toHaveBeenCalledWith("save_settings", {
         settings: { showNotificationOnComplete: true, maxTokens: 4096 },
-      })
+      }),
     );
   });
 
@@ -82,7 +84,9 @@ describe("SettingsPanel", () => {
     const user = userEvent.setup();
     render(<SettingsPanel config={mockConfig} onRefresh={onRefresh} />);
     await user.click(screen.getByRole("button", { name: /save settings/i }));
-    await waitFor(() => expect(screen.getByText("✓ Saved")).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText("✓ Saved")).toBeInTheDocument(),
+    );
   });
 
   it("shows error message when save fails", async () => {
@@ -90,7 +94,9 @@ describe("SettingsPanel", () => {
     const user = userEvent.setup();
     render(<SettingsPanel config={mockConfig} onRefresh={onRefresh} />);
     await user.click(screen.getByRole("button", { name: /save settings/i }));
-    await waitFor(() => expect(screen.getByText(/write error/)).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText(/write error/)).toBeInTheDocument(),
+    );
   });
 
   it("save button is disabled while saving", async () => {
@@ -116,8 +122,10 @@ describe("SettingsPanel", () => {
     await user.click(screen.getByRole("button", { name: /save settings/i }));
     await waitFor(() =>
       expect(mockInvoke).toHaveBeenCalledWith("save_settings", {
-        settings: expect.objectContaining({ showNotificationOnComplete: false }),
-      })
+        settings: expect.objectContaining({
+          showNotificationOnComplete: false,
+        }),
+      }),
     );
   });
 });

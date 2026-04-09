@@ -125,12 +125,14 @@ export default function SettingsPanel({ config, onRefresh }: Props) {
       <div className="rounded-lg border border-gray-200 bg-white p-5">
         <h3 className="mb-3 text-sm font-semibold text-gray-700">About</h3>
         <div className="space-y-1 text-xs text-gray-500">
-          <p><strong>LLM Actions</strong> v0.1.0</p>
+          <p>
+            <strong>LLM Actions</strong> v0.1.0
+          </p>
           <p>macOS text transformation via LLM APIs &amp; CLI tools.</p>
           <p className="mt-2">
             After configuring actions, they appear in the{" "}
-            <strong>Services submenu</strong> of the right-click context menu
-            in any app.
+            <strong>Services submenu</strong> of the right-click context menu in
+            any app.
           </p>
           <p className="mt-1 text-gray-400">
             Config: ~/Library/Application Support/llm-actions/config.json
