@@ -16,8 +16,6 @@ describe("ActionList", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     onRefresh.mockReset();
-    vi.spyOn(window, "confirm").mockReturnValue(true);
-    vi.spyOn(window, "alert").mockImplementation(() => {});
   });
 
   afterEach(() => {
@@ -106,12 +104,13 @@ describe("ActionList", () => {
 
   // ── Delete action ─────────────────────────────────────────────────────────
 
-  it("clicking Delete and confirming calls deleteAction and onRefresh", async () => {
+  it("clicking Delete and confirming inline calls deleteAction and onRefresh", async () => {
     mockInvoke.mockResolvedValue(undefined);
     const user = userEvent.setup();
     render(<ActionList config={mockConfig} onRefresh={onRefresh} />);
 
     await user.click(screen.getByTitle("Delete"));
+    await user.click(screen.getByRole("button", { name: /^delete$/i }));
     await waitFor(() =>
       expect(mockInvoke).toHaveBeenCalledWith("delete_action", { id: "a1" }),
     );
@@ -119,11 +118,11 @@ describe("ActionList", () => {
   });
 
   it("clicking Delete but cancelling does not call deleteAction", async () => {
-    vi.spyOn(window, "confirm").mockReturnValue(false);
     const user = userEvent.setup();
     render(<ActionList config={mockConfig} onRefresh={onRefresh} />);
 
     await user.click(screen.getByTitle("Delete"));
+    await user.click(screen.getByRole("button", { name: /cancel/i }));
     expect(mockInvoke).not.toHaveBeenCalled();
     expect(onRefresh).not.toHaveBeenCalled();
   });

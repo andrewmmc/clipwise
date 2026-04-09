@@ -12,13 +12,14 @@ interface Props {
 export default function ActionList({ config, onRefresh }: Props) {
   const [editing, setEditing] = useState<Action | null>(null);
   const [creating, setCreating] = useState(false);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [testResults, setTestResults] = useState<Record<string, string>>({});
   const [testInputs, setTestInputs] = useState<Record<string, string>>({});
   const [testing, setTesting] = useState<string | null>(null);
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Delete this action?")) return;
     await tauriCommands.deleteAction(id);
+    setPendingDeleteId(null);
     onRefresh();
   };
 
@@ -117,20 +118,43 @@ export default function ActionList({ config, onRefresh }: Props) {
                   </div>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <button
-                    onClick={() => setEditing(action)}
-                    className="rounded p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
-                    title="Edit"
-                  >
-                    <Pencil size={14} />
-                  </button>
-                  <button
-                    onClick={() => handleDelete(action.id)}
-                    className="rounded p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-500"
-                    title="Delete"
-                  >
-                    <Trash2 size={14} />
-                  </button>
+                  {pendingDeleteId === action.id ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(action.id)}
+                        className="rounded bg-red-600 px-2 py-1 text-xs font-medium text-white hover:bg-red-700"
+                      >
+                        Delete
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPendingDeleteId(null)}
+                        className="rounded border border-gray-200 px-2 py-1 text-xs text-gray-500 hover:bg-gray-50 hover:text-gray-700"
+                      >
+                        Cancel
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setEditing(action)}
+                        className="rounded p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                        title="Edit"
+                      >
+                        <Pencil size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPendingDeleteId(action.id)}
+                        className="rounded p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-500"
+                        title="Delete"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
 
