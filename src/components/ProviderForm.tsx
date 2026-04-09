@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { Provider, ProviderType } from "../types/config";
-import { ArrowLeft, Save, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, RotateCcw, Save, Plus, Trash2 } from "lucide-react";
 
 interface Props {
   initial?: Provider;
@@ -106,7 +106,7 @@ export default function ProviderForm({ initial, onSave, onCancel }: Props) {
             <select
               value={type}
               onChange={(e) => setType(e.target.value as ProviderType)}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none"
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-400"
             >
               <option value="anthropic">Anthropic</option>
               <option value="openai">OpenAI-compatible</option>
@@ -290,6 +290,25 @@ export default function ProviderForm({ initial, onSave, onCancel }: Props) {
             className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50"
           >
             Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setName(initial?.name ?? "");
+              setType(initial?.type ?? "anthropic");
+              setEndpoint(initial?.endpoint ?? "");
+              setApiKey(initial?.apiKey ?? "");
+              setDefaultModel(initial?.defaultModel ?? "");
+              setCommand(initial?.command ?? "");
+              setArgs(initial?.args ?? []);
+              setHeaders(Object.entries(initial?.headers ?? {}));
+              setError(null);
+            }}
+            disabled={saving}
+            className="flex items-center gap-1.5 rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+          >
+            <RotateCcw size={14} />
+            Reset
           </button>
           <button
             type="submit"

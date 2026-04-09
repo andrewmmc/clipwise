@@ -60,7 +60,12 @@ pub async fn call_openai_with_client(
         return Err(AppError::Llm(format!("OpenAI HTTP {}: {}", status, body)));
     }
 
-    let json: serde_json::Value = resp.json().await.map_err(AppError::Http)?;
+    let body_text = resp
+        .text()
+        .await
+        .map_err(AppError::Http)?;
+    let json: serde_json::Value = serde_json::from_str(&body_text)
+        .map_err(|_| AppError::Llm(format!("Failed to parse response as JSON: {}", body_text)))?;
 
     // Extract content from choices[0].message.content
     let content = json["choices"][0]["message"]["content"]

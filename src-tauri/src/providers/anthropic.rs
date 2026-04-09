@@ -63,7 +63,12 @@ pub async fn call_anthropic_with_client(
         )));
     }
 
-    let json: serde_json::Value = resp.json().await.map_err(AppError::Http)?;
+    let body_text = resp
+        .text()
+        .await
+        .map_err(AppError::Http)?;
+    let json: serde_json::Value = serde_json::from_str(&body_text)
+        .map_err(|_| AppError::Llm(format!("Failed to parse response as JSON: {}", body_text)))?;
 
     // Extract content from content[0].text
     let content = json["content"][0]["text"]

@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Provider {
+    #[serde(default)]
     pub id: String,
     pub name: String,
     #[serde(rename = "type")]
@@ -40,6 +41,7 @@ pub enum ProviderType {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Action {
+    #[serde(default)]
     pub id: String,
     /// Display name shown in the Services menu
     pub name: String,

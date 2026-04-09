@@ -40,17 +40,18 @@ npm run tauri dev
 
 ### Available scripts
 
-| Script               | Description                      |
-| -------------------- | -------------------------------- |
-| `npm run dev`        | Start Vite dev server            |
-| `npm run build`      | TypeScript check + Vite build    |
-| `npm run tauri dev`  | Launch Tauri in development mode |
-| `npm run lint`       | Run ESLint                       |
-| `npm run lint:fix`   | Run ESLint with auto-fix         |
-| `npm run format`     | Format all files with Prettier   |
-| `npm run typecheck`  | Run `tsc --noEmit`               |
-| `npm test`           | Run tests (Vitest)               |
-| `npm run test:watch` | Run tests in watch mode          |
+| Script                | Description                                                                                      |
+| --------------------- | ------------------------------------------------------------------------------------------------ |
+| `npm run tauri dev`   | **Start the app in development mode** (frontend + Rust backend). Use this for local development. |
+| `npm run tauri build` | Production build                                                                                 |
+| `npm run dev`         | Start Vite dev server only (⚠️ frontend won't work without the Tauri backend)                    |
+| `npm run build`       | TypeScript check + Vite build (frontend only)                                                    |
+| `npm run lint`        | Run ESLint                                                                                       |
+| `npm run lint:fix`    | Run ESLint with auto-fix                                                                         |
+| `npm run format`      | Format all files with Prettier                                                                   |
+| `npm run typecheck`   | Run `tsc --noEmit`                                                                               |
+| `npm test`            | Run tests (Vitest)                                                                               |
+| `npm run test:watch`  | Run tests in watch mode                                                                          |
 
 ### Git hooks
 

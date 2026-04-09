@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { tauriCommands } from "../lib/tauri";
 import type { AppConfig, AppSettings } from "../types/config";
-import { Save } from "lucide-react";
+import { RotateCcw, Save } from "lucide-react";
 
 interface Props {
   config: AppConfig;
@@ -114,6 +114,15 @@ export default function SettingsPanel({ config, onRefresh }: Props) {
           >
             <Save size={14} />
             {saving ? "Saving…" : "Save Settings"}
+          </button>
+          <button
+            type="button"
+            onClick={() => setSettings({ ...config.settings })}
+            disabled={saving}
+            className="flex items-center gap-1.5 rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+          >
+            <RotateCcw size={14} />
+            Reset
           </button>
           {saved && (
             <span className="text-xs font-medium text-green-600">✓ Saved</span>
