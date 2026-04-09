@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import { tauriCommands } from "./lib/tauri";
 import type { AppConfig } from "./types/config";
 import ActionList from "./components/ActionList";
@@ -16,25 +15,12 @@ export default function App() {
   const [needsA11y, setNeedsA11y] = useState<boolean>(false);
   const [checkedA11y, setCheckedA11y] = useState(false);
 
-  const showSettingsWindow = async () => {
-    try {
-      const win = getCurrentWindow();
-      await win.show();
-      await win.setFocus();
-    } catch (e) {
-      console.error("Failed to show window:", e);
-    }
-  };
-
   const requestA11y = async () => {
     await tauriCommands.requestAccessibility();
     // Check again after a short delay (user may need time to grant)
     setTimeout(() => {
       tauriCommands.checkAccessibility().then((hasPermission) => {
         setNeedsA11y(!hasPermission);
-        if (hasPermission) {
-          showSettingsWindow();
-        }
       });
     }, 500);
   };
@@ -42,9 +28,6 @@ export default function App() {
   const verifyA11y = async () => {
     const hasPermission = await tauriCommands.checkAccessibility();
     setNeedsA11y(!hasPermission);
-    if (hasPermission) {
-      await showSettingsWindow();
-    }
   };
 
   const refresh = () => {
@@ -64,10 +47,6 @@ export default function App() {
     tauriCommands.checkAccessibility().then((hasPermission) => {
       setNeedsA11y(!hasPermission);
       setCheckedA11y(true);
-      // If already has permission, show the settings window
-      if (hasPermission) {
-        showSettingsWindow();
-      }
     });
   }, []);
 
@@ -133,10 +112,7 @@ export default function App() {
             </button>
           </div>
           <button
-            onClick={() => {
-              setNeedsA11y(false);
-              showSettingsWindow();
-            }}
+            onClick={() => setNeedsA11y(false)}
             className="mt-3 text-xs text-amber-600 underline hover:text-amber-800"
           >
             Skip (features will be limited)

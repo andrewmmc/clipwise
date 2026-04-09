@@ -16,7 +16,7 @@
         "width": 900,
         "height": 650,
         "resizable": true,
-        "visible": false,
+        "visible": true,
         "label": "settings"
       },
       {
