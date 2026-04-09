@@ -152,48 +152,9 @@ mod macos {
             fn AXIsProcessTrustedWithOptions(options: *const std::ffi::c_void) -> bool;
         }
 
-        #[link(name = "CoreFoundation", kind = "framework")]
-        unsafe extern "C" {
-            fn CFStringCreateWithCString(
-                alloc: *const std::ffi::c_void,
-                cStr: *const std::os::raw::c_char,
-                encoding: std::os::raw::c_uint,
-            ) -> *const std::ffi::c_void;
-            fn kCFBooleanTrue() -> *const std::ffi::c_void;
-            fn CFDictionaryCreate(
-                allocator: *const std::ffi::c_void,
-                keys: *const *const std::ffi::c_void,
-                values: *const *const std::ffi::c_void,
-                numValues: std::os::raw::c_long,
-                keyCallBacks: *const std::ffi::c_void,
-                valueCallBacks: *const std::ffi::c_void,
-            ) -> *const std::ffi::c_void;
-            fn kCFTypeDictionaryKeyCallBacks() -> *const std::ffi::c_void;
-            fn kCFTypeDictionaryValueCallBacks() -> *const std::ffi::c_void;
-        }
-
-        // kCFStringEncodingUTF8 = 0x08000100
-        const K_CF_STRING_ENCODING_UTF8: std::os::raw::c_uint = 0x08000100;
-
         unsafe {
-            let key = "AXTrustedCheckOptionPrompt\0";
-            let keys = [CFStringCreateWithCString(
-                std::ptr::null(),
-                key.as_ptr() as *const std::os::raw::c_char,
-                K_CF_STRING_ENCODING_UTF8,
-            )];
-            let values = [kCFBooleanTrue()];
-
-            let dict = CFDictionaryCreate(
-                std::ptr::null(),
-                keys.as_ptr(),
-                values.as_ptr(),
-                1,
-                kCFTypeDictionaryKeyCallBacks(),
-                kCFTypeDictionaryValueCallBacks(),
-            );
-
-            AXIsProcessTrustedWithOptions(dict)
+            // According to Apple's docs, passing NULL prompts the user if not trusted
+            AXIsProcessTrustedWithOptions(std::ptr::null())
         }
     }
 
