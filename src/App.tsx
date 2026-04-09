@@ -28,23 +28,34 @@ export default function App() {
   };
 
   const requestA11y = async () => {
-    await tauriCommands.requestAccessibility();
-    // Check again after a short delay (user may need time to grant)
-    setTimeout(() => {
-      tauriCommands.checkAccessibility().then((hasPermission) => {
-        setNeedsA11y(!hasPermission);
-        if (hasPermission) {
-          showWindow();
+    try {
+      await tauriCommands.requestAccessibility();
+      // Check again after a short delay (user may need time to grant)
+      setTimeout(async () => {
+        try {
+          const hasPermission = await tauriCommands.checkAccessibility();
+          setNeedsA11y(!hasPermission);
+          if (hasPermission) {
+            await showWindow();
+          }
+        } catch (e) {
+          console.error("Accessibility check failed:", e);
         }
-      });
-    }, 500);
+      }, 500);
+    } catch (e) {
+      console.error("Request accessibility failed:", e);
+    }
   };
 
   const verifyA11y = async () => {
-    const hasPermission = await tauriCommands.checkAccessibility();
-    setNeedsA11y(!hasPermission);
-    if (hasPermission) {
-      await showWindow();
+    try {
+      const hasPermission = await tauriCommands.checkAccessibility();
+      setNeedsA11y(!hasPermission);
+      if (hasPermission) {
+        await showWindow();
+      }
+    } catch (e) {
+      console.error("Verify accessibility failed:", e);
     }
   };
 
