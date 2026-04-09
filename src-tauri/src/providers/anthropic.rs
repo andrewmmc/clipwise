@@ -9,6 +9,16 @@ pub async fn call_anthropic(
     model: Option<&str>,
     max_tokens: u32,
 ) -> Result<serde_json::Value, AppError> {
+    call_anthropic_with_client(provider, user_message, model, max_tokens, &Client::new()).await
+}
+
+pub async fn call_anthropic_with_client(
+    provider: &Provider,
+    user_message: &str,
+    model: Option<&str>,
+    max_tokens: u32,
+    client: &Client,
+) -> Result<serde_json::Value, AppError> {
     let endpoint = provider
         .endpoint
         .as_deref()
@@ -30,7 +40,6 @@ pub async fn call_anthropic(
         ]
     });
 
-    let client = Client::new();
     let mut req = client
         .post(endpoint)
         .header("x-api-key", api_key)
@@ -70,6 +79,10 @@ mod tests {
     use crate::models::ProviderType;
     use wiremock::matchers::{body_string_contains, header, method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    fn no_proxy_client() -> Client {
+        Client::builder().no_proxy().build().unwrap()
+    }
 
     fn make_provider(server_uri: &str) -> Provider {
         Provider {
@@ -116,7 +129,7 @@ mod tests {
             .mount(&server)
             .await;
 
-        let result = call_anthropic(&make_provider(&server.uri()), "hello", None, 1024).await;
+        let result = call_anthropic_with_client(&make_provider(&server.uri()), "hello", None, 1024, &no_proxy_client()).await;
         assert!(result.is_ok(), "expected Ok, got {:?}", result);
         assert_eq!(result.unwrap()["result"], "improved text");
     }
@@ -129,7 +142,7 @@ mod tests {
             .mount(&server)
             .await;
 
-        let result = call_anthropic(&make_provider(&server.uri()), "test", None, 1024).await;
+        let result = call_anthropic_with_client(&make_provider(&server.uri()), "test", None, 1024, &no_proxy_client()).await;
         assert!(matches!(result, Err(AppError::Llm(_))));
         if let Err(AppError::Llm(msg)) = result {
             assert!(msg.contains("401"));
@@ -144,7 +157,7 @@ mod tests {
             .mount(&server)
             .await;
 
-        let result = call_anthropic(&make_provider(&server.uri()), "test", None, 1024).await;
+        let result = call_anthropic_with_client(&make_provider(&server.uri()), "test", None, 1024, &no_proxy_client()).await;
         assert!(matches!(result, Err(AppError::Llm(_))));
     }
 
@@ -156,7 +169,7 @@ mod tests {
             .mount(&server)
             .await;
 
-        let result = call_anthropic(&make_provider(&server.uri()), "test", None, 1024).await;
+        let result = call_anthropic_with_client(&make_provider(&server.uri()), "test", None, 1024, &no_proxy_client()).await;
         assert!(matches!(result, Err(AppError::Llm(_))));
     }
 
@@ -170,7 +183,7 @@ mod tests {
             .mount(&server)
             .await;
 
-        let result = call_anthropic(&make_provider(&server.uri()), "test", None, 1024).await;
+        let result = call_anthropic_with_client(&make_provider(&server.uri()), "test", None, 1024, &no_proxy_client()).await;
         assert!(matches!(result, Err(AppError::InvalidResponse)));
     }
 
@@ -185,7 +198,7 @@ mod tests {
             .mount(&server)
             .await;
 
-        let result = call_anthropic(&make_provider(&server.uri()), "test", None, 1024).await;
+        let result = call_anthropic_with_client(&make_provider(&server.uri()), "test", None, 1024, &no_proxy_client()).await;
         assert!(matches!(result, Err(AppError::InvalidResponse)));
     }
 
@@ -200,11 +213,12 @@ mod tests {
             .mount(&server)
             .await;
 
-        let result = call_anthropic(
+        let result = call_anthropic_with_client(
             &make_provider(&server.uri()),
             "test",
             Some("claude-3-haiku"),
             1024,
+            &no_proxy_client(),
         )
         .await;
         assert!(result.is_ok());
@@ -221,7 +235,7 @@ mod tests {
             .mount(&server)
             .await;
 
-        let result = call_anthropic(&make_provider(&server.uri()), "test", None, 1024).await;
+        let result = call_anthropic_with_client(&make_provider(&server.uri()), "test", None, 1024, &no_proxy_client()).await;
         assert!(
             result.is_ok(),
             "expected Ok when falling back to claude-sonnet"
@@ -241,7 +255,7 @@ mod tests {
 
         let mut provider = make_provider(&server.uri());
         provider.default_model = Some("claude-3-opus".into());
-        let result = call_anthropic(&provider, "test", None, 1024).await;
+        let result = call_anthropic_with_client(&provider, "test", None, 1024, &no_proxy_client()).await;
         assert!(result.is_ok());
     }
 
@@ -256,7 +270,7 @@ mod tests {
             .mount(&server)
             .await;
 
-        let result = call_anthropic(&make_provider(&server.uri()), "test", None, 1024).await;
+        let result = call_anthropic_with_client(&make_provider(&server.uri()), "test", None, 1024, &no_proxy_client()).await;
         assert!(result.is_ok(), "x-api-key header must be sent");
     }
 
@@ -271,7 +285,7 @@ mod tests {
             .mount(&server)
             .await;
 
-        let result = call_anthropic(&make_provider(&server.uri()), "test", None, 1024).await;
+        let result = call_anthropic_with_client(&make_provider(&server.uri()), "test", None, 1024, &no_proxy_client()).await;
         assert!(result.is_ok(), "anthropic-version header must be sent");
     }
 
@@ -291,7 +305,7 @@ mod tests {
             "x-org-id".into(),
             serde_json::Value::String("org-123".into()),
         );
-        let result = call_anthropic(&provider, "test", None, 1024).await;
+        let result = call_anthropic_with_client(&provider, "test", None, 1024, &no_proxy_client()).await;
         assert!(result.is_ok(), "custom header must be forwarded");
     }
 
@@ -306,7 +320,7 @@ mod tests {
             .mount(&server)
             .await;
 
-        let result = call_anthropic(&make_provider(&server.uri()), "test", None, 1024).await;
+        let result = call_anthropic_with_client(&make_provider(&server.uri()), "test", None, 1024, &no_proxy_client()).await;
         assert!(result.is_ok(), "system prompt must appear in request body");
     }
 }

@@ -9,6 +9,16 @@ pub async fn call_openai(
     model: Option<&str>,
     max_tokens: u32,
 ) -> Result<serde_json::Value, AppError> {
+    call_openai_with_client(provider, user_message, model, max_tokens, &Client::new()).await
+}
+
+pub async fn call_openai_with_client(
+    provider: &Provider,
+    user_message: &str,
+    model: Option<&str>,
+    max_tokens: u32,
+    client: &Client,
+) -> Result<serde_json::Value, AppError> {
     let endpoint = provider
         .endpoint
         .as_deref()
@@ -30,7 +40,6 @@ pub async fn call_openai(
         ]
     });
 
-    let client = Client::new();
     let mut req = client
         .post(endpoint)
         .header("Authorization", format!("Bearer {}", api_key))
@@ -67,6 +76,10 @@ mod tests {
     use crate::models::ProviderType;
     use wiremock::matchers::{body_string_contains, header, method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    fn no_proxy_client() -> Client {
+        Client::builder().no_proxy().build().unwrap()
+    }
 
     fn make_provider(server_uri: &str) -> Provider {
         Provider {
@@ -113,7 +126,8 @@ mod tests {
             .mount(&server)
             .await;
 
-        let result = call_openai(&make_provider(&server.uri()), "hello", None, 1024).await;
+        let result =
+            call_openai_with_client(&make_provider(&server.uri()), "hello", None, 1024, &no_proxy_client()).await;
         assert!(result.is_ok(), "expected Ok, got {:?}", result);
         assert_eq!(result.unwrap()["result"], "refined text");
     }
@@ -126,7 +140,7 @@ mod tests {
             .mount(&server)
             .await;
 
-        let result = call_openai(&make_provider(&server.uri()), "test", None, 1024).await;
+        let result = call_openai_with_client(&make_provider(&server.uri()), "test", None, 1024, &no_proxy_client()).await;
         assert!(matches!(result, Err(AppError::Llm(_))));
         if let Err(AppError::Llm(msg)) = result {
             assert!(
@@ -144,7 +158,7 @@ mod tests {
             .mount(&server)
             .await;
 
-        let result = call_openai(&make_provider(&server.uri()), "test", None, 1024).await;
+        let result = call_openai_with_client(&make_provider(&server.uri()), "test", None, 1024, &no_proxy_client()).await;
         assert!(matches!(result, Err(AppError::Llm(_))));
     }
 
@@ -156,7 +170,7 @@ mod tests {
             .mount(&server)
             .await;
 
-        let result = call_openai(&make_provider(&server.uri()), "test", None, 1024).await;
+        let result = call_openai_with_client(&make_provider(&server.uri()), "test", None, 1024, &no_proxy_client()).await;
         assert!(matches!(result, Err(AppError::Llm(_))));
     }
 
@@ -170,7 +184,7 @@ mod tests {
             .mount(&server)
             .await;
 
-        let result = call_openai(&make_provider(&server.uri()), "test", None, 1024).await;
+        let result = call_openai_with_client(&make_provider(&server.uri()), "test", None, 1024, &no_proxy_client()).await;
         assert!(matches!(result, Err(AppError::InvalidResponse)));
     }
 
@@ -185,7 +199,7 @@ mod tests {
             .mount(&server)
             .await;
 
-        let result = call_openai(&make_provider(&server.uri()), "test", None, 1024).await;
+        let result = call_openai_with_client(&make_provider(&server.uri()), "test", None, 1024, &no_proxy_client()).await;
         assert!(matches!(result, Err(AppError::InvalidResponse)));
     }
 
@@ -200,11 +214,12 @@ mod tests {
             .mount(&server)
             .await;
 
-        let result = call_openai(
+        let result = call_openai_with_client(
             &make_provider(&server.uri()),
             "test",
             Some("gpt-4-turbo"),
             1024,
+            &no_proxy_client(),
         )
         .await;
         assert!(
@@ -226,7 +241,7 @@ mod tests {
             .await;
 
         let provider = make_provider(&server.uri()); // no default_model set
-        let result = call_openai(&provider, "test", None, 1024).await;
+        let result = call_openai_with_client(&provider, "test", None, 1024, &no_proxy_client()).await;
         assert!(result.is_ok(), "expected Ok when falling back to gpt-4o");
     }
 
@@ -243,7 +258,7 @@ mod tests {
 
         let mut provider = make_provider(&server.uri());
         provider.default_model = Some("gpt-4-custom".into());
-        let result = call_openai(&provider, "test", None, 1024).await;
+        let result = call_openai_with_client(&provider, "test", None, 1024, &no_proxy_client()).await;
         assert!(
             result.is_ok(),
             "expected Ok when using provider default model"
@@ -261,7 +276,7 @@ mod tests {
             .mount(&server)
             .await;
 
-        let result = call_openai(&make_provider(&server.uri()), "test", None, 1024).await;
+        let result = call_openai_with_client(&make_provider(&server.uri()), "test", None, 1024, &no_proxy_client()).await;
         assert!(
             result.is_ok(),
             "expected Ok when authorization header matches"
@@ -284,7 +299,7 @@ mod tests {
             "x-custom-header".into(),
             serde_json::Value::String("my-value".into()),
         );
-        let result = call_openai(&provider, "test", None, 1024).await;
+        let result = call_openai_with_client(&provider, "test", None, 1024, &no_proxy_client()).await;
         assert!(
             result.is_ok(),
             "expected Ok when custom header matches mock"
@@ -302,7 +317,7 @@ mod tests {
             .mount(&server)
             .await;
 
-        let result = call_openai(&make_provider(&server.uri()), "test", None, 1024).await;
+        let result = call_openai_with_client(&make_provider(&server.uri()), "test", None, 1024, &no_proxy_client()).await;
         assert!(
             result.is_ok(),
             "system prompt must be included in request body"
