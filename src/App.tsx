@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { tauriCommands } from "./lib/tauri";
 import type { AppConfig } from "./types/config";
 import ActionList from "./components/ActionList";
@@ -15,6 +16,44 @@ export default function App() {
   const [needsA11y, setNeedsA11y] = useState<boolean>(false);
   const [checkedA11y, setCheckedA11y] = useState(false);
 
+  const showSettingsWindow = async () => {
+    try {
+      const win = getCurrentWindow();
+      await win.show();
+      await win.setFocus();
+    } catch (e) {
+      console.error("Failed to show window:", e);
+    }
+  };
+
+  const requestA11y = async () => {
+    await tauriCommands.requestAccessibility();
+    // Check again after a short delay (user may need time to grant)
+    setTimeout(() => {
+      tauriCommands.checkAccessibility().then((hasPermission) => {
+        setNeedsA11y(!hasPermission);
+        if (hasPermission) {
+          showSettingsWindow();
+        }
+      });
+    }, 500);
+  };
+
+  const verifyA11y = async () => {
+    const hasPermission = await tauriCommands.checkAccessibility();
+    setNeedsA11y(!hasPermission);
+    if (hasPermission) {
+      await showSettingsWindow();
+    }
+  };
+
+  const refresh = () => {
+    tauriCommands
+      .getConfig()
+      .then(setConfig)
+      .catch((e) => setError(String(e)));
+  };
+
   useEffect(() => {
     tauriCommands
       .getConfig()
@@ -25,25 +64,12 @@ export default function App() {
     tauriCommands.checkAccessibility().then((hasPermission) => {
       setNeedsA11y(!hasPermission);
       setCheckedA11y(true);
+      // If already has permission, show the settings window
+      if (hasPermission) {
+        showSettingsWindow();
+      }
     });
   }, []);
-
-  const refresh = () => {
-    tauriCommands
-      .getConfig()
-      .then(setConfig)
-      .catch((e) => setError(String(e)));
-  };
-
-  const requestA11y = async () => {
-    await tauriCommands.requestAccessibility();
-    // Check again after a short delay (user may need time to grant)
-    setTimeout(() => {
-      tauriCommands.checkAccessibility().then((hasPermission) => {
-        setNeedsA11y(!hasPermission);
-      });
-    }, 500);
-  };
 
   if (error) {
     return (
@@ -100,18 +126,17 @@ export default function App() {
               Grant Permission
             </button>
             <button
-              onClick={() => {
-                tauriCommands.checkAccessibility().then((hasPermission) => {
-                  setNeedsA11y(!hasPermission);
-                });
-              }}
+              onClick={verifyA11y}
               className="rounded bg-amber-200 px-4 py-2 text-sm font-medium text-amber-800 hover:bg-amber-300"
             >
               Verify
             </button>
           </div>
           <button
-            onClick={() => setNeedsA11y(false)}
+            onClick={() => {
+              setNeedsA11y(false);
+              showSettingsWindow();
+            }}
             className="mt-3 text-xs text-amber-600 underline hover:text-amber-800"
           >
             Skip (features will be limited)
