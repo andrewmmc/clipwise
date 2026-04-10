@@ -106,7 +106,9 @@ describe("SettingsPanel", () => {
     render(<SettingsPanel config={mockConfig} onRefresh={onRefresh} />);
     await user.click(screen.getByRole("button", { name: /save settings/i }));
     await waitFor(() =>
-      expect(screen.getByText("✓ Saved")).toBeInTheDocument(),
+      expect(
+        screen.getByText("Settings saved successfully."),
+      ).toBeInTheDocument(),
     );
   });
 

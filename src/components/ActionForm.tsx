@@ -10,6 +10,8 @@ interface Props {
   onCancel: () => void;
 }
 
+const MAX_USER_PROMPT_LENGTH = 2000;
+
 export default function ActionForm({
   config,
   initial,
@@ -32,6 +34,12 @@ export default function ActionForm({
     e.preventDefault();
     if (!name.trim() || !userPrompt.trim() || !providerId) {
       setError("Name, provider, and prompt are required.");
+      return;
+    }
+    if (userPrompt.length > MAX_USER_PROMPT_LENGTH) {
+      setError(
+        `User prompt must be ${MAX_USER_PROMPT_LENGTH} characters or fewer.`,
+      );
       return;
     }
     setSaving(true);
@@ -77,7 +85,10 @@ export default function ActionForm({
           <input
             type="text"
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={(e) => {
+              setName(e.target.value);
+              setError(null);
+            }}
             placeholder="e.g. Refine wording"
             className={fieldClassName}
           />
@@ -93,7 +104,10 @@ export default function ActionForm({
           <div className="relative">
             <select
               value={providerId}
-              onChange={(e) => setProviderId(e.target.value)}
+              onChange={(e) => {
+                setProviderId(e.target.value);
+                setError(null);
+              }}
               className={selectClassName}
             >
               <option value="">Select a provider…</option>
@@ -116,14 +130,29 @@ export default function ActionForm({
           </label>
           <textarea
             value={userPrompt}
-            onChange={(e) => setUserPrompt(e.target.value)}
+            onChange={(e) => {
+              setUserPrompt(e.target.value);
+              setError(null);
+            }}
             rows={3}
+            maxLength={MAX_USER_PROMPT_LENGTH}
             placeholder="e.g. Refine this text, improve clarity and grammar while keeping the original meaning"
             className={fieldClassName}
           />
-          <p className="mt-1 text-xs text-gray-400">
-            The selected text will be appended to this prompt.
-          </p>
+          <div className="mt-1 flex items-center justify-between gap-3 text-xs">
+            <p className="text-gray-400">
+              The selected text will be appended to this prompt.
+            </p>
+            <p
+              className={
+                userPrompt.length > MAX_USER_PROMPT_LENGTH - 200
+                  ? "text-amber-600"
+                  : "text-gray-400"
+              }
+            >
+              {userPrompt.length}/{MAX_USER_PROMPT_LENGTH}
+            </p>
+          </div>
         </div>
 
         <div>
@@ -134,7 +163,10 @@ export default function ActionForm({
           <input
             type="text"
             value={model}
-            onChange={(e) => setModel(e.target.value)}
+            onChange={(e) => {
+              setModel(e.target.value);
+              setError(null);
+            }}
             placeholder="Leave blank to use provider default"
             className={fieldClassName}
           />

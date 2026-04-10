@@ -100,6 +100,7 @@ describe("ActionList", () => {
       expect(mockInvoke).toHaveBeenCalledWith("add_action", expect.anything()),
     );
     await waitFor(() => expect(onRefresh).toHaveBeenCalled());
+    expect(screen.getByText("Action saved successfully.")).toBeInTheDocument();
   });
 
   // ── Delete action ─────────────────────────────────────────────────────────
@@ -148,7 +149,10 @@ describe("ActionList", () => {
     await waitFor(() =>
       expect(mockInvoke).toHaveBeenCalledWith(
         "test_action",
-        expect.objectContaining({ actionId: "a1" }),
+        expect.objectContaining({
+          actionId: "a1",
+          sampleText: "The quick brown fox jumps over the lazy dog.",
+        }),
       ),
     );
     await waitFor(() =>

@@ -8,7 +8,9 @@ pub struct ConfigState(pub Mutex<AppConfig>);
 impl ConfigState {
     /// Acquires the lock, converting a poisoned mutex into an AppError.
     pub fn lock(&self) -> Result<std::sync::MutexGuard<AppConfig>, AppError> {
-        self.0.lock().map_err(|_| AppError::Service("Config lock poisoned due to previous panic".into()))
+        self.0
+            .lock()
+            .map_err(|_| AppError::Service("Config lock poisoned due to previous panic".into()))
     }
 }
 

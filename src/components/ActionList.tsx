@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { tauriCommands } from "../lib/tauri";
 import type { AppConfig, Action } from "../types/config";
+import useTransientMessage from "../hooks/useTransientMessage";
 import ActionForm from "./ActionForm";
 import EmptyState from "./EmptyState";
+import SuccessBox from "./SuccessBox";
 import {
   Plus,
   Pencil,
@@ -17,6 +19,8 @@ interface Props {
   onRefresh: () => void;
 }
 
+const DEFAULT_TEST_INPUT = "The quick brown fox jumps over the lazy dog.";
+
 export default function ActionList({ config, onRefresh }: Props) {
   const [editing, setEditing] = useState<Action | null>(null);
   const [creating, setCreating] = useState(false);
@@ -24,6 +28,11 @@ export default function ActionList({ config, onRefresh }: Props) {
   const [testResults, setTestResults] = useState<Record<string, string>>({});
   const [testInputs, setTestInputs] = useState<Record<string, string>>({});
   const [testing, setTesting] = useState<string | null>(null);
+  const {
+    message: successMessage,
+    showMessage: showSuccessMessage,
+    clearMessage: clearSuccessMessage,
+  } = useTransientMessage();
 
   const handleDelete = async (id: string) => {
     await tauriCommands.deleteAction(id);
@@ -32,8 +41,7 @@ export default function ActionList({ config, onRefresh }: Props) {
   };
 
   const handleTest = async (action: Action) => {
-    const input =
-      testInputs[action.id] || "The quick brown fox jumps over the lazy dog.";
+    const input = testInputs[action.id] || DEFAULT_TEST_INPUT;
     setTesting(action.id);
     setTestResults((r) => ({ ...r, [action.id]: "" }));
     try {
@@ -57,6 +65,7 @@ export default function ActionList({ config, onRefresh }: Props) {
         onSave={async (data) => {
           await tauriCommands.addAction(data);
           onRefresh();
+          showSuccessMessage("Action saved successfully.");
           setCreating(false);
         }}
         onCancel={() => setCreating(false)}
@@ -72,6 +81,7 @@ export default function ActionList({ config, onRefresh }: Props) {
         onSave={async (data) => {
           await tauriCommands.updateAction({ ...data, id: editing.id });
           onRefresh();
+          showSuccessMessage("Action saved successfully.");
           setEditing(null);
         }}
         onCancel={() => setEditing(null)}
@@ -90,13 +100,18 @@ export default function ActionList({ config, onRefresh }: Props) {
           </p>
         </div>
         <button
-          onClick={() => setCreating(true)}
+          onClick={() => {
+            clearSuccessMessage();
+            setCreating(true);
+          }}
           className="flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700"
         >
           <Plus size={14} />
           Add Action
         </button>
       </div>
+
+      {successMessage && <SuccessBox message={successMessage} />}
 
       {config.actions.length === 0 ? (
         <EmptyState
@@ -147,7 +162,10 @@ export default function ActionList({ config, onRefresh }: Props) {
                     <>
                       <button
                         type="button"
-                        onClick={() => setEditing(action)}
+                        onClick={() => {
+                          clearSuccessMessage();
+                          setEditing(action);
+                        }}
                         className="rounded p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
                         title="Edit"
                       >

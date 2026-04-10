@@ -57,6 +57,15 @@ describe("tauriCommands", () => {
     expect(mockInvoke).toHaveBeenCalledWith("delete_provider", { id: "p1" });
   });
 
+  it("testCliCommand calls invoke with 'test_cli_command'", async () => {
+    mockInvoke.mockResolvedValue("Command looks good: /bin/sh");
+    const result = await tauriCommands.testCliCommand("/bin/sh");
+    expect(mockInvoke).toHaveBeenCalledWith("test_cli_command", {
+      command: "/bin/sh",
+    });
+    expect(result).toBe("Command looks good: /bin/sh");
+  });
+
   it("addAction calls invoke with 'add_action'", async () => {
     const action = { name: "Refine", providerId: "p1", userPrompt: "Fix it" };
     mockInvoke.mockResolvedValue({ ...action, id: "new-id" });

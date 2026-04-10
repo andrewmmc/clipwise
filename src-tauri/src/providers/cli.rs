@@ -52,6 +52,22 @@ pub async fn call_cli(
     normalize_response_str(stdout)
 }
 
+pub(crate) fn validate_cli_command(command: &str) -> Result<String, AppError> {
+    let (resolved_command, _) = prepare_command(command)?;
+
+    if !is_executable_file(&resolved_command) {
+        return Err(AppError::Config(format!(
+            "CLI command '{}' was not found or is not executable. Try an absolute path like '/opt/homebrew/bin/claude'.",
+            resolved_command.display()
+        )));
+    }
+
+    Ok(format!(
+        "Command looks good: {}",
+        resolved_command.display()
+    ))
+}
+
 fn prepare_command(command: &str) -> Result<(PathBuf, Vec<String>), AppError> {
     let parts = shlex::split(command).ok_or_else(|| {
         AppError::Config(format!(
@@ -61,9 +77,7 @@ fn prepare_command(command: &str) -> Result<(PathBuf, Vec<String>), AppError> {
     })?;
 
     if parts.is_empty() {
-        return Err(AppError::Config(
-            "CLI provider command is empty".into()
-        ));
+        return Err(AppError::Config("CLI provider command is empty".into()));
     }
 
     let executable = resolve_command_path(&parts[0]).unwrap_or_else(|| PathBuf::from(&parts[0]));
@@ -315,7 +329,9 @@ mod tests {
 
     #[test]
     fn test_is_executable_file_returns_false_for_nonexistent_path() {
-        assert!(!is_executable_file(Path::new("/nonexistent/path/to/binary")));
+        assert!(!is_executable_file(Path::new(
+            "/nonexistent/path/to/binary"
+        )));
     }
 
     #[test]
@@ -356,5 +372,18 @@ mod tests {
             matches!(result, Err(AppError::Config(_))),
             "expected Config error for empty command"
         );
+    }
+
+    #[test]
+    fn test_validate_cli_command_accepts_known_executable() {
+        let result = validate_cli_command("/bin/sh");
+        assert!(result.is_ok(), "expected /bin/sh to validate");
+        assert!(result.unwrap().contains("/bin/sh"));
+    }
+
+    #[test]
+    fn test_validate_cli_command_rejects_missing_executable() {
+        let result = validate_cli_command("__missing_llm_binary__");
+        assert!(matches!(result, Err(AppError::Config(_))));
     }
 }

@@ -1,6 +1,7 @@
 use crate::config::{save_config, ConfigState};
 use crate::error::AppError;
 use crate::models::{Action, AppConfig, AppSettings, Provider};
+use crate::providers::cli::validate_cli_command;
 use tauri::{AppHandle, State};
 use uuid::Uuid;
 
@@ -115,6 +116,11 @@ pub fn delete_provider(
     save_config(&config)?;
     // Provider changes don't affect tray menu, no refresh needed
     Ok(())
+}
+
+#[tauri::command]
+pub fn test_cli_command(command: String) -> Result<String, AppError> {
+    validate_cli_command(&command)
 }
 
 #[tauri::command]

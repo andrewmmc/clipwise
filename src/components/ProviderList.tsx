@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { tauriCommands } from "../lib/tauri";
 import type { AppConfig, Provider } from "../types/config";
+import useTransientMessage from "../hooks/useTransientMessage";
 import EmptyState from "./EmptyState";
 import ProviderForm from "./ProviderForm";
+import SuccessBox from "./SuccessBox";
 import { Plus, Pencil, Trash2, Server } from "lucide-react";
 
 interface Props {
@@ -19,6 +21,11 @@ const typeLabel: Record<string, string> = {
 export default function ProviderList({ config, onRefresh }: Props) {
   const [editing, setEditing] = useState<Provider | null>(null);
   const [creating, setCreating] = useState(false);
+  const {
+    message: successMessage,
+    showMessage: showSuccessMessage,
+    clearMessage: clearSuccessMessage,
+  } = useTransientMessage();
 
   const handleDelete = async (id: string) => {
     const usedBy = config.actions.filter((a) => a.providerId === id);
@@ -39,6 +46,7 @@ export default function ProviderList({ config, onRefresh }: Props) {
         onSave={async (data) => {
           await tauriCommands.addProvider(data);
           onRefresh();
+          showSuccessMessage("Provider saved successfully.");
           setCreating(false);
         }}
         onCancel={() => setCreating(false)}
@@ -53,6 +61,7 @@ export default function ProviderList({ config, onRefresh }: Props) {
         onSave={async (data) => {
           await tauriCommands.updateProvider({ ...data, id: editing.id });
           onRefresh();
+          showSuccessMessage("Provider saved successfully.");
           setEditing(null);
         }}
         onCancel={() => setEditing(null)}
@@ -70,13 +79,18 @@ export default function ProviderList({ config, onRefresh }: Props) {
           </p>
         </div>
         <button
-          onClick={() => setCreating(true)}
+          onClick={() => {
+            clearSuccessMessage();
+            setCreating(true);
+          }}
           className="flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700"
         >
           <Plus size={14} />
           Add Provider
         </button>
       </div>
+
+      {successMessage && <SuccessBox message={successMessage} />}
 
       {config.providers.length === 0 ? (
         <EmptyState
@@ -104,7 +118,10 @@ export default function ProviderList({ config, onRefresh }: Props) {
               </div>
               <div className="flex items-center gap-1.5">
                 <button
-                  onClick={() => setEditing(provider)}
+                  onClick={() => {
+                    clearSuccessMessage();
+                    setEditing(provider);
+                  }}
                   className="rounded p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
                   title="Edit"
                 >

@@ -112,6 +112,9 @@ describe("ProviderList", () => {
       ),
     );
     await waitFor(() => expect(onRefresh).toHaveBeenCalled());
+    expect(
+      screen.getByText("Provider saved successfully."),
+    ).toBeInTheDocument();
   });
 
   // ── Delete provider ───────────────────────────────────────────────────────

@@ -14,7 +14,8 @@ pub fn is_transient_error(status: u16) -> bool {
 
 /// Checks if a reqwest error is a transient HTTP error.
 pub fn is_transient_http_error(err: &ReqwestError) -> bool {
-    err.status().map_or(false, |s| is_transient_error(s.as_u16()))
+    err.status()
+        .map_or(false, |s| is_transient_error(s.as_u16()))
 }
 
 /// Executes an async operation with retry on transient HTTP errors.

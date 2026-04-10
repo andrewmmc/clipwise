@@ -1,8 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor, cleanup } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { invoke } from "@tauri-apps/api/core";
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 
+const mockInvoke = vi.mocked(invoke);
 const { default: ProviderForm } = await import("./ProviderForm");
 import { mockProvider, mockCliProvider } from "../test/fixtures";
 
@@ -12,6 +14,7 @@ describe("ProviderForm", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockInvoke.mockReset();
     onSave.mockReset();
     onCancel.mockReset();
   });
@@ -161,6 +164,48 @@ describe("ProviderForm", () => {
     expect(onSave).not.toHaveBeenCalled();
   });
 
+  it("shows error when endpoint is not a valid https url", async () => {
+    const user = userEvent.setup();
+    render(<ProviderForm onSave={onSave} onCancel={onCancel} />);
+
+    await user.type(
+      screen.getByPlaceholderText("e.g. Anthropic Claude"),
+      "My Provider",
+    );
+    await user.type(
+      screen.getByPlaceholderText(/https:\/\//i),
+      "http://api.example.com",
+    );
+    await user.type(screen.getByPlaceholderText("sk-..."), "sk-ant-key");
+    await user.click(screen.getByRole("button", { name: /save provider/i }));
+
+    expect(
+      screen.getByText("Endpoint URL must be a valid https:// URL."),
+    ).toBeInTheDocument();
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it("tests a CLI command before saving", async () => {
+    mockInvoke.mockResolvedValue("Command looks good: /bin/sh");
+    const user = userEvent.setup();
+    render(<ProviderForm onSave={onSave} onCancel={onCancel} />);
+
+    await user.type(
+      screen.getByPlaceholderText("e.g. Anthropic Claude"),
+      "My CLI",
+    );
+    await user.selectOptions(screen.getByDisplayValue("Anthropic"), "cli");
+    await user.type(screen.getByPlaceholderText("e.g. claude"), "/bin/sh");
+    await user.click(screen.getByRole("button", { name: /test command/i }));
+
+    await waitFor(() =>
+      expect(mockInvoke).toHaveBeenCalledWith("test_cli_command", {
+        command: "/bin/sh",
+      }),
+    );
+    expect(screen.getByText("Command looks good: /bin/sh")).toBeInTheDocument();
+  });
+
   // ── Successful submission ─────────────────────────────────────────────────
 
   it("calls onSave with correct API provider data", async () => {
@@ -210,6 +255,19 @@ describe("ProviderForm", () => {
         }),
       ),
     );
+  });
+
+  it("shows an inline error when testing an empty CLI command", async () => {
+    const user = userEvent.setup();
+    render(<ProviderForm onSave={onSave} onCancel={onCancel} />);
+
+    await user.selectOptions(screen.getByDisplayValue("Anthropic"), "cli");
+    await user.click(screen.getByRole("button", { name: /test command/i }));
+
+    expect(
+      screen.getByText("Enter a command before testing."),
+    ).toBeInTheDocument();
+    expect(mockInvoke).not.toHaveBeenCalled();
   });
 
   // ── Headers ───────────────────────────────────────────────────────────────

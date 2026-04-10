@@ -14,6 +14,8 @@ export const tauriCommands = {
     invoke("update_provider", { provider }),
   deleteProvider: (id: string): Promise<void> =>
     invoke("delete_provider", { id }),
+  testCliCommand: (command: string): Promise<string> =>
+    invoke("test_cli_command", { command }),
 
   // Actions
   addAction: (action: Omit<Action, "id">): Promise<Action> =>

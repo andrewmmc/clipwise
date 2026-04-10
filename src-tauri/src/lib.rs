@@ -41,6 +41,7 @@ pub fn run() {
             add_provider,
             update_provider,
             delete_provider,
+            test_cli_command,
             add_action,
             update_action,
             delete_action,
@@ -133,7 +134,8 @@ fn read_clipboard_text<R: Runtime>(app: &AppHandle<R>) -> Result<Option<String>,
         let _ = tx.send(crate::service::read_clipboard_text());
     })
     .map_err(|e| e.to_string())?;
-    rx.recv_timeout(Duration::from_secs(5)).map_err(|e| e.to_string())
+    rx.recv_timeout(Duration::from_secs(5))
+        .map_err(|e| e.to_string())
 }
 
 fn write_clipboard_text<R: Runtime>(app: &AppHandle<R>, text: String) -> Result<(), String> {
@@ -143,7 +145,8 @@ fn write_clipboard_text<R: Runtime>(app: &AppHandle<R>, text: String) -> Result<
         let _ = tx.send(());
     })
     .map_err(|e| e.to_string())?;
-    rx.recv_timeout(Duration::from_secs(5)).map_err(|e| e.to_string())?;
+    rx.recv_timeout(Duration::from_secs(5))
+        .map_err(|e| e.to_string())?;
     Ok(())
 }
 

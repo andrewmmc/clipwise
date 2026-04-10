@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, waitFor, cleanup } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  cleanup,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 
@@ -119,6 +125,27 @@ describe("ActionForm", () => {
     expect(onSave).not.toHaveBeenCalled();
   });
 
+  it("rejects prompts longer than the character limit", async () => {
+    const user = userEvent.setup();
+    render(
+      <ActionForm config={mockConfig} onSave={onSave} onCancel={onCancel} />,
+    );
+
+    await user.type(
+      screen.getByPlaceholderText("e.g. Refine wording"),
+      "My Action",
+    );
+    fireEvent.change(screen.getByPlaceholderText(/refine this text/i), {
+      target: { value: "x".repeat(2001) },
+    });
+    await user.click(screen.getByRole("button", { name: /save action/i }));
+
+    expect(
+      screen.getByText("User prompt must be 2000 characters or fewer."),
+    ).toBeInTheDocument();
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
   // ── Successful submission ─────────────────────────────────────────────────
 
   it("calls onSave with trimmed name and prompt", async () => {
@@ -192,6 +219,13 @@ describe("ActionForm", () => {
         expect.objectContaining({ model: "gpt-4o" }),
       ),
     );
+  });
+
+  it("shows the prompt character count", () => {
+    render(
+      <ActionForm config={mockConfig} onSave={onSave} onCancel={onCancel} />,
+    );
+    expect(screen.getByText("0/2000")).toBeInTheDocument();
   });
 
   it("shows error message when onSave throws", async () => {
