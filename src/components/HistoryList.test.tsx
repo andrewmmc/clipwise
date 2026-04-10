@@ -106,37 +106,34 @@ describe("HistoryList", () => {
 
   it("shows success and failure indicators", async () => {
     vi.mocked(tauri.tauriCommands.getHistory).mockResolvedValue(mockHistory);
-    const { container } = render(<HistoryList />);
+    render(<HistoryList />);
 
     await waitFor(() => {
       expect(screen.getByText("Summarize")).toBeInTheDocument();
     });
 
     // Check for green circle check icon (success)
-    const checkIcons = container.querySelectorAll("svg.lucide-circle-check");
+    const checkIcons = document.querySelectorAll("svg.lucide-circle-check");
     expect(checkIcons.length).toBeGreaterThan(0);
 
     // Check for red x circle icon (failure)
-    const errorIcons = container.querySelectorAll("svg.lucide-circle-x");
+    const errorIcons = document.querySelectorAll("svg.lucide-circle-x");
     expect(errorIcons.length).toBeGreaterThan(0);
   });
 
   it("expands entry when clicked", async () => {
     vi.mocked(tauri.tauriCommands.getHistory).mockResolvedValue(mockHistory);
 
-    const { container } = render(<HistoryList />);
+    render(<HistoryList />);
 
     await waitFor(() => {
       expect(screen.getByText("Summarize")).toBeInTheDocument();
     });
 
-    // Click the first entry's button
-    const buttons = container.querySelectorAll("button");
-    const firstEntryButton = Array.from(buttons).find((b) =>
-      b.textContent?.includes("Summarize"),
-    );
-    expect(firstEntryButton).toBeDefined();
-    fireEvent.click(firstEntryButton!);
+    // Click the first entry (now a div with role="button")
+    const firstEntry = screen.getByText("Summarize").closest("div");
+    expect(firstEntry).toBeDefined();
+    fireEvent.click(firstEntry!);
 
     // After expanding, full input and output should be visible
     await waitFor(() => {
@@ -183,18 +180,15 @@ describe("HistoryList", () => {
     vi.mocked(tauri.tauriCommands.getHistory).mockResolvedValue(mockHistory);
     const mockWriteText = vi.mocked(navigator.clipboard.writeText);
 
-    const { container } = render(<HistoryList />);
+    render(<HistoryList />);
 
     await waitFor(() => {
       expect(screen.getByText("Summarize")).toBeInTheDocument();
     });
 
     // Expand entry first
-    const buttons = container.querySelectorAll("button");
-    const firstEntryButton = Array.from(buttons).find((b) =>
-      b.textContent?.includes("Summarize"),
-    );
-    fireEvent.click(firstEntryButton!);
+    const firstEntry = screen.getByText("Summarize").closest("div");
+    fireEvent.click(firstEntry!);
 
     await waitFor(() => {
       const copyButtons = screen.getAllByText("Copy");
@@ -216,25 +210,22 @@ describe("HistoryList", () => {
     vi.mocked(tauri.tauriCommands.getHistory).mockResolvedValue(mockHistory);
     vi.mocked(tauri.tauriCommands.deleteHistoryEntry).mockResolvedValue(true);
 
-    const { container } = render(<HistoryList />);
+    render(<HistoryList />);
 
     await waitFor(() => {
       expect(screen.getByText("Summarize")).toBeInTheDocument();
     });
 
     // Expand entry to show delete button
-    const buttons = container.querySelectorAll("button");
-    const firstEntryButton = Array.from(buttons).find((b) =>
-      b.textContent?.includes("Summarize"),
-    );
-    fireEvent.click(firstEntryButton!);
+    const firstEntry = screen.getByText("Summarize").closest("div");
+    fireEvent.click(firstEntry!);
 
     await waitFor(() => {
       expect(screen.getByText("Input")).toBeInTheDocument();
     });
 
     // Find and click delete button (Trash2 icon)
-    const deleteButtons = container.querySelectorAll(
+    const deleteButtons = document.querySelectorAll(
       'button[title="Delete entry"]',
     );
     expect(deleteButtons.length).toBeGreaterThan(0);
@@ -249,25 +240,22 @@ describe("HistoryList", () => {
     vi.mocked(tauri.tauriCommands.getHistory).mockResolvedValue(mockHistory);
     vi.mocked(tauri.tauriCommands.deleteHistoryEntry).mockResolvedValue(false);
 
-    const { container } = render(<HistoryList />);
+    render(<HistoryList />);
 
     await waitFor(() => {
       expect(screen.getByText("Summarize")).toBeInTheDocument();
     });
 
     // Expand entry to show delete button
-    const buttons = container.querySelectorAll("button");
-    const firstEntryButton = Array.from(buttons).find((b) =>
-      b.textContent?.includes("Summarize"),
-    );
-    fireEvent.click(firstEntryButton!);
+    const firstEntry = screen.getByText("Summarize").closest("div");
+    fireEvent.click(firstEntry!);
 
     await waitFor(() => {
       expect(screen.getByText("Input")).toBeInTheDocument();
     });
 
     // Click delete button
-    const deleteButtons = container.querySelectorAll(
+    const deleteButtons = document.querySelectorAll(
       'button[title="Delete entry"]',
     );
     fireEvent.click(deleteButtons[0]);

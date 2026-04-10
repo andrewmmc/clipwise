@@ -65,11 +65,9 @@ export default function HistoryList() {
   };
 
   const handleClearHistory = () => {
-    console.log("Clear history button clicked");
     const confirmed = window.confirm(
       "Are you sure you want to clear all history? This cannot be undone.",
     );
-    console.log("Confirmed:", confirmed);
     if (!confirmed) {
       return;
     }
@@ -183,9 +181,17 @@ export default function HistoryList() {
                 key={entry.id}
                 className="rounded-lg border border-gray-200 bg-white"
               >
-                <button
+                <div
                   onClick={() => toggleExpanded(entry.id)}
-                  className="flex w-full items-start gap-3 p-4 text-left hover:bg-gray-50"
+                  className="flex w-full cursor-pointer items-start gap-3 p-4 hover:bg-gray-50"
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      toggleExpanded(entry.id);
+                    }
+                  }}
                 >
                   <div className="mt-0.5 text-gray-400">
                     {isExpanded ? (
@@ -226,6 +232,7 @@ export default function HistoryList() {
 
                   {isExpanded && (
                     <button
+                      type="button"
                       onClick={(e) => {
                         e.stopPropagation();
                         handleDeleteEntry(entry.id);
@@ -237,7 +244,7 @@ export default function HistoryList() {
                       <Trash2 size={14} />
                     </button>
                   )}
-                </button>
+                </div>
 
                 {isExpanded && (
                   <div className="border-t border-gray-100 p-4 pt-2 space-y-3">
