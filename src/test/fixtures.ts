@@ -40,6 +40,7 @@ export const mockConfig: AppConfig = {
   settings: {
     showNotificationOnComplete: true,
     maxTokens: 4096,
+    historyEnabled: true,
   },
 };
 
@@ -49,5 +50,6 @@ export const emptyConfig: AppConfig = {
   settings: {
     showNotificationOnComplete: true,
     maxTokens: 4096,
+    historyEnabled: true,
   },
 };

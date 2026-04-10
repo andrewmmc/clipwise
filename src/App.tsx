@@ -3,11 +3,12 @@ import { tauriCommands } from "./lib/tauri";
 import type { AppConfig } from "./types/config";
 import ActionList from "./components/ActionList";
 import ErrorBox from "./components/ErrorBox";
+import HistoryList from "./components/HistoryList";
 import ProviderList from "./components/ProviderList";
 import SettingsPanel from "./components/Settings";
-import { Zap, Server, SlidersHorizontal } from "lucide-react";
+import { Clock, Server, SlidersHorizontal, Zap } from "lucide-react";
 
-type Tab = "actions" | "providers" | "settings";
+type Tab = "actions" | "providers" | "settings" | "history";
 
 export default function App() {
   const [config, setConfig] = useState<AppConfig | null>(null);
@@ -67,6 +68,11 @@ export default function App() {
       label: "Settings",
       icon: <SlidersHorizontal size={15} />,
     },
+    {
+      id: "history",
+      label: "History",
+      icon: <Clock size={15} />,
+    },
   ];
 
   return (
@@ -110,6 +116,7 @@ export default function App() {
         {activeTab === "settings" && (
           <SettingsPanel config={config} onRefresh={refresh} />
         )}
+        {activeTab === "history" && <HistoryList />}
       </main>
     </div>
   );

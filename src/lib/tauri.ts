@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { Action, AppConfig, AppSettings, Provider } from "../types/config";
+import type { HistoryEntry } from "../types/bindings/HistoryEntry";
 
 export const tauriCommands = {
   getConfig: (): Promise<AppConfig> => invoke("get_config"),
@@ -29,4 +30,8 @@ export const tauriCommands = {
   // LLM
   testAction: (actionId: string, sampleText: string): Promise<string> =>
     invoke("test_action", { actionId, sampleText }),
+
+  // History
+  getHistory: (): Promise<HistoryEntry[]> => invoke("get_history"),
+  clearHistory: (): Promise<void> => invoke("clear_history"),
 };

@@ -19,7 +19,11 @@ describe("tauriCommands", () => {
 
   it("saveSettings calls invoke with correct args", async () => {
     mockInvoke.mockResolvedValue(undefined);
-    const settings = { showNotificationOnComplete: false, maxTokens: 2048 };
+    const settings = {
+      showNotificationOnComplete: false,
+      maxTokens: 2048,
+      historyEnabled: true,
+    };
     await tauriCommands.saveSettings(settings);
     expect(mockInvoke).toHaveBeenCalledWith("save_settings", { settings });
   });
@@ -107,5 +111,29 @@ describe("tauriCommands", () => {
       sampleText: "sample",
     });
     expect(result).toBe("transformed text");
+  });
+
+  it("getHistory calls invoke with 'get_history'", async () => {
+    const mockHistory = [
+      {
+        id: "1",
+        timestamp: "2024-01-01T00:00:00Z",
+        actionName: "Test Action",
+        providerName: "Test Provider",
+        inputText: "input",
+        outputText: "output",
+        success: true,
+      },
+    ];
+    mockInvoke.mockResolvedValue(mockHistory);
+    const result = await tauriCommands.getHistory();
+    expect(mockInvoke).toHaveBeenCalledWith("get_history");
+    expect(result).toEqual(mockHistory);
+  });
+
+  it("clearHistory calls invoke with 'clear_history'", async () => {
+    mockInvoke.mockResolvedValue(undefined);
+    await tauriCommands.clearHistory();
+    expect(mockInvoke).toHaveBeenCalledWith("clear_history");
   });
 });

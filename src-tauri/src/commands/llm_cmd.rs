@@ -1,5 +1,6 @@
 use crate::config::ConfigState;
 use crate::error::AppError;
+use crate::history;
 use crate::models::{LlmResult, ProviderType};
 use crate::providers::{anthropic, cli, openai};
 use tauri::State;
@@ -79,7 +80,43 @@ pub async fn run_action(
     selected_text: String,
     state: State<'_, ConfigState>,
 ) -> Result<String, AppError> {
-    run_action_inner(action_id, selected_text, &state).await
+    let result = run_action_inner(action_id.clone(), selected_text.clone(), &state).await;
+
+    // Log to history if enabled
+    let (action_name, provider_name, history_enabled) = {
+        let config = state.lock()?;
+        let action = config
+            .actions
+            .iter()
+            .find(|a| a.id == action_id);
+        let provider = action.and_then(|a| {
+            config.providers.iter().find(|p| p.id == a.provider_id)
+        });
+        (
+            action.map(|a| a.name.clone()).unwrap_or_default(),
+            provider.map(|p| p.name.clone()).unwrap_or_default(),
+            config.settings.history_enabled,
+        )
+    };
+
+    if history_enabled {
+        let (input_text, output_text, success) = match &result {
+            Ok(output) => (selected_text.clone(), output.clone(), true),
+            Err(err) => (selected_text.clone(), err.to_string(), false),
+        };
+
+        // Log history errors should not fail the action
+        let _ = history::add_entry(action_name, provider_name, input_text, output_text, success)
+            .map_err(|e| {
+                error!(
+                    error = %e,
+                    action_id = %action_id,
+                    "Failed to log history entry"
+                )
+            });
+    }
+
+    result
 }
 
 /// Test an action from the settings UI. Same as run_action but called from the frontend.
@@ -89,7 +126,43 @@ pub async fn test_action(
     sample_text: String,
     state: State<'_, ConfigState>,
 ) -> Result<String, AppError> {
-    run_action_inner(action_id, sample_text, &state).await
+    let result = run_action_inner(action_id.clone(), sample_text.clone(), &state).await;
+
+    // Log to history if enabled
+    let (action_name, provider_name, history_enabled) = {
+        let config = state.lock()?;
+        let action = config
+            .actions
+            .iter()
+            .find(|a| a.id == action_id);
+        let provider = action.and_then(|a| {
+            config.providers.iter().find(|p| p.id == a.provider_id)
+        });
+        (
+            action.map(|a| a.name.clone()).unwrap_or_default(),
+            provider.map(|p| p.name.clone()).unwrap_or_default(),
+            config.settings.history_enabled,
+        )
+    };
+
+    if history_enabled {
+        let (input_text, output_text, success) = match &result {
+            Ok(output) => (sample_text.clone(), output.clone(), true),
+            Err(err) => (sample_text.clone(), err.to_string(), false),
+        };
+
+        // Log history errors should not fail the action
+        let _ = history::add_entry(action_name, provider_name, input_text, output_text, success)
+            .map_err(|e| {
+                error!(
+                    error = %e,
+                    action_id = %action_id,
+                    "Failed to log history entry"
+                )
+            });
+    }
+
+    result
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -144,6 +217,7 @@ mod tests {
             ],
             settings: AppSettings {
                 max_tokens: 1000,
+                history_enabled: false, // Disable history for tests
                 ..Default::default()
             },
         }))
@@ -225,7 +299,10 @@ mod tests {
                 user_prompt: "Test".into(),
                 model: Some("override-model".into()),
             }],
-            settings: AppSettings::default(),
+            settings: AppSettings {
+                history_enabled: false,
+                ..Default::default()
+            },
         }));
 
         let config = state.lock().unwrap();

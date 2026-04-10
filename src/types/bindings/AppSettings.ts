@@ -6,4 +6,5 @@
 export type AppSettings = {
   showNotificationOnComplete: boolean;
   maxTokens: number;
+  historyEnabled: boolean;
 };

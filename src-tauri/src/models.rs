@@ -72,6 +72,34 @@ pub struct Action {
     pub model: Option<String>,
 }
 
+/// A single history entry recording a text transformation.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "ts", ts(export))]
+#[serde(rename_all = "camelCase")]
+pub struct HistoryEntry {
+    #[serde(default)]
+    pub id: String,
+    /// ISO 8601 timestamp
+    #[serde(default)]
+    pub timestamp: String,
+    /// Name of the action that was run
+    #[serde(default)]
+    pub action_name: String,
+    /// Name of the provider that was used
+    #[serde(default)]
+    pub provider_name: String,
+    /// Input text (truncated for storage)
+    #[serde(default)]
+    pub input_text: String,
+    /// Output text (truncated for storage)
+    #[serde(default)]
+    pub output_text: String,
+    /// Whether the transformation succeeded
+    #[serde(default)]
+    pub success: bool,
+}
+
 /// Global application settings.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
@@ -82,6 +110,8 @@ pub struct AppSettings {
     pub show_notification_on_complete: bool,
     #[serde(default = "default_max_tokens")]
     pub max_tokens: u32,
+    #[serde(default = "default_true")]
+    pub history_enabled: bool,
 }
 
 fn default_true() -> bool {
@@ -96,6 +126,7 @@ impl Default for AppSettings {
         Self {
             show_notification_on_complete: true,
             max_tokens: 4096,
+            history_enabled: true,
         }
     }
 }
@@ -328,6 +359,56 @@ mod tests {
         assert!(!json.contains("\"model\""), "None model must be omitted");
     }
 
+    // ── HistoryEntry serde ─────────────────────────────────────────────────────
+
+    #[test]
+    fn test_history_entry_camel_case_fields() {
+        let entry = HistoryEntry {
+            id: "test-id".into(),
+            timestamp: "2024-01-01T00:00:00Z".into(),
+            action_name: "Test Action".into(),
+            provider_name: "Test Provider".into(),
+            input_text: "input".into(),
+            output_text: "output".into(),
+            success: true,
+        };
+        let json = serde_json::to_string(&entry).unwrap();
+        assert!(json.contains("\"actionName\""));
+        assert!(json.contains("\"providerName\""));
+        assert!(json.contains("\"inputText\""));
+        assert!(json.contains("\"outputText\""));
+        assert!(!json.contains("\"action_name\""));
+    }
+
+    #[test]
+    fn test_history_entry_round_trip() {
+        let entry = HistoryEntry {
+            id: "test-id".into(),
+            timestamp: "2024-01-01T00:00:00Z".into(),
+            action_name: "Test Action".into(),
+            provider_name: "Test Provider".into(),
+            input_text: "input".into(),
+            output_text: "output".into(),
+            success: true,
+        };
+        let json = serde_json::to_string(&entry).unwrap();
+        let decoded: HistoryEntry = serde_json::from_str(&json).unwrap();
+        assert_eq!(decoded.id, "test-id");
+        assert_eq!(decoded.action_name, "Test Action");
+        assert_eq!(decoded.provider_name, "Test Provider");
+        assert!(decoded.success);
+    }
+
+    #[test]
+    fn test_history_entry_defaults_to_empty_strings() {
+        let json = r#"{"id": "test", "success": true}"#;
+        let entry: HistoryEntry = serde_json::from_str(json).unwrap();
+        assert_eq!(entry.id, "test");
+        assert_eq!(entry.timestamp, "");
+        assert_eq!(entry.action_name, "");
+        assert!(entry.success);
+    }
+
     // ── AppSettings defaults ──────────────────────────────────────────────────
 
     #[test]
@@ -335,6 +416,7 @@ mod tests {
         let s: AppSettings = serde_json::from_str("{}").unwrap();
         assert!(s.show_notification_on_complete);
         assert_eq!(s.max_tokens, 4096);
+        assert!(s.history_enabled);
     }
 
     #[test]
@@ -342,6 +424,7 @@ mod tests {
         let s: AppSettings = serde_json::from_str(r#"{"maxTokens": 2048}"#).unwrap();
         assert!(s.show_notification_on_complete); // default preserved
         assert_eq!(s.max_tokens, 2048);
+        assert!(s.history_enabled); // default preserved
     }
 
     #[test]
@@ -349,6 +432,14 @@ mod tests {
         let s = AppSettings::default();
         assert!(s.show_notification_on_complete);
         assert_eq!(s.max_tokens, 4096);
+        assert!(s.history_enabled);
+    }
+
+    #[test]
+    fn test_app_settings_history_enabled_can_be_disabled() {
+        let s: AppSettings = serde_json::from_str(r#"{"historyEnabled": false}"#).unwrap();
+        assert!(!s.history_enabled);
+        assert!(s.show_notification_on_complete); // other defaults preserved
     }
 
     // ── AppConfig ─────────────────────────────────────────────────────────────

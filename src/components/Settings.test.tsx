@@ -32,8 +32,11 @@ describe("SettingsPanel", () => {
 
   it("renders the notification toggle in correct initial state", () => {
     render(<SettingsPanel config={mockConfig} onRefresh={onRefresh} />);
-    const toggle = screen.getByRole("switch");
-    expect(toggle).toHaveAttribute("aria-checked", "true");
+    const toggles = screen.getAllByRole("switch");
+    // First toggle is showNotificationOnComplete
+    expect(toggles[0]).toHaveAttribute("aria-checked", "true");
+    // Second toggle is historyEnabled
+    expect(toggles[1]).toHaveAttribute("aria-checked", "true");
   });
 
   it("renders max tokens input with current value", () => {
@@ -45,9 +48,9 @@ describe("SettingsPanel", () => {
   it("clicking the toggle changes notification setting", async () => {
     const user = userEvent.setup();
     render(<SettingsPanel config={mockConfig} onRefresh={onRefresh} />);
-    const toggle = screen.getByRole("switch");
-    await user.click(toggle);
-    expect(toggle).toHaveAttribute("aria-checked", "false");
+    const toggles = screen.getAllByRole("switch");
+    await user.click(toggles[0]);
+    expect(toggles[0]).toHaveAttribute("aria-checked", "false");
   });
 
   it("syncs the toggle when config changes", () => {
@@ -68,7 +71,9 @@ describe("SettingsPanel", () => {
       />,
     );
 
-    expect(screen.getByRole("switch")).toHaveAttribute("aria-checked", "false");
+    const toggles = screen.getAllByRole("switch");
+    expect(toggles[0]).toHaveAttribute("aria-checked", "false");
+    expect(toggles[1]).toHaveAttribute("aria-checked", "true");
   });
 
   it("changing max tokens input updates the value", async () => {
@@ -87,7 +92,11 @@ describe("SettingsPanel", () => {
     await user.click(screen.getByRole("button", { name: /save settings/i }));
     await waitFor(() =>
       expect(mockInvoke).toHaveBeenCalledWith("save_settings", {
-        settings: { showNotificationOnComplete: true, maxTokens: 4096 },
+        settings: {
+          showNotificationOnComplete: true,
+          maxTokens: 4096,
+          historyEnabled: true,
+        },
       }),
     );
   });
@@ -147,12 +156,32 @@ describe("SettingsPanel", () => {
     mockInvoke.mockResolvedValue(undefined);
     const user = userEvent.setup();
     render(<SettingsPanel config={mockConfig} onRefresh={onRefresh} />);
-    await user.click(screen.getByRole("switch"));
+    const toggles = screen.getAllByRole("switch");
+    await user.click(toggles[0]);
     await user.click(screen.getByRole("button", { name: /save settings/i }));
     await waitFor(() =>
       expect(mockInvoke).toHaveBeenCalledWith("save_settings", {
         settings: expect.objectContaining({
           showNotificationOnComplete: false,
+          historyEnabled: true,
+        }),
+      }),
+    );
+  });
+
+  it("can toggle history enabled setting", async () => {
+    mockInvoke.mockResolvedValue(undefined);
+    const user = userEvent.setup();
+    render(<SettingsPanel config={mockConfig} onRefresh={onRefresh} />);
+    const toggles = screen.getAllByRole("switch");
+    // Second toggle is history enabled
+    await user.click(toggles[1]);
+    await user.click(screen.getByRole("button", { name: /save settings/i }));
+    await waitFor(() =>
+      expect(mockInvoke).toHaveBeenCalledWith("save_settings", {
+        settings: expect.objectContaining({
+          showNotificationOnComplete: true,
+          historyEnabled: false,
         }),
       }),
     );

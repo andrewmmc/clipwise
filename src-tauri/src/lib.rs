@@ -1,13 +1,14 @@
 mod commands;
 mod config;
 mod error;
+mod history;
 mod logging;
 mod models;
 mod providers;
 mod retry;
 pub mod service;
 
-use commands::{config_cmd::*, llm_cmd::*};
+use commands::{config_cmd::*, history_cmd::*, llm_cmd::*};
 use config::{load_config, ConfigState};
 use models::AppConfig;
 use std::sync::mpsc;
@@ -69,6 +70,9 @@ pub fn run() {
             // LLM commands
             run_action,
             test_action,
+            // History commands
+            get_history,
+            clear_history,
         ])
         .setup(move |app| {
             info!("Setting up Tauri application");
@@ -204,7 +208,7 @@ fn run_tray_action<R: Runtime>(app: AppHandle<R>, action_id: String) {
             }
         };
 
-        let (action_name, show_notification_on_complete) = {
+        let (action_name, provider_name, show_notification_on_complete) = {
             let config_state = app.state::<ConfigState>();
             let config = match config_state.lock() {
                 Ok(c) => c,
@@ -232,13 +236,17 @@ fn run_tray_action<R: Runtime>(app: AppHandle<R>, action_id: String) {
                     return;
                 }
             };
-            (action.name, config.settings.show_notification_on_complete)
+            let provider = config.providers.iter().find(|p| p.id == action.provider_id);
+            let provider_name = provider.map(|p| p.name.clone()).unwrap_or_default();
+            (action.name, provider_name, config.settings.show_notification_on_complete)
         };
 
         let action_id_for_logs = action_id.clone();
+        let clipboard_text_for_history = clipboard_text.clone();
         info!(
             action_id = %action_id_for_logs,
             action_name = %action_name,
+            provider_name = %provider_name,
             clipboard_chars = clipboard_text.chars().count(),
             show_notification_on_complete,
             "Processing tray action"
@@ -259,6 +267,28 @@ fn run_tray_action<R: Runtime>(app: AppHandle<R>, action_id: String) {
 
         match result {
             Ok(text) => {
+                // Log to history if enabled
+                let history_enabled = {
+                    let config_state = app.state::<ConfigState>();
+                    config_state.lock().map(|c| c.settings.history_enabled).unwrap_or(false)
+                };
+
+                if history_enabled {
+                    let _ = history::add_entry(
+                        action_name.clone(),
+                        provider_name.clone(),
+                        clipboard_text_for_history.clone(),
+                        text.clone(),
+                        true,
+                    ).map_err(|e| {
+                        error!(
+                            error = %e,
+                            action_id = %action_id_for_logs,
+                            "Failed to log history entry"
+                        )
+                    });
+                }
+
                 if let Err(err) = write_clipboard_text(&app, text.clone()) {
                     error!(action_id = %action_id_for_logs, error = %err, "Failed to write clipboard for tray action");
                     let _ = app
@@ -290,6 +320,28 @@ fn run_tray_action<R: Runtime>(app: AppHandle<R>, action_id: String) {
                 }
             }
             Err(err) => {
+                // Log failed history entry if enabled
+                let history_enabled = {
+                    let config_state = app.state::<ConfigState>();
+                    config_state.lock().map(|c| c.settings.history_enabled).unwrap_or(false)
+                };
+
+                if history_enabled {
+                    let _ = history::add_entry(
+                        action_name.clone(),
+                        provider_name,
+                        clipboard_text_for_history,
+                        err.to_string(),
+                        false,
+                    ).map_err(|e| {
+                        error!(
+                            error = %e,
+                            action_id = %action_id_for_logs,
+                            "Failed to log history entry"
+                        )
+                    });
+                }
+
                 error!(action_id = %action_id_for_logs, error = %err, "Tray action failed");
                 let _ = app
                     .notification()

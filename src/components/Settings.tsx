@@ -99,6 +99,40 @@ export default function SettingsPanel({ config, onRefresh }: Props) {
               </button>
             </div>
 
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-700">
+                  Enable history
+                </p>
+                <p className="text-xs text-gray-400">
+                  Keep a log of the last 100 text transformations.
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={settings.historyEnabled}
+                aria-label="Enable history"
+                onClick={() =>
+                  updateSettings({
+                    historyEnabled: !settings.historyEnabled,
+                  })
+                }
+                className={[
+                  "relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2",
+                  settings.historyEnabled ? "bg-blue-600" : "bg-gray-200",
+                ].join(" ")}
+              >
+                <span
+                  aria-hidden="true"
+                  className={[
+                    "pointer-events-none absolute left-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform",
+                    settings.historyEnabled ? "translate-x-4" : "translate-x-0",
+                  ].join(" ")}
+                />
+              </button>
+            </div>
+
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-700">
                 Max Tokens
