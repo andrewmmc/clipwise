@@ -64,9 +64,10 @@ export default function HistoryList() {
     }
   };
 
-  const handleClearHistory = async () => {
+  const handleClearHistory = async (e: React.MouseEvent) => {
+    e.preventDefault();
     if (
-      !confirm(
+      !window.confirm(
         "Are you sure you want to clear all history? This cannot be undone.",
       )
     ) {
@@ -149,6 +150,7 @@ export default function HistoryList() {
         </div>
         {history.length > 0 && (
           <button
+            type="button"
             onClick={handleClearHistory}
             disabled={clearing}
             className="flex items-center gap-1.5 rounded-md border border-red-300 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50"
