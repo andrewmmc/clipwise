@@ -18,7 +18,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "prepare": "lefthook install"
+    "prepare": "lefthook install",
+    "gen-types": "cd src-tauri && TS_RS_EXPORT_DIR=../src/types/bindings cargo test --features ts export_bindings"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",

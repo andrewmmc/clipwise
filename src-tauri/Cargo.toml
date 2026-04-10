@@ -24,6 +24,7 @@ uuid = { version = "1", features = ["v4"] }
 dirs = "5"
 thiserror = "1"
 shlex = "1"
+ts-rs = { version = "12", optional = true, features = ["serde-compat"] }
 tracing = "0.1"
 tracing-appender = "0.2"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "json"] }
@@ -50,3 +51,4 @@ tempfile = "3"
 
 [features]
 custom-protocol = ["tauri/custom-protocol"]
+ts = ["dep:ts-rs"]

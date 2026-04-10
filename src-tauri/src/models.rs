@@ -1,7 +1,9 @@
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
 /// A configured LLM provider (API or CLI).
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "ts", ts(export))]
 #[serde(rename_all = "camelCase")]
 pub struct Provider {
     #[serde(default)]
@@ -11,25 +13,38 @@ pub struct Provider {
     pub provider_type: ProviderType,
     /// For API providers: base endpoint URL
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "ts", ts(optional))]
     pub endpoint: Option<String>,
     /// For API providers: API key
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "ts", ts(optional))]
     pub api_key: Option<String>,
     /// For API providers: extra headers
-    #[serde(default, skip_serializing_if = "serde_json::Map::is_empty")]
+    #[serde(
+        default,
+        skip_serializing_if = "serde_json::Map::is_empty",
+        deserialize_with = "deserialize_string_headers"
+    )]
+    // ts-rs cannot parse `deserialize_with`; the type is overridden explicitly below.
+    #[cfg_attr(feature = "ts", ts(type = "Record<string, string> | undefined"))]
     pub headers: serde_json::Map<String, serde_json::Value>,
     /// Default model name for this provider
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "ts", ts(optional))]
     pub default_model: Option<String>,
     /// For CLI providers: command to execute
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "ts", ts(optional))]
     pub command: Option<String>,
     /// For CLI providers: arguments (model/flags)
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[cfg_attr(feature = "ts", ts(type = "string[] | undefined"))]
     pub args: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "ts", ts(export))]
 #[serde(rename_all = "lowercase")]
 pub enum ProviderType {
     OpenAI,
@@ -39,6 +54,8 @@ pub enum ProviderType {
 
 /// A user-defined action that appears in the menu bar popup.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "ts", ts(export))]
 #[serde(rename_all = "camelCase")]
 pub struct Action {
     #[serde(default)]
@@ -51,11 +68,14 @@ pub struct Action {
     pub user_prompt: String,
     /// Optional model override (overrides provider default)
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "ts", ts(optional))]
     pub model: Option<String>,
 }
 
 /// Global application settings.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "ts", ts(export))]
 #[serde(rename_all = "camelCase")]
 pub struct AppSettings {
     #[serde(default = "default_true")]
@@ -82,6 +102,8 @@ impl Default for AppSettings {
 
 /// Root configuration object stored in ~/Library/Application Support/llm-actions/config.json
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "ts", ts(export))]
 pub struct AppConfig {
     #[serde(default)]
     pub providers: Vec<Provider>,
@@ -104,6 +126,28 @@ Only output the raw JSON object.";
 #[derive(Debug, Deserialize)]
 pub struct LlmResult {
     pub result: String,
+}
+
+fn deserialize_string_headers<'de, D>(
+    deserializer: D,
+) -> Result<serde_json::Map<String, serde_json::Value>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let headers = serde_json::Value::deserialize(deserializer)?;
+    let headers = headers
+        .as_object()
+        .ok_or_else(|| serde::de::Error::custom("headers must be an object"))?;
+
+    let mut validated_headers = serde_json::Map::new();
+    for (key, value) in headers {
+        let value = value
+            .as_str()
+            .ok_or_else(|| serde::de::Error::custom(format!("header `{key}` must be a string")))?;
+        validated_headers.insert(key.clone(), serde_json::Value::String(value.to_owned()));
+    }
+
+    Ok(validated_headers)
 }
 
 #[cfg(test)]
@@ -203,6 +247,42 @@ mod tests {
         assert_eq!(decoded.api_key, provider.api_key);
         assert_eq!(decoded.default_model, provider.default_model);
         assert_eq!(decoded.provider_type, ProviderType::Anthropic);
+    }
+
+    #[test]
+    fn test_provider_headers_accept_string_values() {
+        let provider: Provider = serde_json::from_str(
+            r#"{
+                "id": "p1",
+                "name": "Anthropic",
+                "type": "anthropic",
+                "headers": {
+                    "x-test": "value"
+                }
+            }"#,
+        )
+        .unwrap();
+
+        assert_eq!(
+            provider.headers.get("x-test"),
+            Some(&serde_json::Value::String("value".into()))
+        );
+    }
+
+    #[test]
+    fn test_provider_headers_reject_non_string_values() {
+        let result = serde_json::from_str::<Provider>(
+            r#"{
+                "id": "p1",
+                "name": "Anthropic",
+                "type": "anthropic",
+                "headers": {
+                    "x-test": 123
+                }
+            }"#,
+        );
+
+        assert!(result.is_err());
     }
 
     #[test]
