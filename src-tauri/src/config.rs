@@ -2,12 +2,13 @@ use crate::error::AppError;
 use crate::models::AppConfig;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
+use tracing::info;
 
 pub struct ConfigState(pub Mutex<AppConfig>);
 
 impl ConfigState {
     /// Acquires the lock, converting a poisoned mutex into an AppError.
-    pub fn lock(&self) -> Result<std::sync::MutexGuard<AppConfig>, AppError> {
+    pub fn lock(&self) -> Result<std::sync::MutexGuard<'_, AppConfig>, AppError> {
         self.0
             .lock()
             .map_err(|_| AppError::Service("Config lock poisoned due to previous panic".into()))
@@ -26,10 +27,18 @@ pub fn config_path() -> Result<PathBuf, AppError> {
 /// Load config from an explicit path (used by tests).
 pub fn load_config_from(path: &Path) -> Result<AppConfig, AppError> {
     if !path.exists() {
+        info!(path = %path.display(), "Config file missing; using defaults");
         return Ok(AppConfig::default());
     }
+
     let data = std::fs::read_to_string(path)?;
     let config: AppConfig = serde_json::from_str(&data)?;
+    info!(
+        path = %path.display(),
+        provider_count = config.providers.len(),
+        action_count = config.actions.len(),
+        "Loaded config"
+    );
     Ok(config)
 }
 
@@ -40,6 +49,12 @@ pub fn save_config_to(config: &AppConfig, path: &Path) -> Result<(), AppError> {
     }
     let data = serde_json::to_string_pretty(config)?;
     std::fs::write(path, data)?;
+    info!(
+        path = %path.display(),
+        provider_count = config.providers.len(),
+        action_count = config.actions.len(),
+        "Saved config"
+    );
     Ok(())
 }
 

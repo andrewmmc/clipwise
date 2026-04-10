@@ -3,12 +3,14 @@ use crate::error::AppError;
 use crate::models::{LlmResult, ProviderType};
 use crate::providers::{anthropic, cli, openai};
 use tauri::State;
+use tracing::{error, info};
 
 pub(crate) async fn run_action_inner(
     action_id: String,
     selected_text: String,
     state: &ConfigState,
 ) -> Result<String, AppError> {
+    let selected_text_chars = selected_text.chars().count();
     let (action, provider, max_tokens) = {
         let config = state.lock()?;
         let action = config
@@ -29,8 +31,20 @@ pub(crate) async fn run_action_inner(
 
     let user_message = format!("{}\n\n{}", action.user_prompt, selected_text);
     let model = action.model.as_deref();
+    let provider_type = provider.provider_type.clone();
 
-    let raw_result: serde_json::Value = match provider.provider_type {
+    info!(
+        action_id = %action.id,
+        action_name = %action.name,
+        provider_id = %provider.id,
+        provider_type = ?provider_type,
+        model = model.unwrap_or("<provider-default>"),
+        selected_text_chars,
+        max_tokens,
+        "Running action"
+    );
+
+    let provider_result = match provider_type {
         ProviderType::OpenAI => {
             openai::call_openai(&provider, &user_message, model, max_tokens).await?
         }
@@ -40,9 +54,19 @@ pub(crate) async fn run_action_inner(
         ProviderType::Cli => cli::call_cli(&provider, &user_message).await?,
     };
 
+    let raw_result: serde_json::Value = provider_result;
+
     // Validate the result has a `result` string field
-    let result: LlmResult =
-        serde_json::from_value(raw_result).map_err(|_| AppError::InvalidResponse)?;
+    let result: LlmResult = serde_json::from_value(raw_result).map_err(|_| {
+        error!(action_id = %action.id, "Provider returned an invalid response payload");
+        AppError::InvalidResponse
+    })?;
+
+    info!(
+        action_id = %action.id,
+        result_chars = result.result.chars().count(),
+        "Action completed"
+    );
 
     Ok(result.result)
 }

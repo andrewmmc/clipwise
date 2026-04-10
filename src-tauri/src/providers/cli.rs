@@ -5,6 +5,7 @@ use std::env;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use tokio::process::Command;
+use tracing::{debug, info, warn};
 
 pub async fn call_cli(
     provider: &Provider,
@@ -15,6 +16,15 @@ pub async fn call_cli(
         .as_deref()
         .ok_or_else(|| AppError::Config("CLI provider missing command".into()))?;
     let (resolved_command, inline_args) = prepare_command(command)?;
+
+    info!(
+        provider_id = %provider.id,
+        command = %resolved_command.display(),
+        inline_arg_count = inline_args.len(),
+        provider_arg_count = provider.args.len(),
+        prompt_chars = user_message.chars().count(),
+        "Running CLI provider"
+    );
 
     // Build full message: inject system prompt + user message
     let full_prompt = format!("{}\n\n{}", SYSTEM_PROMPT, user_message);
@@ -35,6 +45,13 @@ pub async fn call_cli(
     })?;
 
     if !output.status.success() {
+        warn!(
+            provider_id = %provider.id,
+            command = %resolved_command.display(),
+            exit_code = ?output.status.code(),
+            stderr_bytes = output.stderr.len(),
+            "CLI provider command failed"
+        );
         let stderr = String::from_utf8_lossy(&output.stderr);
         return Err(AppError::Llm(format!(
             "CLI exited with non-zero code: {}",
@@ -46,8 +63,11 @@ pub async fn call_cli(
     let stdout = stdout.trim();
 
     if stdout.is_empty() {
+        warn!(provider_id = %provider.id, command = %resolved_command.display(), "CLI provider produced no output");
         return Err(AppError::Llm("CLI produced no output".into()));
     }
+
+    debug!(provider_id = %provider.id, stdout_bytes = stdout.len(), "CLI provider returned output");
 
     normalize_response_str(stdout)
 }

@@ -4,6 +4,7 @@ use crate::models::{Provider, SYSTEM_PROMPT};
 use crate::retry::with_http_retry;
 use reqwest::Client;
 use serde_json::json;
+use tracing::{debug, info, warn};
 
 pub async fn call_anthropic(
     provider: &Provider,
@@ -33,6 +34,16 @@ pub async fn call_anthropic_with_client(
         .or(provider.default_model.as_deref())
         .unwrap_or("claude-sonnet-4-20250514");
 
+    info!(
+        provider_id = %provider.id,
+        model = %model_name,
+        max_tokens,
+        prompt_chars = user_message.chars().count(),
+        has_custom_endpoint = provider.endpoint.is_some(),
+        header_count = provider.headers.len(),
+        "Calling Anthropic provider"
+    );
+
     let body = json!({
         "model": model_name,
         "max_tokens": max_tokens,
@@ -57,23 +68,31 @@ pub async fn call_anthropic_with_client(
         }
 
         let resp = req.json(&body).send().await.map_err(AppError::Http)?;
+        let status = resp.status();
 
-        if !resp.status().is_success() {
-            let status = resp.status();
+        if !status.is_success() {
+            warn!(provider_id = %provider.id, status = status.as_u16(), "Anthropic request failed");
             let error_body = resp.text().await.unwrap_or_default();
             return Err(AppError::from_http_status(status.as_u16(), &error_body));
         }
 
+        debug!(provider_id = %provider.id, status = status.as_u16(), "Anthropic request succeeded");
         resp.text().await.map_err(AppError::Http)
     })
     .await?;
+
+    debug!(provider_id = %provider.id, response_bytes = body_text.len(), "Received Anthropic response body");
 
     let json: serde_json::Value = serde_json::from_str(&body_text)
         .map_err(|_| AppError::Llm(format!("Failed to parse response as JSON: {}", body_text)))?;
 
     // Extract content from content[0].text
-    let content = json["content"][0]["text"]
-        .as_str()
+    let content = json
+        .get("content")
+        .and_then(serde_json::Value::as_array)
+        .and_then(|content| content.first())
+        .and_then(|item| item.get("text"))
+        .and_then(serde_json::Value::as_str)
         .ok_or(AppError::InvalidResponse)?;
 
     normalize_response_str(content)

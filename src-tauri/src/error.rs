@@ -1,5 +1,7 @@
 use thiserror::Error;
 
+use crate::retry::is_transient_error;
+
 #[derive(Debug, Error)]
 pub enum AppError {
     #[error("Config error: {0}")]
@@ -35,7 +37,7 @@ impl AppError {
         match status {
             401 | 403 => AppError::AuthError,
             429 => AppError::RateLimited,
-            500 | 502 | 503 | 504 => AppError::NetworkError,
+            code if is_transient_error(code) => AppError::NetworkError,
             _ => AppError::Llm(format!("HTTP {}: {}", status, body)),
         }
     }

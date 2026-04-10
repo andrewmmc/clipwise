@@ -1,6 +1,7 @@
 mod commands;
 mod config;
 mod error;
+mod logging;
 mod models;
 mod providers;
 mod retry;
@@ -19,6 +20,7 @@ use tauri::{
     AppHandle, Manager, Runtime, WindowEvent,
 };
 use tauri_plugin_notification::NotificationExt;
+use tracing::{debug, error, info, warn};
 
 const TRAY_ID: &str = "main";
 const TRAY_ACTION_PREFIX: &str = "tray_action:";
@@ -28,9 +30,27 @@ const NOTIFICATION_PREVIEW_LIMIT: usize = 120;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let config = load_config().unwrap_or_default();
+    let log_path = logging::init_logging();
+    match &log_path {
+        Some(path) => info!(log_file = %path.display(), "Logging initialized"),
+        None => warn!("File logging unavailable; continuing with stderr logging only"),
+    }
 
-    tauri::Builder::default()
+    let config = match load_config() {
+        Ok(config) => config,
+        Err(err) => {
+            error!(error = %err, "Failed to load config; using defaults instead");
+            AppConfig::default()
+        }
+    };
+
+    info!(
+        provider_count = config.providers.len(),
+        action_count = config.actions.len(),
+        "Starting LLM Actions"
+    );
+
+    let app = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
         .manage(ConfigState(Mutex::new(config)))
@@ -51,20 +71,25 @@ pub fn run() {
             test_action,
         ])
         .setup(move |app| {
+            info!("Setting up Tauri application");
             setup_tray(app)?;
             setup_settings_window(app)?;
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
             Ok(())
-        })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        });
+
+    if let Err(err) = app.run(tauri::generate_context!()) {
+        error!(error = %err, "Error while running Tauri application");
+        panic!("error while running tauri application: {err}");
+    }
 }
 
 pub(crate) fn refresh_tray_menu<R: Runtime>(
     app: &AppHandle<R>,
     config: &AppConfig,
 ) -> tauri::Result<()> {
+    debug!(action_count = config.actions.len(), "Refreshing tray menu");
     if let Some(tray) = app.tray_by_id(TRAY_ID) {
         tray.set_menu(Some(build_tray_menu(app, config)?))?;
     }
@@ -75,6 +100,7 @@ fn build_tray_menu<R: Runtime, M: Manager<R>>(
     app: &M,
     config: &AppConfig,
 ) -> tauri::Result<Menu<R>> {
+    debug!(action_count = config.actions.len(), "Building tray menu");
     let action_items: Vec<MenuItem<R>> = if config.actions.is_empty() {
         vec![MenuItem::with_id(
             app,
@@ -152,9 +178,12 @@ fn write_clipboard_text<R: Runtime>(app: &AppHandle<R>, text: String) -> Result<
 
 fn run_tray_action<R: Runtime>(app: AppHandle<R>, action_id: String) {
     tauri::async_runtime::spawn(async move {
+        info!(action_id = %action_id, "Tray action requested");
+
         let clipboard_text = match read_clipboard_text(&app) {
             Ok(Some(text)) if !text.trim().is_empty() => text,
             Ok(_) => {
+                info!(action_id = %action_id, "Tray action skipped because clipboard was empty");
                 let _ = app
                     .notification()
                     .builder()
@@ -164,6 +193,7 @@ fn run_tray_action<R: Runtime>(app: AppHandle<R>, action_id: String) {
                 return;
             }
             Err(err) => {
+                error!(action_id = %action_id, error = %err, "Failed to read clipboard for tray action");
                 let _ = app
                     .notification()
                     .builder()
@@ -179,6 +209,7 @@ fn run_tray_action<R: Runtime>(app: AppHandle<R>, action_id: String) {
             let config = match config_state.lock() {
                 Ok(c) => c,
                 Err(e) => {
+                    error!(action_id = %action_id, error = %e, "Failed to access config for tray action");
                     let _ = app
                         .notification()
                         .builder()
@@ -191,6 +222,7 @@ fn run_tray_action<R: Runtime>(app: AppHandle<R>, action_id: String) {
             let action = match config.actions.iter().find(|a| a.id == action_id) {
                 Some(action) => action.clone(),
                 None => {
+                    warn!(action_id = %action_id, "Tray action could not be found");
                     let _ = app
                         .notification()
                         .builder()
@@ -202,6 +234,15 @@ fn run_tray_action<R: Runtime>(app: AppHandle<R>, action_id: String) {
             };
             (action.name, config.settings.show_notification_on_complete)
         };
+
+        let action_id_for_logs = action_id.clone();
+        info!(
+            action_id = %action_id_for_logs,
+            action_name = %action_name,
+            clipboard_chars = clipboard_text.chars().count(),
+            show_notification_on_complete,
+            "Processing tray action"
+        );
 
         // Show processing notification to give immediate feedback
         let _ = app
@@ -219,6 +260,7 @@ fn run_tray_action<R: Runtime>(app: AppHandle<R>, action_id: String) {
         match result {
             Ok(text) => {
                 if let Err(err) = write_clipboard_text(&app, text.clone()) {
+                    error!(action_id = %action_id_for_logs, error = %err, "Failed to write clipboard for tray action");
                     let _ = app
                         .notification()
                         .builder()
@@ -227,6 +269,13 @@ fn run_tray_action<R: Runtime>(app: AppHandle<R>, action_id: String) {
                         .show();
                     return;
                 }
+
+                info!(
+                    action_id = %action_id_for_logs,
+                    action_name = %action_name,
+                    result_chars = text.chars().count(),
+                    "Tray action completed"
+                );
 
                 if show_notification_on_complete {
                     let preview = notification_preview(&text);
@@ -241,6 +290,7 @@ fn run_tray_action<R: Runtime>(app: AppHandle<R>, action_id: String) {
                 }
             }
             Err(err) => {
+                error!(action_id = %action_id_for_logs, error = %err, "Tray action failed");
                 let _ = app
                     .notification()
                     .builder()
@@ -253,8 +303,14 @@ fn run_tray_action<R: Runtime>(app: AppHandle<R>, action_id: String) {
 }
 
 fn setup_tray<R: Runtime>(app: &tauri::App<R>) -> tauri::Result<()> {
-    let config = app.state::<ConfigState>().lock().unwrap().clone();
+    let config = app
+        .state::<ConfigState>()
+        .lock()
+        .map_err(|e| tauri::Error::Anyhow(e.into()))?
+        .clone();
     let menu = build_tray_menu(app, &config)?;
+
+    info!(action_count = config.actions.len(), "Setting up tray icon");
 
     let _tray = TrayIconBuilder::with_id(TRAY_ID)
         .icon(app.default_window_icon().unwrap().clone())
@@ -262,15 +318,18 @@ fn setup_tray<R: Runtime>(app: &tauri::App<R>) -> tauri::Result<()> {
         .show_menu_on_left_click(true)
         .on_menu_event(|app, event| match event.id.as_ref() {
             "open_settings" => {
+                info!("Tray menu requested settings window");
                 if let Some(window) = app.get_webview_window("settings") {
                     let _ = window.show();
                     let _ = window.set_focus();
                 }
             }
             "quit" => {
+                info!("Tray menu requested app quit");
                 app.exit(0);
             }
             id if id.starts_with(TRAY_ACTION_PREFIX) => {
+                info!(action_id = %id.trim_start_matches(TRAY_ACTION_PREFIX), "Tray menu selected action");
                 run_tray_action(
                     app.clone(),
                     id.trim_start_matches(TRAY_ACTION_PREFIX).to_string(),
@@ -286,6 +345,7 @@ fn setup_tray<R: Runtime>(app: &tauri::App<R>) -> tauri::Result<()> {
             } = event
             {
                 let app = tray.app_handle();
+                debug!("Tray icon left click opened settings window");
                 if let Some(window) = app.get_webview_window("settings") {
                     let _ = window.show();
                     let _ = window.set_focus();
@@ -299,6 +359,7 @@ fn setup_tray<R: Runtime>(app: &tauri::App<R>) -> tauri::Result<()> {
 
 fn setup_settings_window<R: Runtime>(app: &tauri::App<R>) -> tauri::Result<()> {
     if let Some(window) = app.get_webview_window("settings") {
+        debug!("Configuring settings window close behavior");
         let window_handle = window.clone();
         window.on_window_event(move |event| {
             if let WindowEvent::CloseRequested { api, .. } = event {
