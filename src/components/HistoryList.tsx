@@ -19,6 +19,7 @@ export default function HistoryList() {
   const [error, setError] = useState<string | null>(null);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [clearing, setClearing] = useState(false);
+  const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
   const {
     message: successMessage,
     showMessage,
@@ -82,6 +83,34 @@ export default function HistoryList() {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setClearing(false);
+    }
+  };
+
+  const handleDeleteEntry = async (id: string) => {
+    setDeletingIds((prev) => new Set(prev).add(id));
+    setError(null);
+    clearMessage();
+    try {
+      const deleted = await tauriCommands.deleteHistoryEntry(id);
+      if (deleted) {
+        showMessage("Entry deleted successfully.");
+        setHistory((prev) => prev.filter((e) => e.id !== id));
+        setExpandedIds((prev) => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+      } else {
+        setError("Entry not found.");
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setDeletingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
     }
   };
 
@@ -189,6 +218,20 @@ export default function HistoryList() {
                       </p>
                     )}
                   </div>
+
+                  {isExpanded && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteEntry(entry.id);
+                      }}
+                      disabled={deletingIds.has(entry.id)}
+                      className="text-gray-400 hover:text-red-600 disabled:opacity-50"
+                      title="Delete entry"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  )}
                 </button>
 
                 {isExpanded && (

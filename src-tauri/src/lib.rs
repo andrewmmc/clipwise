@@ -73,6 +73,7 @@ pub fn run() {
             // History commands
             get_history,
             clear_history,
+            delete_history_entry,
         ])
         .setup(move |app| {
             info!("Setting up Tauri application");

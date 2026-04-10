@@ -136,4 +136,13 @@ describe("tauriCommands", () => {
     await tauriCommands.clearHistory();
     expect(mockInvoke).toHaveBeenCalledWith("clear_history");
   });
+
+  it("deleteHistoryEntry calls invoke with 'delete_history_entry'", async () => {
+    mockInvoke.mockResolvedValue(true);
+    const result = await tauriCommands.deleteHistoryEntry("entry-id-123");
+    expect(mockInvoke).toHaveBeenCalledWith("delete_history_entry", {
+      id: "entry-id-123",
+    });
+    expect(result).toBe(true);
+  });
 });

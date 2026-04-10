@@ -34,4 +34,6 @@ export const tauriCommands = {
   // History
   getHistory: (): Promise<HistoryEntry[]> => invoke("get_history"),
   clearHistory: (): Promise<void> => invoke("clear_history"),
+  deleteHistoryEntry: (id: string): Promise<boolean> =>
+    invoke("delete_history_entry", { id }),
 };

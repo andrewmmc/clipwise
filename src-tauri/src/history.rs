@@ -107,6 +107,23 @@ pub fn clear_history() -> Result<(), AppError> {
     Ok(())
 }
 
+/// Delete a single history entry by ID.
+pub fn delete_entry(id: &str) -> Result<bool, AppError> {
+    let mut history = load_history()?;
+    let original_len = history.len();
+
+    history.retain(|entry| entry.id != id);
+
+    if history.len() == original_len {
+        // Entry not found
+        return Ok(false);
+    }
+
+    save_history(&history)?;
+    info!(id = %id, "Deleted history entry");
+    Ok(true)
+}
+
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
@@ -232,6 +249,36 @@ mod tests {
     }
 
     // ── clear_history ───────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_delete_entry_removes_correct_entry() {
+        let mut history: Vec<HistoryEntry> = vec![
+            make_test_entry("id1", "Action1"),
+            make_test_entry("id2", "Action2"),
+            make_test_entry("id3", "Action3"),
+        ];
+
+        history.retain(|e| e.id != "id2");
+
+        assert_eq!(history.len(), 2);
+        assert!(history.iter().any(|e| e.id == "id1"));
+        assert!(history.iter().any(|e| e.id == "id3"));
+        assert!(!history.iter().any(|e| e.id == "id2"));
+    }
+
+    #[test]
+    fn test_delete_entry_nonexistent_returns_false() {
+        let history: Vec<HistoryEntry> = vec![
+            make_test_entry("id1", "Action1"),
+            make_test_entry("id2", "Action2"),
+        ];
+
+        let original_len = history.len();
+        let mut history_clone = history.clone();
+        history_clone.retain(|e| e.id != "nonexistent");
+
+        assert_eq!(history_clone.len(), original_len);
+    }
 
     #[test]
     fn test_clear_history_removes_file() {
