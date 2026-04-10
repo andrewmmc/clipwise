@@ -64,27 +64,30 @@ export default function HistoryList() {
     }
   };
 
-  const handleClearHistory = async (e: React.MouseEvent) => {
-    e.preventDefault();
-    if (
-      !window.confirm(
-        "Are you sure you want to clear all history? This cannot be undone.",
-      )
-    ) {
+  const handleClearHistory = () => {
+    console.log("Clear history button clicked");
+    const confirmed = window.confirm(
+      "Are you sure you want to clear all history? This cannot be undone.",
+    );
+    console.log("Confirmed:", confirmed);
+    if (!confirmed) {
       return;
     }
     setClearing(true);
     setError(null);
     clearMessage();
-    try {
-      await tauriCommands.clearHistory();
-      showMessage("History cleared successfully.");
-      setHistory([]);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setClearing(false);
-    }
+    tauriCommands
+      .clearHistory()
+      .then(() => {
+        showMessage("History cleared successfully.");
+        setHistory([]);
+      })
+      .catch((e) => {
+        setError(e instanceof Error ? e.message : String(e));
+      })
+      .finally(() => {
+        setClearing(false);
+      });
   };
 
   const handleDeleteEntry = async (id: string) => {
