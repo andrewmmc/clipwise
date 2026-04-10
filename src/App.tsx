@@ -17,14 +17,14 @@ export default function App() {
     tauriCommands
       .getConfig()
       .then(setConfig)
-      .catch((e) => setError(String(e)));
+      .catch((e) => setError(e instanceof Error ? e.message : String(e)));
   };
 
   useEffect(() => {
     tauriCommands
       .getConfig()
       .then(setConfig)
-      .catch((e) => setError(String(e)));
+      .catch((e) => setError(e instanceof Error ? e.message : String(e)));
   }, []);
 
   if (error) {

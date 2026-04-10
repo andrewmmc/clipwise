@@ -10,7 +10,7 @@ pub(crate) async fn run_action_inner(
     state: &ConfigState,
 ) -> Result<String, AppError> {
     let (action, provider, max_tokens) = {
-        let config = state.0.lock().unwrap();
+        let config = state.lock()?;
         let action = config
             .actions
             .iter()

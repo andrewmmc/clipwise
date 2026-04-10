@@ -8,34 +8,73 @@ pub fn validate_llm_response(raw: String) -> Result<String, AppError> {
     validate_response_str(&raw)
 }
 
+/// Strategy for parsing LLM responses.
+/// Each strategy attempts to extract a result string in a different way.
+enum ParseStrategy<'a> {
+    /// Try parsing the entire input as JSON
+    DirectJson(&'a str),
+    /// Try extracting JSON from text that has a preamble
+    EmbeddedJson(&'a str),
+    /// Try treating the input as plain text (after stripping code fences)
+    PlainText(&'a str),
+}
+
+impl<'a> ParseStrategy<'a> {
+    /// Attempt to extract a result string using this strategy.
+    fn extract(self) -> Result<String, AppError> {
+        match self {
+            ParseStrategy::DirectJson(input) => try_parse_json(input),
+            ParseStrategy::EmbeddedJson(input) => try_extract_embedded_json(input),
+            ParseStrategy::PlainText(input) => Ok(strip_code_fences(input).to_string()),
+        }
+    }
+}
+
 pub fn validate_response_str(raw: &str) -> Result<String, AppError> {
-    let parsed: Value = serde_json::from_str(raw.trim()).map_err(|_| AppError::InvalidResponse)?;
-    extract_result_from_value(parsed)
-}
-
-pub fn normalize_response_str(raw: &str) -> Result<Value, AppError> {
-    Ok(json!({ "result": normalize_result(raw)? }))
-}
-
-fn normalize_result(raw: &str) -> Result<String, AppError> {
     let trimmed = raw.trim();
     if trimmed.is_empty() {
         return Err(AppError::InvalidResponse);
     }
 
-    if let Ok(parsed) = serde_json::from_str::<Value>(trimmed) {
-        return extract_result_from_value(parsed);
-    }
-
-    if let Some(candidate) = extract_json_object(trimmed) {
-        if let Ok(parsed) = serde_json::from_str::<Value>(candidate) {
-            return extract_result_from_value(parsed);
-        }
-    }
-
-    Ok(strip_code_fences(trimmed).to_string())
+    // Strategy 1: Try direct JSON parsing
+    ParseStrategy::DirectJson(trimmed).extract()
 }
 
+pub fn normalize_response_str(raw: &str) -> Result<Value, AppError> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Err(AppError::InvalidResponse);
+    }
+
+    // Try each strategy in order until one succeeds
+    let result = ParseStrategy::DirectJson(trimmed)
+        .extract()
+        .or_else(|_| ParseStrategy::EmbeddedJson(trimmed).extract())
+        .or_else(|_| ParseStrategy::PlainText(trimmed).extract())?;
+
+    Ok(json!({ "result": result }))
+}
+
+/// Attempt to parse input as JSON and extract the result field.
+fn try_parse_json(input: &str) -> Result<String, AppError> {
+    let parsed: Value = serde_json::from_str(input).map_err(|_| AppError::InvalidResponse)?;
+    extract_result_from_value(parsed)
+}
+
+/// Attempt to find and parse JSON embedded within text (e.g., "Here's the result: {...}")
+fn try_extract_embedded_json(input: &str) -> Result<String, AppError> {
+    let json_candidate = extract_json_object(input).ok_or(AppError::InvalidResponse)?;
+    try_parse_json(json_candidate)
+}
+
+/// Extract the first JSON object from a string (between { and })
+fn extract_json_object(raw: &str) -> Option<&str> {
+    let start = raw.find('{')?;
+    let end = raw.rfind('}')?;
+    (end >= start).then_some(&raw[start..=end])
+}
+
+/// Extract the result string from a parsed JSON value.
 fn extract_result_from_value(parsed: Value) -> Result<String, AppError> {
     match parsed {
         Value::Object(map) => map
@@ -48,12 +87,7 @@ fn extract_result_from_value(parsed: Value) -> Result<String, AppError> {
     }
 }
 
-fn extract_json_object(raw: &str) -> Option<&str> {
-    let start = raw.find('{')?;
-    let end = raw.rfind('}')?;
-    (end >= start).then_some(&raw[start..=end])
-}
-
+/// Remove markdown code fences (```json ... ```) from text
 fn strip_code_fences(raw: &str) -> &str {
     let stripped = raw.trim();
     if !stripped.starts_with("```") || !stripped.ends_with("```") {
@@ -66,6 +100,7 @@ fn strip_code_fences(raw: &str) -> &str {
         .unwrap_or(stripped)
         .trim();
 
+    // If there's a language identifier (e.g., "json") on the first line, skip it
     if let Some(newline_idx) = inner.find('\n') {
         let first_line = &inner[..newline_idx];
         if !first_line.contains('{') {
@@ -208,5 +243,54 @@ mod tests {
             normalize_response_str(raw).unwrap(),
             json!({ "result": "plain transformed text" })
         );
+    }
+
+    // Tests for strip_code_fences
+    #[test]
+    fn test_strip_code_fences_removes_json_fence() {
+        assert_eq!(
+            strip_code_fences("```json\n{\"result\":\"ok\"}\n```"),
+            r#"{"result":"ok"}"#
+        );
+    }
+
+    #[test]
+    fn test_strip_code_fences_removes_plain_fence() {
+        assert_eq!(
+            strip_code_fences("```\n{\"result\":\"ok\"}\n```"),
+            r#"{"result":"ok"}"#
+        );
+    }
+
+    #[test]
+    fn test_strip_code_fences_handles_language_identifier() {
+        assert_eq!(
+            strip_code_fences("```json\n{\"result\":\"ok\"}\n```"),
+            r#"{"result":"ok"}"#
+        );
+    }
+
+    #[test]
+    fn test_strip_code_fences_returns_plain_text_if_no_fences() {
+        assert_eq!(strip_code_fences("plain text"), "plain text");
+    }
+
+    // Tests for extract_json_object
+    #[test]
+    fn test_extract_json_object_finds_first_brace() {
+        assert_eq!(
+            extract_json_object("text before {\"result\":\"ok\"} text after"),
+            Some(r#"{"result":"ok"}"#)
+        );
+    }
+
+    #[test]
+    fn test_extract_json_object_returns_none_if_no_opening_brace() {
+        assert_eq!(extract_json_object("no braces here"), None);
+    }
+
+    #[test]
+    fn test_extract_json_object_returns_none_if_unclosed() {
+        assert_eq!(extract_json_object("{ unclosed brace"), None);
     }
 }

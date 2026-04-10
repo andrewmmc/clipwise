@@ -32,7 +32,8 @@ export default function ActionList({ config, onRefresh }: Props) {
       const result = await tauriCommands.testAction(action.id, input);
       setTestResults((r) => ({ ...r, [action.id]: result }));
     } catch (e) {
-      setTestResults((r) => ({ ...r, [action.id]: `Error: ${String(e)}` }));
+      const message = e instanceof Error ? e.message : String(e);
+      setTestResults((r) => ({ ...r, [action.id]: `Error: ${message}` }));
     } finally {
       setTesting(null);
     }

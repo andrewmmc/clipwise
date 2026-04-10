@@ -1,6 +1,7 @@
 use crate::commands::validate_cmd::normalize_response_str;
 use crate::error::AppError;
 use crate::models::{Provider, SYSTEM_PROMPT};
+use crate::retry::with_http_retry;
 use reqwest::Client;
 use serde_json::json;
 
@@ -41,30 +42,32 @@ pub async fn call_anthropic_with_client(
         ]
     });
 
-    let mut req = client
-        .post(endpoint)
-        .header("x-api-key", api_key)
-        .header("anthropic-version", "2023-06-01")
-        .header("Content-Type", "application/json");
+    // Make HTTP request with retry logic for transient errors
+    let body_text = with_http_retry(|| async {
+        let mut req = client
+            .post(endpoint)
+            .header("x-api-key", api_key)
+            .header("anthropic-version", "2023-06-01")
+            .header("Content-Type", "application/json");
 
-    for (key, val) in &provider.headers {
-        if let Some(v) = val.as_str() {
-            req = req.header(key.as_str(), v);
+        for (key, val) in &provider.headers {
+            if let Some(v) = val.as_str() {
+                req = req.header(key.as_str(), v);
+            }
         }
-    }
 
-    let resp = req.json(&body).send().await.map_err(AppError::Http)?;
+        let resp = req.json(&body).send().await.map_err(AppError::Http)?;
 
-    if !resp.status().is_success() {
-        let status = resp.status();
-        let body = resp.text().await.unwrap_or_default();
-        return Err(AppError::Llm(format!(
-            "Anthropic HTTP {}: {}",
-            status, body
-        )));
-    }
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let error_body = resp.text().await.unwrap_or_default();
+            return Err(AppError::from_http_status(status.as_u16(), &error_body));
+        }
 
-    let body_text = resp.text().await.map_err(AppError::Http)?;
+        resp.text().await.map_err(AppError::Http)
+    })
+    .await?;
+
     let json: serde_json::Value = serde_json::from_str(&body_text)
         .map_err(|_| AppError::Llm(format!("Failed to parse response as JSON: {}", body_text)))?;
 
@@ -160,10 +163,7 @@ mod tests {
             &no_proxy_client(),
         )
         .await;
-        assert!(matches!(result, Err(AppError::Llm(_))));
-        if let Err(AppError::Llm(msg)) = result {
-            assert!(msg.contains("401"));
-        }
+        assert!(matches!(result, Err(AppError::AuthError)));
     }
 
     #[tokio::test]
@@ -182,7 +182,7 @@ mod tests {
             &no_proxy_client(),
         )
         .await;
-        assert!(matches!(result, Err(AppError::Llm(_))));
+        assert!(matches!(result, Err(AppError::RateLimited)));
     }
 
     #[tokio::test]
@@ -201,7 +201,7 @@ mod tests {
             &no_proxy_client(),
         )
         .await;
-        assert!(matches!(result, Err(AppError::Llm(_))));
+        assert!(matches!(result, Err(AppError::NetworkError)));
     }
 
     #[tokio::test]

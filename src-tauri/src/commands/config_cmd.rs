@@ -62,31 +62,32 @@ pub(crate) fn apply_action_reorder(config: &mut AppConfig, ids: &[String]) {
 
 #[tauri::command]
 pub fn get_config(state: State<ConfigState>) -> Result<AppConfig, AppError> {
-    Ok(state.0.lock().unwrap().clone())
+    Ok(state.lock()?.clone())
 }
 
 #[tauri::command]
 pub fn save_settings(
     settings: AppSettings,
     state: State<ConfigState>,
-    app: AppHandle,
+    _app: AppHandle,
 ) -> Result<(), AppError> {
-    let mut config = state.0.lock().unwrap();
+    let mut config = state.lock()?;
     config.settings = settings;
     save_config(&config)?;
-    crate::refresh_tray_menu(&app, &config).map_err(|e| AppError::Service(e.to_string()))
+    // Settings changes don't affect tray menu, no refresh needed
+    Ok(())
 }
 
 #[tauri::command]
 pub fn add_provider(
     provider: Provider,
     state: State<ConfigState>,
-    app: AppHandle,
+    _app: AppHandle,
 ) -> Result<Provider, AppError> {
-    let mut config = state.0.lock().unwrap();
+    let mut config = state.lock()?;
     let result = insert_provider(&mut config, provider);
     save_config(&config)?;
-    crate::refresh_tray_menu(&app, &config).map_err(|e| AppError::Service(e.to_string()))?;
+    // Provider changes don't affect tray menu, no refresh needed
     Ok(result)
 }
 
@@ -94,24 +95,26 @@ pub fn add_provider(
 pub fn update_provider(
     provider: Provider,
     state: State<ConfigState>,
-    app: AppHandle,
+    _app: AppHandle,
 ) -> Result<(), AppError> {
-    let mut config = state.0.lock().unwrap();
+    let mut config = state.lock()?;
     replace_provider(&mut config, provider)?;
     save_config(&config)?;
-    crate::refresh_tray_menu(&app, &config).map_err(|e| AppError::Service(e.to_string()))
+    // Provider changes don't affect tray menu, no refresh needed
+    Ok(())
 }
 
 #[tauri::command]
 pub fn delete_provider(
     id: String,
     state: State<ConfigState>,
-    app: AppHandle,
+    _app: AppHandle,
 ) -> Result<(), AppError> {
-    let mut config = state.0.lock().unwrap();
+    let mut config = state.lock()?;
     remove_provider(&mut config, &id);
     save_config(&config)?;
-    crate::refresh_tray_menu(&app, &config).map_err(|e| AppError::Service(e.to_string()))
+    // Provider changes don't affect tray menu, no refresh needed
+    Ok(())
 }
 
 #[tauri::command]
@@ -120,7 +123,7 @@ pub fn add_action(
     state: State<ConfigState>,
     app: AppHandle,
 ) -> Result<Action, AppError> {
-    let mut config = state.0.lock().unwrap();
+    let mut config = state.lock()?;
     let result = insert_action(&mut config, action);
     save_config(&config)?;
     crate::refresh_tray_menu(&app, &config).map_err(|e| AppError::Service(e.to_string()))?;
@@ -133,7 +136,7 @@ pub fn update_action(
     state: State<ConfigState>,
     app: AppHandle,
 ) -> Result<(), AppError> {
-    let mut config = state.0.lock().unwrap();
+    let mut config = state.lock()?;
     replace_action(&mut config, action)?;
     save_config(&config)?;
     crate::refresh_tray_menu(&app, &config).map_err(|e| AppError::Service(e.to_string()))
@@ -145,7 +148,7 @@ pub fn delete_action(
     state: State<ConfigState>,
     app: AppHandle,
 ) -> Result<(), AppError> {
-    let mut config = state.0.lock().unwrap();
+    let mut config = state.lock()?;
     remove_action(&mut config, &id);
     save_config(&config)?;
     crate::refresh_tray_menu(&app, &config).map_err(|e| AppError::Service(e.to_string()))
@@ -157,7 +160,7 @@ pub fn reorder_actions(
     state: State<ConfigState>,
     app: AppHandle,
 ) -> Result<(), AppError> {
-    let mut config = state.0.lock().unwrap();
+    let mut config = state.lock()?;
     apply_action_reorder(&mut config, &ids);
     save_config(&config)?;
     crate::refresh_tray_menu(&app, &config).map_err(|e| AppError::Service(e.to_string()))

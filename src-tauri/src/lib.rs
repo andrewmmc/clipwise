@@ -3,6 +3,7 @@ mod config;
 mod error;
 mod models;
 mod providers;
+mod retry;
 pub mod service;
 
 use commands::{config_cmd::*, llm_cmd::*, validate_cmd::*};
@@ -10,6 +11,7 @@ use config::{load_config, ConfigState};
 use models::AppConfig;
 use std::sync::mpsc;
 use std::sync::Mutex;
+use std::time::Duration;
 use tauri::{
     menu::Menu,
     menu::MenuItem,
@@ -133,7 +135,7 @@ fn read_clipboard_text<R: Runtime>(app: &AppHandle<R>) -> Result<Option<String>,
         let _ = tx.send(crate::service::read_clipboard_text());
     })
     .map_err(|e| e.to_string())?;
-    rx.recv().map_err(|e| e.to_string())
+    rx.recv_timeout(Duration::from_secs(5)).map_err(|e| e.to_string())
 }
 
 fn write_clipboard_text<R: Runtime>(app: &AppHandle<R>, text: String) -> Result<(), String> {
@@ -143,7 +145,7 @@ fn write_clipboard_text<R: Runtime>(app: &AppHandle<R>, text: String) -> Result<
         let _ = tx.send(());
     })
     .map_err(|e| e.to_string())?;
-    rx.recv().map_err(|e| e.to_string())?;
+    rx.recv_timeout(Duration::from_secs(5)).map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -173,7 +175,18 @@ fn run_tray_action<R: Runtime>(app: AppHandle<R>, action_id: String) {
 
         let (action_name, show_notification_on_complete) = {
             let config_state = app.state::<ConfigState>();
-            let config = config_state.0.lock().unwrap();
+            let config = match config_state.lock() {
+                Ok(c) => c,
+                Err(e) => {
+                    let _ = app
+                        .notification()
+                        .builder()
+                        .title("LLM Actions")
+                        .body(format!("Failed to access config: {e}"))
+                        .show();
+                    return;
+                }
+            };
             let action = match config.actions.iter().find(|a| a.id == action_id) {
                 Some(action) => action.clone(),
                 None => {
@@ -188,6 +201,14 @@ fn run_tray_action<R: Runtime>(app: AppHandle<R>, action_id: String) {
             };
             (action.name, config.settings.show_notification_on_complete)
         };
+
+        // Show processing notification to give immediate feedback
+        let _ = app
+            .notification()
+            .builder()
+            .title("LLM Actions")
+            .body(format!("Processing \"{}\"...", action_name))
+            .show();
 
         let result = {
             let config_state = app.state::<ConfigState>();
@@ -231,7 +252,7 @@ fn run_tray_action<R: Runtime>(app: AppHandle<R>, action_id: String) {
 }
 
 fn setup_tray<R: Runtime>(app: &tauri::App<R>) -> tauri::Result<()> {
-    let config = app.state::<ConfigState>().0.lock().unwrap().clone();
+    let config = app.state::<ConfigState>().lock().unwrap().clone();
     let menu = build_tray_menu(app, &config)?;
 
     let _tray = TrayIconBuilder::with_id(TRAY_ID)

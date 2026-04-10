@@ -43,7 +43,7 @@ export default function ActionForm({
         model: model.trim() || undefined,
       });
     } catch (e) {
-      setError(String(e));
+      setError(e instanceof Error ? e.message : String(e));
     } finally {
       setSaving(false);
     }

@@ -29,7 +29,7 @@ export default function SettingsPanel({ config, onRefresh }: Props) {
       setTimeout(() => setSaved(false), 2000);
       onRefresh();
     } catch (e) {
-      setError(String(e));
+      setError(e instanceof Error ? e.message : String(e));
     } finally {
       setSaving(false);
     }

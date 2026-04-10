@@ -182,7 +182,7 @@ describe("ActionList", () => {
 
     await user.click(screen.getByRole("button", { name: /^test$/i }));
     await waitFor(() =>
-      expect(screen.getByText(/Error: Error: API error/)).toBeInTheDocument(),
+      expect(screen.getByText(/Error: API error/)).toBeInTheDocument(),
     );
   });
 

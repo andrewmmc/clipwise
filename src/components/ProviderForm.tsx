@@ -62,7 +62,7 @@ export default function ProviderForm({ initial, onSave, onCancel }: Props) {
         args: type === "cli" ? args.filter(Boolean) : [],
       });
     } catch (e) {
-      setError(String(e));
+      setError(e instanceof Error ? e.message : String(e));
     } finally {
       setSaving(false);
     }

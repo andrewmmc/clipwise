@@ -53,9 +53,19 @@ pub async fn call_cli(
 }
 
 fn prepare_command(command: &str) -> Result<(PathBuf, Vec<String>), AppError> {
-    let parts = shlex::split(command)
-        .filter(|parts| !parts.is_empty())
-        .ok_or_else(|| AppError::Config("CLI provider command is empty or invalid".into()))?;
+    let parts = shlex::split(command).ok_or_else(|| {
+        AppError::Config(format!(
+            "CLI provider command could not be parsed: '{}'. Check quoting and escaping.",
+            command
+        ))
+    })?;
+
+    if parts.is_empty() {
+        return Err(AppError::Config(
+            "CLI provider command is empty".into()
+        ));
+    }
+
     let executable = resolve_command_path(&parts[0]).unwrap_or_else(|| PathBuf::from(&parts[0]));
     Ok((executable, parts[1..].to_vec()))
 }
@@ -80,7 +90,31 @@ fn resolve_command_path(command: &str) -> Option<PathBuf> {
 }
 
 fn is_executable_file(path: &Path) -> bool {
-    path.is_file()
+    // Check if path exists and is a file
+    if !path.is_file() {
+        return false;
+    }
+
+    // Check execute permission bits
+    // On Unix-like systems, check if any execute bit is set (user, group, or other)
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        match path.metadata() {
+            Ok(metadata) => {
+                let mode = metadata.permissions().mode();
+                // Check if any execute bit is set (0o111 = user|group|other execute)
+                mode & 0o111 != 0
+            }
+            Err(_) => false,
+        }
+    }
+
+    // On Windows, most files can be executed if they have the right extension
+    #[cfg(windows)]
+    {
+        true
+    }
 }
 
 /// Finds the first {...} block in a string (handles models that add extra text).
@@ -276,6 +310,51 @@ mod tests {
         assert!(
             resolved.is_some(),
             "expected claude to resolve from PATH or common bin directories"
+        );
+    }
+
+    #[test]
+    fn test_is_executable_file_returns_false_for_nonexistent_path() {
+        assert!(!is_executable_file(Path::new("/nonexistent/path/to/binary")));
+    }
+
+    #[test]
+    fn test_is_executable_file_returns_false_for_directory() {
+        assert!(!is_executable_file(Path::new("/tmp")));
+    }
+
+    #[test]
+    fn test_is_executable_file_detects_executable_permissions() {
+        // sh is a well-known executable that should exist on all Unix systems
+        #[cfg(unix)]
+        {
+            let sh_path = Path::new("/bin/sh");
+            if sh_path.exists() {
+                assert!(
+                    is_executable_file(sh_path),
+                    "expected /bin/sh to be executable"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_prepare_command_handles_unclosed_quotes() {
+        // shlex returns None for strings with unbalanced quotes
+        let result = prepare_command(r#"command "unclosed quote"#);
+        assert!(
+            matches!(result, Err(AppError::Config(_))),
+            "expected Config error for unclosed quotes, got {:?}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_prepare_command_handles_empty_string() {
+        let result = prepare_command("");
+        assert!(
+            matches!(result, Err(AppError::Config(_))),
+            "expected Config error for empty command"
         );
     }
 }
