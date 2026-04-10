@@ -26,9 +26,6 @@ Object.assign(navigator, {
   },
 });
 
-// Mock confirm
-global.confirm = vi.fn(() => true);
-
 describe("HistoryList", () => {
   const mockHistory: HistoryEntry[] = [
     {
@@ -144,36 +141,19 @@ describe("HistoryList", () => {
   it("clears history after confirmation", async () => {
     vi.mocked(tauri.tauriCommands.getHistory).mockResolvedValue(mockHistory);
     vi.mocked(tauri.tauriCommands.clearHistory).mockResolvedValue(undefined);
-    vi.mocked(global.confirm).mockReturnValueOnce(true);
 
     render(<HistoryList />);
 
     await waitFor(() => {
-      expect(screen.getByText("Clear History")).toBeInTheDocument();
+      expect(screen.getAllByText("Clear History")).toHaveLength(1);
     });
 
-    const clearButton = screen.getByText("Clear History");
+    const clearButton = screen.getAllByText("Clear History")[0];
     fireEvent.click(clearButton);
 
     await waitFor(() => {
       expect(tauri.tauriCommands.clearHistory).toHaveBeenCalled();
     });
-  });
-
-  it("does not clear history when confirmation cancelled", async () => {
-    vi.mocked(tauri.tauriCommands.getHistory).mockResolvedValue(mockHistory);
-    vi.mocked(global.confirm).mockReturnValueOnce(false);
-
-    render(<HistoryList />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Clear History")).toBeInTheDocument();
-    });
-
-    const clearButton = screen.getByText("Clear History");
-    fireEvent.click(clearButton);
-
-    expect(tauri.tauriCommands.clearHistory).not.toHaveBeenCalled();
   });
 
   it("copies input to clipboard", async () => {
@@ -238,7 +218,9 @@ describe("HistoryList", () => {
 
   it("shows error when delete fails", async () => {
     vi.mocked(tauri.tauriCommands.getHistory).mockResolvedValue(mockHistory);
-    vi.mocked(tauri.tauriCommands.deleteHistoryEntry).mockResolvedValue(false);
+    vi.mocked(tauri.tauriCommands.deleteHistoryEntry).mockRejectedValue(
+      new Error("Failed to delete entry"),
+    );
 
     render(<HistoryList />);
 
@@ -261,7 +243,7 @@ describe("HistoryList", () => {
     fireEvent.click(deleteButtons[0]);
 
     await waitFor(() => {
-      expect(screen.getByText(/not found/i)).toBeInTheDocument();
+      expect(screen.getByText(/Failed to delete entry/)).toBeInTheDocument();
     });
   });
 });

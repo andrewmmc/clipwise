@@ -65,12 +65,6 @@ export default function HistoryList() {
   };
 
   const handleClearHistory = () => {
-    const confirmed = window.confirm(
-      "Are you sure you want to clear all history? This cannot be undone.",
-    );
-    if (!confirmed) {
-      return;
-    }
     setClearing(true);
     setError(null);
     clearMessage();
@@ -88,32 +82,35 @@ export default function HistoryList() {
       });
   };
 
-  const handleDeleteEntry = async (id: string) => {
+  const handleDeleteEntry = (id: string) => {
     setDeletingIds((prev) => new Set(prev).add(id));
     setError(null);
     clearMessage();
-    try {
-      const deleted = await tauriCommands.deleteHistoryEntry(id);
-      if (deleted) {
-        showMessage("Entry deleted successfully.");
-        setHistory((prev) => prev.filter((e) => e.id !== id));
-        setExpandedIds((prev) => {
+    tauriCommands
+      .deleteHistoryEntry(id)
+      .then((deleted) => {
+        if (deleted) {
+          showMessage("Entry deleted successfully.");
+          setHistory((prev) => prev.filter((e) => e.id !== id));
+          setExpandedIds((prev) => {
+            const next = new Set(prev);
+            next.delete(id);
+            return next;
+          });
+        } else {
+          // User cancelled the dialog
+        }
+      })
+      .catch((e) => {
+        setError(e instanceof Error ? e.message : String(e));
+      })
+      .finally(() => {
+        setDeletingIds((prev) => {
           const next = new Set(prev);
           next.delete(id);
           return next;
         });
-      } else {
-        setError("Entry not found.");
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setDeletingIds((prev) => {
-        const next = new Set(prev);
-        next.delete(id);
-        return next;
       });
-    }
   };
 
   const formatTimestamp = (timestamp: string) => {
