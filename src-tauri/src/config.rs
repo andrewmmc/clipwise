@@ -158,4 +158,180 @@ mod tests {
             s
         );
     }
+
+    // ── Config corruption scenarios ─────────────────────────────────────────────
+
+    #[test]
+    fn test_load_config_malformed_json_returns_error() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("config.json");
+        std::fs::write(&path, "{ malformed }").unwrap();
+        let result = load_config_from(&path);
+        assert!(result.is_err());
+        assert!(matches!(result, Err(AppError::Json(_))));
+    }
+
+    #[test]
+    fn test_load_config_truncated_json_returns_error() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("config.json");
+        std::fs::write(&path, "{\"providers\": []").unwrap(); // Missing closing brace
+        let result = load_config_from(&path);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_load_config_with_invalid_field_types() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("config.json");
+        // providers should be an array, not a string
+        std::fs::write(&path, "{\"providers\": \"not-an-array\"}").unwrap();
+        let result = load_config_from(&path);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_load_config_with_unknown_fields_ignores_them() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("config.json");
+        // Unknown fields should be ignored (serde default behavior)
+        std::fs::write(&path, r#"{"providers": [], "actions": [], "unknownField": 123}"#).unwrap();
+        let result = load_config_from(&path);
+        assert!(result.is_ok());
+        assert!(result.unwrap().providers.is_empty());
+    }
+
+    #[test]
+    fn test_load_config_empty_file_returns_error() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("config.json");
+        std::fs::write(&path, "").unwrap();
+        let result = load_config_from(&path);
+        // Empty string is not valid JSON
+        assert!(result.is_err());
+        assert!(matches!(result, Err(AppError::Json(_))));
+    }
+
+    #[test]
+    fn test_load_config_with_empty_settings_uses_defaults() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("config.json");
+        // Empty settings object should use defaults
+        std::fs::write(&path, r#"{"providers": [], "actions": [], "settings": {}}"#).unwrap();
+        let result = load_config_from(&path);
+        assert!(result.is_ok());
+        let config = result.unwrap();
+        assert!(config.providers.is_empty());
+        assert!(config.actions.is_empty());
+        // settings should use its Default impl when empty object
+        assert!(config.settings.show_notification_on_complete);
+    }
+
+    // ── Lock poisoning scenarios ────────────────────────────────────────────────
+
+    #[test]
+    fn test_config_state_lock_returns_error_when_poisoned() {
+        use std::sync::{Arc, Mutex};
+        use std::thread;
+
+        let config = AppConfig::default();
+        let state = Arc::new(ConfigState(std::sync::Mutex::new(config)));
+        let state_clone = state.clone();
+
+        // Poison the mutex by panicking in a thread while holding the lock
+        let handle = thread::spawn(move || {
+            let _lock = state_clone.0.lock().unwrap();
+            panic!("intentional panic to poison mutex");
+        });
+
+        assert!(handle.join().is_err());
+
+        // Attempting to lock should return an error via our custom lock() method
+        let lock_result = state.lock();
+        assert!(lock_result.is_err());
+        assert!(matches!(lock_result, Err(AppError::Service(_))));
+    }
+
+    // ── Provider/action relationship validation ─────────────────────────────────
+
+    #[test]
+    fn test_config_with_action_referencing_missing_provider_loads() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("config.json");
+        // Action references provider "p1" which doesn't exist
+        std::fs::write(
+            &path,
+            r#"{
+                "providers": [],
+                "actions": [{"id": "a1", "name": "Test", "providerId": "p1", "userPrompt": "test"}]
+            }"#,
+        )
+        .unwrap();
+
+        // Config should still load (validation happens at runtime)
+        let result = load_config_from(&path);
+        assert!(result.is_ok());
+        let config = result.unwrap();
+        assert_eq!(config.actions[0].provider_id, "p1");
+        assert!(config.providers.is_empty());
+    }
+
+    #[test]
+    fn test_config_with_duplicate_provider_ids_allows() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("config.json");
+        // Two providers with same id (should be prevented by UI, but config could be edited manually)
+        std::fs::write(
+            &path,
+            r#"{
+                "providers": [
+                    {"id": "p1", "name": "One", "type": "anthropic"},
+                    {"id": "p1", "name": "Two", "type": "openai"}
+                ],
+                "actions": []
+            }"#,
+        )
+        .unwrap();
+
+        // Config should load (deduplication is not enforced at load time)
+        let result = load_config_from(&path);
+        assert!(result.is_ok());
+        let config = result.unwrap();
+        assert_eq!(config.providers.len(), 2);
+    }
+
+    // ── Settings validation ─────────────────────────────────────────────────────
+
+    #[test]
+    fn test_config_with_invalid_max_tokens_returns_error() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("config.json");
+        // Negative max_tokens is invalid for u32
+        std::fs::write(
+            &path,
+            r#"{"providers": [], "actions": [], "settings": {"maxTokens": -100}}"#,
+        )
+        .unwrap();
+
+        // Should fail to parse - negative numbers are invalid for u32
+        let result = load_config_from(&path);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_config_with_zero_max_tokens_loads() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("config.json");
+        std::fs::write(
+            &path,
+            r#"{"providers": [], "actions": [], "settings": {"maxTokens": 0}}"#,
+        )
+        .unwrap();
+
+        // Zero is a valid u32 value
+        let result = load_config_from(&path);
+        assert!(result.is_ok());
+        let config = result.unwrap();
+        assert_eq!(config.settings.max_tokens, 0);
+    }
 }

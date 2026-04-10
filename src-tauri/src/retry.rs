@@ -78,4 +78,115 @@ mod tests {
         assert!(!is_transient_error(404)); // Not found
         assert!(!is_transient_error(422)); // Unprocessable entity
     }
+
+    // ── Retry behavior ─────────────────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_with_http_retry_succeeds_on_first_attempt() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        let call_count = AtomicUsize::new(0);
+        let cc = &call_count as &AtomicUsize;
+
+        let result = with_http_retry(move || async {
+            cc.fetch_add(1, Ordering::SeqCst);
+            Ok::<_, AppError>("success")
+        })
+        .await;
+
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "success");
+        assert_eq!(call_count.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn test_with_http_retry_retries_on_transient_error() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        let call_count = AtomicUsize::new(0);
+        let cc = &call_count as &AtomicUsize;
+
+        let result = with_http_retry(move || async {
+            let current = cc.fetch_add(1, Ordering::SeqCst) + 1;
+
+            if current < 2 {
+                Err::<String, _>(AppError::NetworkError)
+            } else {
+                Ok("success".to_string())
+            }
+        })
+        .await;
+
+        assert!(result.is_ok());
+        assert_eq!(call_count.load(Ordering::SeqCst), 2); // Failed once, succeeded on retry
+    }
+
+    #[tokio::test]
+    async fn test_with_http_retry_fails_after_max_retries() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        let call_count = AtomicUsize::new(0);
+        let cc = &call_count as &AtomicUsize;
+
+        let result = with_http_retry(move || async {
+            cc.fetch_add(1, Ordering::SeqCst);
+            Err::<String, _>(AppError::NetworkError)
+        })
+        .await;
+
+        assert!(result.is_err());
+        // Should be called DEFAULT_MAX_RETRIES + 1 times (initial + retries)
+        assert_eq!(call_count.load(Ordering::SeqCst), (DEFAULT_MAX_RETRIES + 1) as usize);
+    }
+
+    #[tokio::test]
+    async fn test_with_http_retry_does_not_retry_non_retryable_errors() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        let call_count = AtomicUsize::new(0);
+        let cc = &call_count as &AtomicUsize;
+
+        let result = with_http_retry(move || async {
+            cc.fetch_add(1, Ordering::SeqCst);
+            Err::<String, _>(AppError::AuthError)
+        })
+        .await;
+
+        assert!(result.is_err());
+        assert_eq!(call_count.load(Ordering::SeqCst), 1); // Should not retry auth errors
+    }
+
+    #[tokio::test]
+    async fn test_with_http_retry_retries_on_rate_limit() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        let call_count = AtomicUsize::new(0);
+        let cc = &call_count as &AtomicUsize;
+
+        let result = with_http_retry(move || async {
+            let current = cc.fetch_add(1, Ordering::SeqCst) + 1;
+
+            if current < 3 {
+                Err::<String, _>(AppError::RateLimited)
+            } else {
+                Ok("success".to_string())
+            }
+        })
+        .await;
+
+        assert!(result.is_ok());
+        assert_eq!(call_count.load(Ordering::SeqCst), 3);
+    }
+
+    // ── Constants validation ────────────────────────────────────────────────────
+
+    #[test]
+    fn test_default_max_retries_is_reasonable() {
+        assert!(DEFAULT_MAX_RETRIES >= 1, "should retry at least once");
+        assert!(DEFAULT_MAX_RETRIES <= 5, "should not retry excessively");
+    }
+
+    #[test]
+    fn test_initial_delay_is_reasonable() {
+        assert!(INITIAL_DELAY_MS >= 100, "initial delay should be at least 100ms");
+        assert!(
+            INITIAL_DELAY_MS <= 5000,
+            "initial delay should not exceed 5 seconds"
+        );
+    }
 }

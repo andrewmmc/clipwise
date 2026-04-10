@@ -371,3 +371,96 @@ fn setup_settings_window<R: Runtime>(app: &tauri::App<R>) -> tauri::Result<()> {
 
     Ok(())
 }
+
+// ── Tests ─────────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── notification_preview ─────────────────────────────────────────────────────
+
+    #[test]
+    fn test_notification_preview_short_text_unchanged() {
+        let text = "Short text";
+        assert_eq!(notification_preview(text), "Short text");
+    }
+
+    #[test]
+    fn test_notification_preview_at_exact_limit() {
+        let text = "a".repeat(NOTIFICATION_PREVIEW_LIMIT);
+        assert_eq!(notification_preview(&text), text);
+        assert_eq!(notification_preview(&text).chars().count(), NOTIFICATION_PREVIEW_LIMIT);
+    }
+
+    #[test]
+    fn test_notification_preview_truncates_at_limit() {
+        let text = "a".repeat(NOTIFICATION_PREVIEW_LIMIT + 10);
+        let result = notification_preview(&text);
+        assert_eq!(result.chars().count(), NOTIFICATION_PREVIEW_LIMIT + 3); // +3 for "..."
+        assert!(result.ends_with("..."));
+    }
+
+    #[test]
+    fn test_notification_preview_collapses_whitespace() {
+        let text = "This  has    multiple   spaces\tand\nnewlines";
+        let result = notification_preview(text);
+        assert_eq!(result, "This has multiple spaces and newlines");
+    }
+
+    #[test]
+    fn test_notification_preview_handles_multiline() {
+        let text = "Line one\nLine two\nLine three";
+        let result = notification_preview(text);
+        assert_eq!(result, "Line one Line two Line three");
+    }
+
+    #[test]
+    fn test_notification_preview_empty_string() {
+        assert_eq!(notification_preview(""), "");
+    }
+
+    #[test]
+    fn test_notification_preview_only_whitespace() {
+        assert_eq!(notification_preview("   \n\t  "), "");
+    }
+
+    #[test]
+    fn test_notification_preview_unicode_char_counting() {
+        // Use emoji and wide chars - count should be unicode chars, not bytes
+        let text = "😀😀😀"; // 3 chars, 12 bytes
+        assert_eq!(notification_preview(text).chars().count(), 3);
+    }
+
+    #[test]
+    fn test_notification_preview_truncates_unicode_correctly() {
+        // Ensure truncation doesn't split multi-byte chars
+        let text = "😀".repeat(NOTIFICATION_PREVIEW_LIMIT + 10);
+        let result = notification_preview(&text);
+        assert!(result.is_char_boundary(NOTIFICATION_PREVIEW_LIMIT));
+        assert!(result.ends_with("..."));
+    }
+
+    #[test]
+    fn test_notification_preview_preserves_trailing_content_after_truncation() {
+        let text = "a".repeat(NOTIFICATION_PREVIEW_LIMIT - 10) + "tail12345678";
+        // Total length is (NOTIFICATION_PREVIEW_LIMIT - 10) + 18 = NOTIFICATION_PREVIEW_LIMIT + 8
+        let result = notification_preview(&text);
+        // Should show first NOTIFICATION_PREVIEW_LIMIT chars + "..."
+        assert!(result.starts_with("a"));
+        assert!(result.ends_with("..."));
+        assert_eq!(result.chars().count(), NOTIFICATION_PREVIEW_LIMIT + 3); // +3 for "..."
+    }
+
+    // ── Constants ────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_tray_action_prefix_constant() {
+        assert_eq!(TRAY_ACTION_PREFIX, "tray_action:");
+    }
+
+    #[test]
+    fn test_tray_id_constant() {
+        assert_eq!(TRAY_ID, "main");
+    }
+}
