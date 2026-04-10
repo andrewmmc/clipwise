@@ -2,7 +2,15 @@ import { useState } from "react";
 import { tauriCommands } from "../lib/tauri";
 import type { AppConfig, Action } from "../types/config";
 import ActionForm from "./ActionForm";
-import { Plus, Pencil, Trash2, GripVertical, FlaskConical } from "lucide-react";
+import EmptyState from "./EmptyState";
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  GripVertical,
+  FlaskConical,
+  Zap,
+} from "lucide-react";
 
 interface Props {
   config: AppConfig;
@@ -91,12 +99,11 @@ export default function ActionList({ config, onRefresh }: Props) {
       </div>
 
       {config.actions.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-gray-300 bg-white p-8 text-center">
-          <p className="text-sm text-gray-400">No actions yet.</p>
-          <p className="mt-1 text-xs text-gray-400">
-            Add an action to get started.
-          </p>
-        </div>
+        <EmptyState
+          icon={<Zap size={18} />}
+          title="No actions yet."
+          description="Add an action to get started."
+        />
       ) : (
         <div className="space-y-2">
           {config.actions.map((action) => (

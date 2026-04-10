@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { tauriCommands } from "../lib/tauri";
 import type { AppConfig, Provider } from "../types/config";
+import EmptyState from "./EmptyState";
 import ProviderForm from "./ProviderForm";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Server } from "lucide-react";
 
 interface Props {
   config: AppConfig;
@@ -78,10 +79,11 @@ export default function ProviderList({ config, onRefresh }: Props) {
       </div>
 
       {config.providers.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-gray-300 bg-white p-8 text-center">
-          <p className="text-sm text-gray-400">No providers configured.</p>
-          <p className="mt-1 text-xs text-gray-400">Add an API key to start.</p>
-        </div>
+        <EmptyState
+          icon={<Server size={18} />}
+          title="No providers configured."
+          description="Add an API key to start."
+        />
       ) : (
         <div className="space-y-2">
           {config.providers.map((provider) => (

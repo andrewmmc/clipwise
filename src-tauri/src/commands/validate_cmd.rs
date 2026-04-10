@@ -1,13 +1,6 @@
 use crate::error::AppError;
 use serde_json::{json, Value};
 
-/// Validates that a string is valid JSON with a top-level `result` string field.
-/// Returns the extracted result string on success, or an error.
-#[tauri::command]
-pub fn validate_llm_response(raw: String) -> Result<String, AppError> {
-    validate_response_str(&raw)
-}
-
 /// Strategy for parsing LLM responses.
 /// Each strategy attempts to extract a result string in a different way.
 enum ParseStrategy<'a> {
@@ -47,8 +40,7 @@ pub fn normalize_response_str(raw: &str) -> Result<Value, AppError> {
     }
 
     // Try each strategy in order until one succeeds
-    let result = ParseStrategy::DirectJson(trimmed)
-        .extract()
+    let result = validate_response_str(trimmed)
         .or_else(|_| ParseStrategy::EmbeddedJson(trimmed).extract())
         .or_else(|_| ParseStrategy::PlainText(trimmed).extract())?;
 

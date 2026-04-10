@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { Action, AppConfig } from "../types/config";
 import { ArrowLeft, ChevronDown, RotateCcw, Save } from "lucide-react";
+import ErrorBox from "./ErrorBox";
 
 interface Props {
   config: AppConfig;
@@ -67,11 +68,7 @@ export default function ActionForm({
         onSubmit={handleSubmit}
         className="space-y-4 rounded-lg border border-gray-200 bg-white p-5"
       >
-        {error && (
-          <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
-            {error}
-          </div>
-        )}
+        {error && <ErrorBox message={error} />}
 
         <div>
           <label className="mb-1 block text-xs font-medium text-gray-700">

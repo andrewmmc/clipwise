@@ -6,7 +6,7 @@ mod providers;
 mod retry;
 pub mod service;
 
-use commands::{config_cmd::*, llm_cmd::*, validate_cmd::*};
+use commands::{config_cmd::*, llm_cmd::*};
 use config::{load_config, ConfigState};
 use models::AppConfig;
 use std::sync::mpsc;
@@ -48,8 +48,6 @@ pub fn run() {
             // LLM commands
             run_action,
             test_action,
-            // Validation
-            validate_llm_response,
         ])
         .setup(move |app| {
             setup_tray(app)?;

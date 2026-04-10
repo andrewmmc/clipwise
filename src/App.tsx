@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { tauriCommands } from "./lib/tauri";
 import type { AppConfig } from "./types/config";
 import ActionList from "./components/ActionList";
+import ErrorBox from "./components/ErrorBox";
 import ProviderList from "./components/ProviderList";
 import SettingsPanel from "./components/Settings";
 import { Zap, Server, SlidersHorizontal } from "lucide-react";
@@ -30,19 +31,22 @@ export default function App() {
   if (error) {
     return (
       <div className="flex h-screen items-center justify-center bg-gray-50">
-        <div className="rounded-lg border border-red-200 bg-red-50 p-6 text-center">
-          <p className="font-semibold text-red-700">Failed to load config</p>
-          <p className="mt-1 text-sm text-red-500">{error}</p>
-          <button
-            onClick={() => {
-              setError(null);
-              refresh();
-            }}
-            className="mt-3 rounded bg-red-600 px-4 py-1.5 text-sm text-white hover:bg-red-700"
-          >
-            Retry
-          </button>
-        </div>
+        <ErrorBox
+          title="Failed to load config"
+          message={error}
+          className="max-w-sm p-6 text-center"
+          action={
+            <button
+              onClick={() => {
+                setError(null);
+                refresh();
+              }}
+              className="mt-3 rounded bg-red-600 px-4 py-1.5 text-sm text-white hover:bg-red-700"
+            >
+              Retry
+            </button>
+          }
+        />
       </div>
     );
   }

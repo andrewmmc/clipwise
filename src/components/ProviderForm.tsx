@@ -8,6 +8,7 @@ import {
   Plus,
   Trash2,
 } from "lucide-react";
+import ErrorBox from "./ErrorBox";
 
 interface Props {
   initial?: Provider;
@@ -99,11 +100,7 @@ export default function ProviderForm({ initial, onSave, onCancel }: Props) {
         onSubmit={handleSubmit}
         className="space-y-4 rounded-lg border border-gray-200 bg-white p-5"
       >
-        {error && (
-          <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
-            {error}
-          </div>
-        )}
+        {error && <ErrorBox message={error} />}
 
         <div className="grid grid-cols-2 gap-4">
           <div>
