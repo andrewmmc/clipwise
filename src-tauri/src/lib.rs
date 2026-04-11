@@ -369,8 +369,12 @@ fn setup_tray<R: Runtime>(app: &tauri::App<R>) -> tauri::Result<()> {
 
     info!(action_count = config.actions.len(), "Setting up tray icon");
 
+    let tray_icon = tauri::image::Image::from_bytes(include_bytes!("../icons/tray-icon.png"))
+        .expect("Failed to load tray icon");
+
     let _tray = TrayIconBuilder::with_id(TRAY_ID)
-        .icon(app.default_window_icon().unwrap().clone())
+        .icon(tray_icon)
+        .icon_as_template(true)
         .menu(&menu)
         .show_menu_on_left_click(true)
         .on_menu_event(|app, event| match event.id.as_ref() {

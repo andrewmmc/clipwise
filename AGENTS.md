@@ -2,13 +2,12 @@
 
 ## Project overview
 
-LLM Actions is a macOS menu bar app (Tauri 2) that adds LLM-powered text transformation to the system-wide right-click Services menu. Users configure providers (OpenAI, Anthropic, CLI) and actions (prompt + provider), then select text in any app and apply a transformation.
+LLM Actions is a macOS menu bar app (Tauri 2) that adds LLM-powered text transformation via the system tray. Users configure providers (OpenAI, Anthropic, CLI) and actions (prompt + provider), then copy text, select an action from the tray menu, and the transformed result is written back to the clipboard.
 
 ## Architecture
 
 - **`src/`** — React + TypeScript frontend (Vite, Tailwind CSS v4). Settings UI with tabs for Actions, Providers, and Settings.
 - **`src-tauri/`** — Rust backend. Handles config persistence, LLM API calls, CLI subprocess execution, tray icon, and Tauri commands.
-- **`swift-plugin/`** — Swift package (`LLMActionsPlugin`) that registers macOS Services entries and handles text replacement via `NSServicesProvider`.
 
 ## Key conventions
 
@@ -29,25 +28,8 @@ npm test              # Vitest run
 npm run build         # tsc + vite build (frontend only)
 npm run tauri:dev     # Full Tauri dev
 npm run tauri:build   # Production build
-npm run tauri:build-debug  # Debug .app bundle (for testing macOS Services)
+npm run tauri:build-debug  # Debug .app bundle
 cd src-tauri && cargo test  # Rust tests
-```
-
-## Testing macOS Services
-
-macOS Services integration requires a built .app bundle - it doesn't work in dev mode:
-
-```bash
-# Build debug .app (faster than release)
-npm run tauri:build-debug
-
-# The .app will be at:
-# src-tauri/target/debug/bundle/macos/LLM Actions.app
-
-# To test:
-# 1. Open the .app directly
-# 2. Or copy to /Applications/ and launch from there
-# 3. Select text in any app, right-click > Services > LLM Actions
 ```
 
 ## Rules
