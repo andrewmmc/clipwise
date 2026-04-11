@@ -26,7 +26,7 @@ describe("App", () => {
     mockInvoke.mockResolvedValue(mockConfig);
     render(<App />);
     await waitFor(() =>
-      expect(screen.getByText("LLM Actions")).toBeInTheDocument(),
+      expect(screen.getByText("Clipwise")).toBeInTheDocument(),
     );
     expect(
       screen.getByRole("button", { name: /actions/i }),
@@ -43,7 +43,7 @@ describe("App", () => {
   it("renders with empty config", async () => {
     mockInvoke.mockResolvedValue(emptyConfig);
     render(<App />);
-    await waitFor(() => screen.getByText("LLM Actions"));
+    await waitFor(() => screen.getByText("Clipwise"));
     expect(screen.getByText("No actions yet")).toBeInTheDocument();
   });
 
@@ -52,7 +52,7 @@ describe("App", () => {
   it("defaults to the Actions tab", async () => {
     mockInvoke.mockResolvedValue(mockConfig);
     render(<App />);
-    await waitFor(() => screen.getByText("LLM Actions"));
+    await waitFor(() => screen.getByText("Clipwise"));
     // The Actions tab heading appears in the content area
     expect(screen.getAllByText("Actions").length).toBeGreaterThan(0);
   });
@@ -87,7 +87,7 @@ describe("App", () => {
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: /retry/i }));
     await waitFor(() =>
-      expect(screen.getByText("LLM Actions")).toBeInTheDocument(),
+      expect(screen.getByText("Clipwise")).toBeInTheDocument(),
     );
   });
 
@@ -109,7 +109,7 @@ describe("App", () => {
   it("clicking Providers tab shows provider list", async () => {
     mockInvoke.mockResolvedValue(mockConfig);
     render(<App />);
-    await waitFor(() => screen.getByText("LLM Actions"));
+    await waitFor(() => screen.getByText("Clipwise"));
 
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: /providers/i }));
@@ -123,7 +123,7 @@ describe("App", () => {
   it("clicking Settings tab shows settings panel", async () => {
     mockInvoke.mockResolvedValue(mockConfig);
     render(<App />);
-    await waitFor(() => screen.getByText("LLM Actions"));
+    await waitFor(() => screen.getByText("Clipwise"));
 
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: /settings/i }));
@@ -137,7 +137,7 @@ describe("App", () => {
   it("switching tabs persists active tab state", async () => {
     mockInvoke.mockResolvedValue(mockConfig);
     render(<App />);
-    await waitFor(() => screen.getByText("LLM Actions"));
+    await waitFor(() => screen.getByText("Clipwise"));
 
     const user = userEvent.setup();
 
@@ -167,7 +167,7 @@ describe("App", () => {
   it("initial load calls getConfig on mount", async () => {
     mockInvoke.mockResolvedValue(mockConfig);
     render(<App />);
-    await waitFor(() => screen.getByText("LLM Actions"));
+    await waitFor(() => screen.getByText("Clipwise"));
     expect(mockInvoke).toHaveBeenCalledWith("get_config");
   });
 

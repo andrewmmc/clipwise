@@ -67,10 +67,13 @@ export default function App() {
   return (
     <div className="app-shell">
       <div className="app-container flex flex-col">
-        <header className="border-b border-border px-5 py-3">
+        <header className="flex items-center justify-between border-b border-border px-5 py-3">
           <h1 className="text-[14px] font-semibold text-text-primary">
-            LLM Actions
+            Clipwise
           </h1>
+          <span className="text-[12px] text-text-tertiary">
+            v{__APP_VERSION__}
+          </span>
         </header>
 
         <nav className="flex gap-1 border-b border-border px-2">

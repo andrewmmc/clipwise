@@ -84,7 +84,7 @@ export default function ApiProviderForm({
           <button
             type="button"
             onClick={onAddHeader}
-            className="flex items-center gap-1 text-[12px] font-medium text-accent hover:text-accent-hover"
+            className="btn btn-ghost py-1 text-[12px]"
           >
             <Plus size={12} />
             Add header

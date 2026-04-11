@@ -75,7 +75,7 @@ export default function CliProviderForm({
           <button
             type="button"
             onClick={onAddArg}
-            className="flex items-center gap-1 text-[12px] font-medium text-accent hover:text-accent-hover"
+            className="btn btn-ghost py-1 text-[12px]"
           >
             <Plus size={12} />
             Add arg

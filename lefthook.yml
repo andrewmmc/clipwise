@@ -3,9 +3,9 @@ pre-commit:
   commands:
     lint:
       glob: "*.{ts,tsx}"
-      run: npx eslint {staged_files}
+      run: $SHELL -lic 'npx eslint {staged_files}'
     prettier:
       glob: "*.{ts,tsx,json,css,md,html,yml,yaml}"
-      run: npx prettier --check {staged_files}
+      run: $SHELL -lic 'npx prettier --check {staged_files}'
     typecheck:
-      run: npx tsc --noEmit
+      run: $SHELL -lic 'npx tsc --noEmit'
