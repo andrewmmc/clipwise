@@ -4,6 +4,7 @@ import type { AppConfig, Action } from "../types/config";
 import useTransientMessage from "../hooks/useTransientMessage";
 import ActionForm from "./ActionForm";
 import EmptyState from "./EmptyState";
+import ErrorBox from "./ErrorBox";
 import SuccessBox from "./SuccessBox";
 import { Plus, Pencil, Trash2, Zap } from "lucide-react";
 
@@ -16,11 +17,14 @@ export default function ActionList({ config, onRefresh }: Props) {
   const [editing, setEditing] = useState<Action | null>(null);
   const [creating, setCreating] = useState(false);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [showProviderHint, setShowProviderHint] = useState(false);
   const {
     message: successMessage,
     showMessage: showSuccessMessage,
     clearMessage: clearSuccessMessage,
   } = useTransientMessage();
+
+  const hasProviders = config.providers.length > 0;
 
   const handleDelete = async (id: string) => {
     await tauriCommands.deleteAction(id);
@@ -76,7 +80,12 @@ export default function ActionList({ config, onRefresh }: Props) {
         <button
           onClick={() => {
             clearSuccessMessage();
-            setCreating(true);
+            if (hasProviders) {
+              setShowProviderHint(false);
+              setCreating(true);
+            } else {
+              setShowProviderHint(true);
+            }
           }}
           className="btn btn-primary"
         >
@@ -86,6 +95,9 @@ export default function ActionList({ config, onRefresh }: Props) {
       </div>
 
       {successMessage && <SuccessBox message={successMessage} />}
+      {showProviderHint && (
+        <ErrorBox message="Please add a provider first before creating an action." />
+      )}
 
       {config.actions.length === 0 ? (
         <EmptyState
