@@ -1,5 +1,6 @@
 use crate::config::{save_config, ConfigState};
 use crate::error::AppError;
+use crate::history;
 use crate::models::{Action, AppConfig, AppSettings, Provider};
 use crate::providers::cli::validate_cli_command;
 use tauri::{AppHandle, State};
@@ -80,8 +81,12 @@ pub fn save_settings(
     _app: AppHandle,
 ) -> Result<(), AppError> {
     let mut config = state.lock()?;
+    let history_being_disabled = config.settings.history_enabled && !settings.history_enabled;
     config.settings = settings;
     save_config(&config)?;
+    if history_being_disabled {
+        let _ = history::clear_history();
+    }
     info!(
         max_tokens = config.settings.max_tokens,
         show_notification_on_complete = config.settings.show_notification_on_complete,

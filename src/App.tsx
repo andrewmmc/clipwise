@@ -59,10 +59,16 @@ export default function App() {
   const tabs: { id: Tab; label: string }[] = [
     { id: "actions", label: "Actions" },
     { id: "providers", label: "Providers" },
-    { id: "history", label: "History" },
+    ...(config.settings.historyEnabled
+      ? [{ id: "history" as Tab, label: "History" }]
+      : []),
     { id: "settings", label: "Settings" },
     { id: "about", label: "About" },
   ];
+
+  if (activeTab === "history" && !config.settings.historyEnabled) {
+    setActiveTab("actions");
+  }
 
   return (
     <div className="app-shell">

@@ -1,3 +1,4 @@
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { useEffect, useState } from "react";
 import { tauriCommands } from "../lib/tauri";
 import type { AppInfo } from "../types/config";
@@ -26,10 +27,35 @@ export default function AboutPanel() {
             copied to your clipboard.
           </p>
         </div>
+        <div className="mt-3 flex items-center gap-3 border-t border-border pt-3">
+          <button
+            type="button"
+            onClick={() => openUrl("https://github.com/andrewmmc/clipwise")}
+            className="btn btn-secondary text-[12px]"
+          >
+            GitHub
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              openUrl("https://github.com/andrewmmc/clipwise/releases")
+            }
+            className="btn btn-secondary text-[12px]"
+          >
+            Check for Updates…
+          </button>
+        </div>
       </div>
 
       <p className="text-center text-[11px] text-text-tertiary">
-        © 2026 Andrew Mok
+        © 2026{" "}
+        <button
+          type="button"
+          onClick={() => openUrl("https://andrewmmc.com/")}
+          className="cursor-pointer underline hover:text-text-secondary"
+        >
+          Andrew Mok
+        </button>
       </p>
     </div>
   );
