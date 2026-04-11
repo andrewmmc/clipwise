@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-"title": "Clipwise — Settings",
+"title": "Clipwise",
         "width": 900,
         "height": 650,
         "resizable": false,
