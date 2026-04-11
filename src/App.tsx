@@ -79,7 +79,7 @@ export default function App() {
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={[
-                "relative px-3 py-2.5 text-[13px] font-medium transition-colors",
+                "relative px-3 py-2.5 text-[13px] font-medium transition-colors cursor-pointer",
                 activeTab === tab.id
                   ? "text-text-primary"
                   : "text-text-tertiary hover:text-text-secondary",

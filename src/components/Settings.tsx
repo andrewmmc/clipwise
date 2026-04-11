@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import { tauriCommands } from "../lib/tauri";
 import type { AppConfig, AppSettings } from "../types/config";
 import ErrorBox from "./ErrorBox";
@@ -8,16 +8,12 @@ interface Props {
   onRefresh: () => void;
 }
 
-const MIN_TOKENS = 256;
-const MAX_TOKENS = 32768;
-
 export default function SettingsPanel({ config, onRefresh }: Props) {
   // Local state for settings - synced via key prop in parent
   const [settings, setSettings] = useState<AppSettings>({
     ...config.settings,
   });
   const [error, setError] = useState<string | null>(null);
-  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const saveSettings = useCallback(
     async (nextSettings: AppSettings) => {
@@ -43,36 +39,6 @@ export default function SettingsPanel({ config, onRefresh }: Props) {
     },
     [saveSettings],
   );
-
-  const updateMaxTokens = useCallback(
-    (value: number) => {
-      // Clamp value between min and max
-      const clamped = Math.min(
-        MAX_TOKENS,
-        Math.max(MIN_TOKENS, value || MIN_TOKENS),
-      );
-      setSettings((current) => {
-        const updated = { ...current, maxTokens: clamped };
-        // Debounce save for number input
-        if (saveTimeoutRef.current) {
-          clearTimeout(saveTimeoutRef.current);
-        }
-        saveTimeoutRef.current = setTimeout(() => {
-          saveSettings(updated);
-        }, 500);
-        return updated;
-      });
-    },
-    [saveSettings],
-  );
-
-  useEffect(() => {
-    return () => {
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current);
-      }
-    };
-  }, []);
 
   return (
     <div className="space-y-4">
@@ -137,30 +103,24 @@ export default function SettingsPanel({ config, onRefresh }: Props) {
                 Max tokens
               </p>
               <p className="text-[12px] text-text-tertiary">
-                Maximum tokens in LLM responses ({MIN_TOKENS}–{MAX_TOKENS}).
+                Maximum tokens in LLM responses (default: 4096).
               </p>
             </div>
-            <input
-              type="number"
-              min={MIN_TOKENS}
-              max={MAX_TOKENS}
-              step={256}
+            <select
               value={settings.maxTokens}
-              onChange={(e) => updateMaxTokens(parseInt(e.target.value, 10))}
-              onBlur={(e) => {
-                const clamped = Math.min(
-                  MAX_TOKENS,
-                  Math.max(
-                    MIN_TOKENS,
-                    parseInt(e.target.value, 10) || MIN_TOKENS,
-                  ),
-                );
-                if (clamped !== settings.maxTokens) {
-                  updateMaxTokens(clamped);
-                }
-              }}
-              className="input w-28 text-right"
-            />
+              onChange={(e) =>
+                updateSettings({ maxTokens: parseInt(e.target.value, 10) })
+              }
+              className="input select !w-32 text-right"
+            >
+              <option value={512}>512</option>
+              <option value={1024}>1024</option>
+              <option value={2048}>2048</option>
+              <option value={4096}>4096</option>
+              <option value={8192}>8192</option>
+              <option value={16384}>16384</option>
+              <option value={32768}>32768</option>
+            </select>
           </div>
         </div>
       </div>
