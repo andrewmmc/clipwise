@@ -71,7 +71,7 @@ export default function HistoryList() {
     tauriCommands
       .clearHistory()
       .then(() => {
-        showMessage("History cleared successfully.");
+        showMessage("History cleared.");
         setHistory([]);
       })
       .catch((e) => {
@@ -90,15 +90,13 @@ export default function HistoryList() {
       .deleteHistoryEntry(id)
       .then((deleted) => {
         if (deleted) {
-          showMessage("Entry deleted successfully.");
+          showMessage("Entry deleted.");
           setHistory((prev) => prev.filter((e) => e.id !== id));
           setExpandedIds((prev) => {
             const next = new Set(prev);
             next.delete(id);
             return next;
           });
-        } else {
-          // User cancelled the dialog
         }
       })
       .catch((e) => {
@@ -130,22 +128,22 @@ export default function HistoryList() {
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center">
-        <div className="text-sm text-text-tertiary">Loading history…</div>
+        <span className="text-[13px] text-text-tertiary">Loading…</span>
       </div>
     );
   }
 
   return (
     <div className="space-y-4">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex items-center justify-between">
         <div>
           <h2 className="text-[13px] font-semibold text-text-primary">
             History
           </h2>
-          <p className="mt-1 text-[11px] text-text-tertiary">
+          <p className="mt-0.5 text-[12px] text-text-tertiary">
             {history.length === 0
-              ? "No transformations recorded yet."
-              : `${history.length} transformation${history.length === 1 ? "" : "s"} logged.`}
+              ? "No transformations recorded."
+              : `${history.length} transformation${history.length === 1 ? "" : "s"}`}
           </p>
         </div>
         {history.length > 0 && (
@@ -153,10 +151,10 @@ export default function HistoryList() {
             type="button"
             onClick={handleClearHistory}
             disabled={clearing}
-            className="mac-button-danger flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium disabled:opacity-50"
+            className="btn btn-danger"
           >
             <Trash2 size={14} />
-            {clearing ? "Clearing…" : "Clear History"}
+            {clearing ? "Clearing…" : "Clear"}
           </button>
         )}
       </div>
@@ -165,21 +163,20 @@ export default function HistoryList() {
       {successMessage && <SuccessBox message={successMessage} />}
 
       {history.length === 0 ? (
-        <div className="rounded-2xl border border-border-subtle bg-surface-primary/65 p-8 text-center backdrop-blur-sm">
-          <p className="text-sm text-text-tertiary">
-            History is empty. Transformations will be logged here when you run
-            actions.
+        <div className="empty-state">
+          <p className="text-[13px] text-text-tertiary">
+            Transformations will appear here when you run actions.
           </p>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2">
           {history.map((entry) => {
             const isExpanded = expandedIds.has(entry.id);
             return (
-              <div key={entry.id} className="mac-card rounded-2xl">
+              <div key={entry.id} className="card">
                 <div
                   onClick={() => toggleExpanded(entry.id)}
-                  className="flex w-full cursor-pointer items-start gap-3 p-4 transition-colors hover:bg-surface-tertiary/60"
+                  className="flex w-full cursor-pointer items-start gap-3 p-3 transition-colors hover:bg-surface-hover"
                   role="button"
                   tabIndex={0}
                   onKeyDown={(e) => {
@@ -189,40 +186,37 @@ export default function HistoryList() {
                     }
                   }}
                 >
-                  <div className="mt-0.5 text-text-tertiary">
+                  <span className="mt-0.5 text-text-tertiary">
                     {isExpanded ? (
-                      <ChevronDown size={16} />
+                      <ChevronDown size={14} />
                     ) : (
-                      <ChevronRight size={16} />
+                      <ChevronRight size={14} />
                     )}
-                  </div>
+                  </span>
 
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       {entry.success ? (
                         <CheckCircle2
-                          size={16}
+                          size={14}
                           className="shrink-0 text-success"
                         />
                       ) : (
-                        <XCircle size={16} className="shrink-0 text-error" />
+                        <XCircle size={14} className="shrink-0 text-error" />
                       )}
-                      <span className="text-[13px] font-semibold text-text-primary">
+                      <span className="text-[13px] font-medium text-text-primary">
                         {entry.actionName}
                       </span>
-                      <span className="text-[11px] text-text-tertiary">
-                        via
-                      </span>
-                      <span className="text-[11px] text-text-secondary">
+                      <span className="text-[12px] text-text-tertiary">
                         {entry.providerName}
                       </span>
                     </div>
-                    <p className="mt-0.5 text-[11px] text-text-tertiary">
+                    <p className="mt-0.5 text-[12px] text-text-tertiary">
                       {formatTimestamp(entry.timestamp)}
                     </p>
 
                     {!isExpanded && (
-                      <p className="mt-2 line-clamp-2 text-[11px] text-text-secondary">
+                      <p className="mt-1.5 line-clamp-2 text-[12px] text-text-secondary">
                         {entry.inputText}
                       </p>
                     )}
@@ -236,7 +230,7 @@ export default function HistoryList() {
                         handleDeleteEntry(entry.id);
                       }}
                       disabled={deletingIds.has(entry.id)}
-                      className="rounded-md p-1 text-text-tertiary hover:bg-error/10 hover:text-error disabled:opacity-50"
+                      className="btn-icon btn-icon-danger"
                       title="Delete entry"
                     >
                       <Trash2 size={14} />
@@ -245,30 +239,30 @@ export default function HistoryList() {
                 </div>
 
                 {isExpanded && (
-                  <div className="space-y-3 border-t border-border-subtle p-4 pt-2">
+                  <div className="space-y-3 border-t border-border p-3">
                     <div>
                       <div className="mb-1 flex items-center justify-between">
-                        <span className="text-[11px] font-medium text-text-secondary">
+                        <span className="text-[12px] font-medium text-text-secondary">
                           Input
                         </span>
                         <button
                           onClick={() =>
                             copyToClipboard(entry.inputText, "input")
                           }
-                          className="flex items-center gap-1 text-[11px] font-medium text-accent hover:text-accent-strong"
+                          className="flex items-center gap-1 text-[12px] font-medium text-accent hover:text-accent-hover"
                         >
                           <Copy size={12} />
                           Copy
                         </button>
                       </div>
-                      <p className="whitespace-pre-wrap break-words rounded-xl border border-border-subtle bg-surface-tertiary/60 p-2 text-[11px] font-mono text-text-secondary">
+                      <pre className="whitespace-pre-wrap break-words rounded-md border border-border bg-surface-tertiary p-2 text-[12px] font-mono text-text-secondary">
                         {entry.inputText}
-                      </p>
+                      </pre>
                     </div>
 
                     <div>
                       <div className="mb-1 flex items-center justify-between">
-                        <span className="text-[11px] font-medium text-text-secondary">
+                        <span className="text-[12px] font-medium text-text-secondary">
                           {entry.success ? "Output" : "Error"}
                         </span>
                         <button
@@ -278,21 +272,22 @@ export default function HistoryList() {
                               entry.success ? "output" : "error",
                             )
                           }
-                          className="flex items-center gap-1 text-[11px] font-medium text-accent hover:text-accent-strong"
+                          className="flex items-center gap-1 text-[12px] font-medium text-accent hover:text-accent-hover"
                         >
                           <Copy size={12} />
                           Copy
                         </button>
                       </div>
-                      <p
-                        className={`rounded-xl border p-2 text-[11px] whitespace-pre-wrap break-words font-mono ${
+                      <pre
+                        className={[
+                          "whitespace-pre-wrap break-words rounded-md border p-2 text-[12px] font-mono",
                           entry.success
-                            ? "border-border-subtle bg-surface-tertiary/60 text-text-secondary"
-                            : "border-error/15 bg-error/10 text-error"
-                        }`}
+                            ? "border-border bg-surface-tertiary text-text-secondary"
+                            : "feedback-error",
+                        ].join(" ")}
                       >
                         {entry.outputText}
-                      </p>
+                      </pre>
                     </div>
                   </div>
                 )}

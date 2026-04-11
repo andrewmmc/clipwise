@@ -104,13 +104,9 @@ describe("ProviderForm", () => {
     render(<ProviderForm onSave={onSave} onCancel={onCancel} />);
     const typeSelect = screen.getByDisplayValue("Anthropic");
     await user.selectOptions(typeSelect, "cli");
-    const hint = screen.getByText(/find the installed binary path with/i);
+    const hint = screen.getByText(/find the binary path with/i);
     expect(hint).toBeInTheDocument();
-    expect(screen.getByText("where claude")).toBeInTheDocument();
-    expect(screen.getByText("where codex")).toBeInTheDocument();
-    expect(screen.getByText("where copilot")).toBeInTheDocument();
-    expect(screen.getByText("where claude")).toHaveClass("bg-surface-tertiary");
-    expect(hint).toHaveClass("text-text-tertiary");
+    expect(screen.getByText("which claude")).toBeInTheDocument();
   });
 
   it("shows a headless mode hint for CLI arguments", async () => {
@@ -118,10 +114,7 @@ describe("ProviderForm", () => {
     render(<ProviderForm onSave={onSave} onCancel={onCancel} />);
     const typeSelect = screen.getByDisplayValue("Anthropic");
     await user.selectOptions(typeSelect, "cli");
-    expect(
-      screen.getByText(/configure the cli to run in headless mode/i),
-    ).toBeInTheDocument();
-    expect(screen.getByText("-p")).toBeInTheDocument();
+    expect(screen.getByText(/configure headless mode/i)).toBeInTheDocument();
   });
 
   // ── Validation ────────────────────────────────────────────────────────────
@@ -129,7 +122,7 @@ describe("ProviderForm", () => {
   it("shows error when name is empty on submit", async () => {
     const user = userEvent.setup();
     render(<ProviderForm onSave={onSave} onCancel={onCancel} />);
-    await user.click(screen.getByRole("button", { name: /save provider/i }));
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
     expect(screen.getByText("Provider name is required.")).toBeInTheDocument();
     expect(onSave).not.toHaveBeenCalled();
   });
@@ -141,7 +134,7 @@ describe("ProviderForm", () => {
       screen.getByPlaceholderText("e.g. Anthropic Claude"),
       "My Provider",
     );
-    await user.click(screen.getByRole("button", { name: /save provider/i }));
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
     expect(
       screen.getByText("API key is required for API providers."),
     ).toBeInTheDocument();
@@ -157,7 +150,7 @@ describe("ProviderForm", () => {
     );
     const typeSelect = screen.getByDisplayValue("Anthropic");
     await user.selectOptions(typeSelect, "cli");
-    await user.click(screen.getByRole("button", { name: /save provider/i }));
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
     expect(
       screen.getByText("Command is required for CLI providers."),
     ).toBeInTheDocument();
@@ -177,7 +170,7 @@ describe("ProviderForm", () => {
       "http://api.example.com",
     );
     await user.type(screen.getByPlaceholderText("sk-..."), "sk-ant-key");
-    await user.click(screen.getByRole("button", { name: /save provider/i }));
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
 
     expect(
       screen.getByText("Endpoint URL must be a valid https:// URL."),
@@ -196,7 +189,7 @@ describe("ProviderForm", () => {
     );
     await user.selectOptions(screen.getByDisplayValue("Anthropic"), "cli");
     await user.type(screen.getByPlaceholderText("e.g. claude"), "/bin/sh");
-    await user.click(screen.getByRole("button", { name: /test command/i }));
+    await user.click(screen.getByRole("button", { name: /^test$/i }));
 
     await waitFor(() =>
       expect(mockInvoke).toHaveBeenCalledWith("test_cli_command", {
@@ -218,7 +211,7 @@ describe("ProviderForm", () => {
       "Test Provider",
     );
     await user.type(screen.getByPlaceholderText("sk-..."), "sk-ant-key");
-    await user.click(screen.getByRole("button", { name: /save provider/i }));
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
 
     await waitFor(() =>
       expect(onSave).toHaveBeenCalledWith(
@@ -243,7 +236,7 @@ describe("ProviderForm", () => {
     const typeSelect = screen.getByDisplayValue("Anthropic");
     await user.selectOptions(typeSelect, "cli");
     await user.type(screen.getByPlaceholderText("e.g. claude"), "claude");
-    await user.click(screen.getByRole("button", { name: /save provider/i }));
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
 
     await waitFor(() =>
       expect(onSave).toHaveBeenCalledWith(
@@ -262,7 +255,7 @@ describe("ProviderForm", () => {
     render(<ProviderForm onSave={onSave} onCancel={onCancel} />);
 
     await user.selectOptions(screen.getByDisplayValue("Anthropic"), "cli");
-    await user.click(screen.getByRole("button", { name: /test command/i }));
+    await user.click(screen.getByRole("button", { name: /^test$/i }));
 
     expect(
       screen.getByText("Enter a command before testing."),
@@ -290,7 +283,7 @@ describe("ProviderForm", () => {
 
     await user.type(screen.getByPlaceholderText("e.g. Anthropic Claude"), "P");
     await user.type(screen.getByPlaceholderText("sk-..."), "k");
-    await user.click(screen.getByRole("button", { name: /save provider/i }));
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
 
     await waitFor(() =>
       expect(onSave).toHaveBeenCalledWith(
@@ -368,7 +361,7 @@ describe("ProviderForm", () => {
       screen.getByPlaceholderText("e.g. Anthropic Claude"),
       "My CLI",
     );
-    await user.click(screen.getByRole("button", { name: /save provider/i }));
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
 
     expect(
       screen.getByText("Command is required for CLI providers."),
@@ -436,7 +429,7 @@ describe("ProviderForm", () => {
     );
 
     // Don't add any headers, just save
-    await user.click(screen.getByRole("button", { name: /save provider/i }));
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
 
     await waitFor(() =>
       expect(onSave).toHaveBeenCalledWith(
@@ -459,7 +452,7 @@ describe("ProviderForm", () => {
 
     await user.type(screen.getByPlaceholderText("e.g. Anthropic Claude"), "P");
     await user.type(screen.getByPlaceholderText("sk-..."), "k");
-    await user.click(screen.getByRole("button", { name: /save provider/i }));
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
 
     await waitFor(() =>
       expect(onSave).toHaveBeenCalledWith(
@@ -490,7 +483,7 @@ describe("ProviderForm", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: /save provider/i }));
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
 
     await waitFor(() =>
       expect(onSave).toHaveBeenCalledWith(
@@ -519,7 +512,7 @@ describe("ProviderForm", () => {
       "not-a-valid-url",
     );
     await user.type(screen.getByPlaceholderText("sk-..."), "sk-key");
-    await user.click(screen.getByRole("button", { name: /save provider/i }));
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
 
     expect(
       screen.getByText("Endpoint URL must be a valid https:// URL."),
@@ -539,7 +532,7 @@ describe("ProviderForm", () => {
       "http://insecure.com",
     );
     await user.type(screen.getByPlaceholderText("sk-..."), "sk-key");
-    await user.click(screen.getByRole("button", { name: /save provider/i }));
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
 
     expect(
       screen.getByText("Endpoint URL must be a valid https:// URL."),
@@ -557,7 +550,7 @@ describe("ProviderForm", () => {
     );
     await user.type(screen.getByPlaceholderText("sk-..."), "sk-key");
     // Leave endpoint empty
-    await user.click(screen.getByRole("button", { name: /save provider/i }));
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
 
     await waitFor(() =>
       expect(onSave).toHaveBeenCalledWith(
@@ -577,7 +570,7 @@ describe("ProviderForm", () => {
       "   ",
     );
     await user.type(screen.getByPlaceholderText("sk-..."), "sk-key");
-    await user.click(screen.getByRole("button", { name: /save provider/i }));
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
 
     expect(screen.getByText("Provider name is required.")).toBeInTheDocument();
   });
@@ -591,7 +584,7 @@ describe("ProviderForm", () => {
       "My Provider",
     );
     await user.type(screen.getByPlaceholderText("sk-..."), "   ");
-    await user.click(screen.getByRole("button", { name: /save provider/i }));
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
 
     expect(
       screen.getByText("API key is required for API providers."),
@@ -608,7 +601,7 @@ describe("ProviderForm", () => {
     );
     await user.selectOptions(screen.getByDisplayValue("Anthropic"), "cli");
     await user.type(screen.getByPlaceholderText("e.g. claude"), "   ");
-    await user.click(screen.getByRole("button", { name: /save provider/i }));
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
 
     expect(
       screen.getByText("Command is required for CLI providers."),
@@ -678,7 +671,7 @@ describe("ProviderForm", () => {
 
     // Add empty arg
     await user.click(screen.getByRole("button", { name: /add arg/i }));
-    await user.click(screen.getByRole("button", { name: /save provider/i }));
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
 
     await waitFor(() =>
       expect(onSave).toHaveBeenCalledWith(
@@ -709,7 +702,7 @@ describe("ProviderForm", () => {
     await user.click(screen.getByRole("button", { name: /add arg/i }));
 
     // Fill required fields for CLI (name is already set from mockCliProvider)
-    await user.click(screen.getByRole("button", { name: /save provider/i }));
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
 
     await waitFor(() =>
       expect(onSave).toHaveBeenCalledWith(

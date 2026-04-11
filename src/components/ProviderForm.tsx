@@ -14,18 +14,13 @@ interface Props {
 }
 
 const DEFAULT_CLI_ARGS = ["-p"];
-const FIELD_CLASS_NAME = "mac-input w-full rounded-md px-3 py-2 text-sm";
 
 function validateEndpoint(endpoint: string) {
   const trimmed = endpoint.trim();
-  if (!trimmed) {
-    return null;
-  }
-
+  if (!trimmed) return null;
   if (!trimmed.startsWith("https://")) {
     return "Endpoint URL must be a valid https:// URL.";
   }
-
   try {
     new URL(trimmed);
     return null;
@@ -57,15 +52,11 @@ export default function ProviderForm({ initial, onSave, onCancel }: Props) {
     clearMessage: clearCommandTestSuccess,
   } = useTransientMessage();
 
-  const clearFormFeedback = () => {
-    setError(null);
-  };
-
+  const clearFormFeedback = () => setError(null);
   const clearCommandFeedback = () => {
     setCommandTestError(null);
     clearCommandTestSuccess();
   };
-
   const clearAllFeedback = () => {
     clearFormFeedback();
     clearCommandFeedback();
@@ -119,7 +110,6 @@ export default function ProviderForm({ initial, onSave, onCancel }: Props) {
       setCommandTestError("Enter a command before testing.");
       return;
     }
-
     setTestingCommand(true);
     setCommandTestError(null);
     clearCommandTestSuccess();
@@ -133,15 +123,10 @@ export default function ProviderForm({ initial, onSave, onCancel }: Props) {
     }
   };
 
-  const selectClassName = `${FIELD_CLASS_NAME} appearance-none bg-white pr-9`;
-
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
-        <button
-          onClick={onCancel}
-          className="rounded-md p-1.5 text-text-tertiary transition-colors hover:bg-surface-tertiary hover:text-text-secondary"
-        >
+        <button onClick={onCancel} className="btn-icon">
           <ArrowLeft size={16} />
         </button>
         <h2 className="text-[13px] font-semibold text-text-primary">
@@ -149,17 +134,12 @@ export default function ProviderForm({ initial, onSave, onCancel }: Props) {
         </h2>
       </div>
 
-      <form
-        onSubmit={handleSubmit}
-        className="mac-panel space-y-4 rounded-2xl p-5"
-      >
+      <form onSubmit={handleSubmit} className="card space-y-4 p-4">
         {error && <ErrorBox message={error} />}
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="mb-1 block text-[11px] font-medium text-text-secondary">
-              Name <span className="text-red-500">*</span>
-            </label>
+            <label className="label label-required">Name</label>
             <input
               type="text"
               value={name}
@@ -168,13 +148,11 @@ export default function ProviderForm({ initial, onSave, onCancel }: Props) {
                 clearFormFeedback();
               }}
               placeholder="e.g. Anthropic Claude"
-              className={FIELD_CLASS_NAME}
+              className="input"
             />
           </div>
           <div>
-            <label className="mb-1 block text-[11px] font-medium text-text-secondary">
-              Type <span className="text-red-500">*</span>
-            </label>
+            <label className="label label-required">Type</label>
             <div className="relative">
               <select
                 value={type}
@@ -186,7 +164,7 @@ export default function ProviderForm({ initial, onSave, onCancel }: Props) {
                     setArgs(DEFAULT_CLI_ARGS);
                   }
                 }}
-                className={selectClassName}
+                className="input select"
               >
                 <option value="anthropic">Anthropic</option>
                 <option value="openai">OpenAI-compatible</option>
@@ -207,7 +185,6 @@ export default function ProviderForm({ initial, onSave, onCancel }: Props) {
             apiKey={apiKey}
             defaultModel={defaultModel}
             headers={headers}
-            fieldClassName={FIELD_CLASS_NAME}
             onEndpointChange={(value) => {
               setEndpoint(value);
               clearFormFeedback();
@@ -251,7 +228,6 @@ export default function ProviderForm({ initial, onSave, onCancel }: Props) {
           <CliProviderForm
             command={command}
             args={args}
-            fieldClassName={FIELD_CLASS_NAME}
             testingCommand={testingCommand}
             commandTestError={commandTestError}
             commandTestSuccess={commandTestSuccess}
@@ -282,11 +258,7 @@ export default function ProviderForm({ initial, onSave, onCancel }: Props) {
         )}
 
         <div className="flex justify-end gap-2 pt-2">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="mac-button-secondary rounded-md px-4 py-2 text-sm hover:brightness-98"
-          >
+          <button type="button" onClick={onCancel} className="btn btn-ghost">
             Cancel
           </button>
           <button
@@ -303,7 +275,7 @@ export default function ProviderForm({ initial, onSave, onCancel }: Props) {
               clearAllFeedback();
             }}
             disabled={saving || testingCommand}
-            className="mac-button-secondary flex items-center gap-1.5 rounded-md px-4 py-2 text-sm disabled:opacity-50"
+            className="btn btn-secondary"
           >
             <RotateCcw size={14} />
             Reset
@@ -311,10 +283,10 @@ export default function ProviderForm({ initial, onSave, onCancel }: Props) {
           <button
             type="submit"
             disabled={saving || testingCommand}
-            className="mac-button-primary flex items-center gap-1.5 rounded-md px-4 py-2 text-sm font-medium shadow-sm transition hover:brightness-105 disabled:opacity-50"
+            className="btn btn-primary"
           >
             <Save size={14} />
-            {saving ? "Saving…" : "Save Provider"}
+            {saving ? "Saving…" : "Save"}
           </button>
         </div>
       </form>

@@ -15,7 +15,7 @@ interface Props {
 const typeLabel: Record<string, string> = {
   openai: "OpenAI-compatible",
   anthropic: "Anthropic",
-  cli: "CLI (claude/codex/copilot)",
+  cli: "CLI",
 };
 
 export default function ProviderList({ config, onRefresh }: Props) {
@@ -71,12 +71,12 @@ export default function ProviderList({ config, onRefresh }: Props) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex items-center justify-between">
         <div>
           <h2 className="text-[13px] font-semibold text-text-primary">
             Providers
           </h2>
-          <p className="mt-1 text-[11px] text-text-tertiary">
+          <p className="mt-0.5 text-[12px] text-text-tertiary">
             Configure LLM API or CLI providers.
           </p>
         </div>
@@ -85,7 +85,7 @@ export default function ProviderList({ config, onRefresh }: Props) {
             clearSuccessMessage();
             setCreating(true);
           }}
-          className="mac-button-primary flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium shadow-sm transition hover:brightness-105"
+          className="btn btn-primary"
         >
           <Plus size={14} />
           Add Provider
@@ -97,45 +97,45 @@ export default function ProviderList({ config, onRefresh }: Props) {
       {config.providers.length === 0 ? (
         <EmptyState
           icon={<Server size={18} />}
-          title="No providers configured."
+          title="No providers configured"
           description="Add an API key to start."
         />
       ) : (
-        <div className="space-y-2.5">
+        <div className="space-y-2">
           {config.providers.map((provider) => (
             <div
               key={provider.id}
-              className="mac-card flex items-center justify-between rounded-2xl p-4"
+              className="card flex items-center justify-between p-3"
             >
-              <div>
-                <p className="text-[13px] font-semibold text-text-primary">
+              <div className="min-w-0 flex-1">
+                <p className="text-[13px] font-medium text-text-primary">
                   {provider.name}
                 </p>
-                <p className="text-[11px] text-text-secondary">
+                <p className="mt-0.5 text-[12px] text-text-secondary">
                   {typeLabel[provider.type] ?? provider.type}
                   {provider.defaultModel && ` · ${provider.defaultModel}`}
                   {provider.command && ` · ${provider.command}`}
                 </p>
                 {provider.endpoint && (
-                  <p className="text-[11px] text-text-tertiary">
+                  <p className="truncate text-[12px] text-text-tertiary">
                     {provider.endpoint}
                   </p>
                 )}
               </div>
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1">
                 <button
                   onClick={() => {
                     clearSuccessMessage();
                     setEditing(provider);
                   }}
-                  className="rounded-md p-1.5 text-text-tertiary transition-colors hover:bg-surface-tertiary hover:text-text-secondary"
+                  className="btn-icon"
                   title="Edit"
                 >
                   <Pencil size={14} />
                 </button>
                 <button
                   onClick={() => handleDelete(provider.id)}
-                  className="rounded-md p-1.5 text-text-tertiary transition-colors hover:bg-error/10 hover:text-error"
+                  className="btn-icon btn-icon-danger"
                   title="Delete"
                 >
                   <Trash2 size={14} />

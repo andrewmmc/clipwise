@@ -26,7 +26,7 @@ describe("ActionList", () => {
 
   it("shows empty state when there are no actions", () => {
     render(<ActionList config={emptyConfig} onRefresh={onRefresh} />);
-    expect(screen.getByText("No actions yet.")).toBeInTheDocument();
+    expect(screen.getByText("No actions yet")).toBeInTheDocument();
   });
 
   // ── List view ─────────────────────────────────────────────────────────────
@@ -68,9 +68,7 @@ describe("ActionList", () => {
     render(<ActionList config={mockConfig} onRefresh={onRefresh} />);
     expect(screen.getByText("Actions")).toBeInTheDocument();
     expect(
-      screen.getByText(
-        /your actions appear in the llm actions menu bar popup/i,
-      ),
+      screen.getByText(/transform clipboard text via menu bar/i),
     ).toBeInTheDocument();
   });
 
@@ -94,7 +92,7 @@ describe("ActionList", () => {
       "New Action",
     );
     await user.type(screen.getByPlaceholderText(/refine this text/i), "Do it");
-    await user.click(screen.getByRole("button", { name: /save action/i }));
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
 
     await waitFor(() =>
       expect(mockInvoke).toHaveBeenCalledWith("add_action", expect.anything()),

@@ -18,8 +18,6 @@ export default function ActionForm({
   onSave,
   onCancel,
 }: Props) {
-  const fieldClassName = "mac-input w-full rounded-md px-3 py-2 text-sm";
-  const selectClassName = `${fieldClassName} appearance-none bg-surface-primary pr-9`;
   const [name, setName] = useState(initial?.name ?? "");
   const [providerId, setProviderId] = useState(
     initial?.providerId ?? config.providers[0]?.id ?? "",
@@ -60,10 +58,7 @@ export default function ActionForm({
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
-        <button
-          onClick={onCancel}
-          className="rounded-md p-1.5 text-text-tertiary transition-colors hover:bg-surface-tertiary hover:text-text-secondary"
-        >
+        <button onClick={onCancel} className="btn-icon">
           <ArrowLeft size={16} />
         </button>
         <h2 className="text-[13px] font-semibold text-text-primary">
@@ -71,16 +66,11 @@ export default function ActionForm({
         </h2>
       </div>
 
-      <form
-        onSubmit={handleSubmit}
-        className="mac-panel space-y-4 rounded-2xl p-5"
-      >
+      <form onSubmit={handleSubmit} className="card space-y-4 p-4">
         {error && <ErrorBox message={error} />}
 
         <div>
-          <label className="mb-1 block text-[11px] font-medium text-text-secondary">
-            Action Name <span className="text-red-500">*</span>
-          </label>
+          <label className="label label-required">Action Name</label>
           <input
             type="text"
             value={name}
@@ -89,17 +79,13 @@ export default function ActionForm({
               setError(null);
             }}
             placeholder="e.g. Refine wording"
-            className={fieldClassName}
+            className="input"
           />
-          <p className="mt-1 text-[11px] text-text-tertiary">
-            Shown in the LLM Actions menu bar popup.
-          </p>
+          <p className="helper-text">Shown in the menu bar popup.</p>
         </div>
 
         <div>
-          <label className="mb-1 block text-[11px] font-medium text-text-secondary">
-            Provider <span className="text-red-500">*</span>
-          </label>
+          <label className="label label-required">Provider</label>
           <div className="relative">
             <select
               value={providerId}
@@ -107,7 +93,7 @@ export default function ActionForm({
                 setProviderId(e.target.value);
                 setError(null);
               }}
-              className={selectClassName}
+              className="input select"
             >
               <option value="">Select a provider…</option>
               {config.providers.map((p) => (
@@ -124,9 +110,7 @@ export default function ActionForm({
         </div>
 
         <div>
-          <label className="mb-1 block text-[11px] font-medium text-text-secondary">
-            User Prompt <span className="text-red-500">*</span>
-          </label>
+          <label className="label label-required">User Prompt</label>
           <textarea
             value={userPrompt}
             onChange={(e) => {
@@ -135,27 +119,28 @@ export default function ActionForm({
             }}
             rows={3}
             maxLength={MAX_USER_PROMPT_LENGTH}
-            placeholder="e.g. Refine this text, improve clarity and grammar while keeping the original meaning"
-            className={fieldClassName}
+            placeholder="e.g. Refine this text, improve clarity and grammar"
+            className="input"
           />
-          <div className="mt-1 flex items-center justify-between gap-3 text-xs">
-            <p className="text-[11px] text-text-tertiary">
-              The selected text will be appended to this prompt.
+          <div className="mt-1 flex items-center justify-between gap-3">
+            <p className="helper-text">
+              Selected text appended to this prompt.
             </p>
-            <p
-              className={
+            <span
+              className={[
+                "text-[11px]",
                 userPrompt.length > MAX_USER_PROMPT_LENGTH - 200
-                  ? "text-orange-500"
-                  : "text-text-tertiary"
-              }
+                  ? "text-error"
+                  : "text-text-tertiary",
+              ].join(" ")}
             >
               {userPrompt.length}/{MAX_USER_PROMPT_LENGTH}
-            </p>
+            </span>
           </div>
         </div>
 
         <div>
-          <label className="mb-1 block text-[11px] font-medium text-text-secondary">
+          <label className="label">
             Model Override{" "}
             <span className="font-normal text-text-tertiary">(optional)</span>
           </label>
@@ -166,17 +151,13 @@ export default function ActionForm({
               setModel(e.target.value);
               setError(null);
             }}
-            placeholder="Leave blank to use provider default"
-            className={fieldClassName}
+            placeholder="Leave blank for provider default"
+            className="input"
           />
         </div>
 
         <div className="flex justify-end gap-2 pt-2">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="mac-button-secondary rounded-md px-4 py-2 text-sm hover:brightness-98"
-          >
+          <button type="button" onClick={onCancel} className="btn btn-ghost">
             Cancel
           </button>
           <button
@@ -191,18 +172,14 @@ export default function ActionForm({
               setError(null);
             }}
             disabled={saving}
-            className="mac-button-secondary flex items-center gap-1.5 rounded-md px-4 py-2 text-sm disabled:opacity-50"
+            className="btn btn-secondary"
           >
             <RotateCcw size={14} />
             Reset
           </button>
-          <button
-            type="submit"
-            disabled={saving}
-            className="mac-button-primary flex items-center gap-1.5 rounded-md px-4 py-2 text-sm font-medium shadow-sm transition hover:brightness-105 disabled:opacity-50"
-          >
+          <button type="submit" disabled={saving} className="btn btn-primary">
             <Save size={14} />
-            {saving ? "Saving…" : "Save Action"}
+            {saving ? "Saving…" : "Save"}
           </button>
         </div>
       </form>

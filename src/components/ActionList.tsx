@@ -5,14 +5,7 @@ import useTransientMessage from "../hooks/useTransientMessage";
 import ActionForm from "./ActionForm";
 import EmptyState from "./EmptyState";
 import SuccessBox from "./SuccessBox";
-import {
-  Plus,
-  Pencil,
-  Trash2,
-  GripVertical,
-  FlaskConical,
-  Zap,
-} from "lucide-react";
+import { Plus, Pencil, Trash2, FlaskConical, Zap } from "lucide-react";
 
 interface Props {
   config: AppConfig;
@@ -91,14 +84,13 @@ export default function ActionList({ config, onRefresh }: Props) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex items-center justify-between">
         <div>
           <h2 className="text-[13px] font-semibold text-text-primary">
             Actions
           </h2>
-          <p className="mt-1 max-w-xl text-[11px] text-text-tertiary">
-            Your actions appear in the LLM Actions menu bar popup and transform
-            the current clipboard text.
+          <p className="mt-0.5 text-[12px] text-text-tertiary">
+            Transform clipboard text via menu bar.
           </p>
         </div>
         <button
@@ -106,7 +98,7 @@ export default function ActionList({ config, onRefresh }: Props) {
             clearSuccessMessage();
             setCreating(true);
           }}
-          className="mac-button-primary flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium shadow-sm transition hover:brightness-105"
+          className="btn btn-primary"
         >
           <Plus size={14} />
           Add Action
@@ -118,46 +110,40 @@ export default function ActionList({ config, onRefresh }: Props) {
       {config.actions.length === 0 ? (
         <EmptyState
           icon={<Zap size={18} />}
-          title="No actions yet."
+          title="No actions yet"
           description="Add an action to get started."
         />
       ) : (
-        <div className="space-y-2.5">
+        <div className="space-y-2">
           {config.actions.map((action) => (
-            <div key={action.id} className="mac-card rounded-2xl p-4">
-              <div className="flex items-start justify-between">
-                <div className="flex items-start gap-3">
-                  <GripVertical
-                    size={16}
-                    className="mt-0.5 text-text-tertiary/60"
-                  />
-                  <div>
-                    <p className="text-[13px] font-semibold text-text-primary">
-                      {action.name}
-                    </p>
-                    <p className="text-[11px] text-text-secondary">
-                      {providerName(action.providerId)}
-                      {action.model && ` · ${action.model}`}
-                    </p>
-                    <p className="mt-1 text-[11px] italic text-text-tertiary">
-                      {action.userPrompt}
-                    </p>
-                  </div>
+            <div key={action.id} className="card p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="text-[13px] font-medium text-text-primary">
+                    {action.name}
+                  </p>
+                  <p className="mt-0.5 text-[12px] text-text-secondary">
+                    {providerName(action.providerId)}
+                    {action.model && ` · ${action.model}`}
+                  </p>
+                  <p className="mt-1 line-clamp-2 text-[12px] text-text-tertiary">
+                    {action.userPrompt}
+                  </p>
                 </div>
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1">
                   {pendingDeleteId === action.id ? (
                     <>
                       <button
                         type="button"
                         onClick={() => handleDelete(action.id)}
-                        className="mac-button-danger rounded-md px-2.5 py-1 text-[11px] font-medium"
+                        className="btn btn-danger px-2 py-1 text-[12px]"
                       >
                         Delete
                       </button>
                       <button
                         type="button"
                         onClick={() => setPendingDeleteId(null)}
-                        className="mac-button-secondary rounded-md px-2.5 py-1 text-[11px] hover:brightness-98"
+                        className="btn btn-ghost px-2 py-1 text-[12px]"
                       >
                         Cancel
                       </button>
@@ -170,7 +156,7 @@ export default function ActionList({ config, onRefresh }: Props) {
                           clearSuccessMessage();
                           setEditing(action);
                         }}
-                        className="rounded-md p-1.5 text-text-tertiary transition-colors hover:bg-surface-tertiary hover:text-text-secondary"
+                        className="btn-icon"
                         title="Edit"
                       >
                         <Pencil size={14} />
@@ -178,7 +164,7 @@ export default function ActionList({ config, onRefresh }: Props) {
                       <button
                         type="button"
                         onClick={() => setPendingDeleteId(action.id)}
-                        className="rounded-md p-1.5 text-text-tertiary transition-colors hover:bg-error/10 hover:text-error"
+                        className="btn-icon btn-icon-danger"
                         title="Delete"
                       >
                         <Trash2 size={14} />
@@ -188,8 +174,7 @@ export default function ActionList({ config, onRefresh }: Props) {
                 </div>
               </div>
 
-              {/* Test section */}
-              <div className="mt-3 border-t border-border-subtle pt-3">
+              <div className="mt-3 border-t border-border pt-3">
                 <div className="flex gap-2">
                   <input
                     type="text"
@@ -201,12 +186,12 @@ export default function ActionList({ config, onRefresh }: Props) {
                         [action.id]: e.target.value,
                       }))
                     }
-                    className="mac-input flex-1 rounded-md px-2.5 py-1.5 text-[11px]"
+                    className="input input-sm flex-1"
                   />
                   <button
                     onClick={() => handleTest(action)}
                     disabled={testing === action.id}
-                    className="mac-button-secondary flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[11px] font-medium disabled:opacity-50"
+                    className="btn btn-secondary px-2.5 py-1.5 text-[12px]"
                   >
                     <FlaskConical size={12} />
                     {testing === action.id ? "Testing…" : "Test"}
@@ -215,10 +200,10 @@ export default function ActionList({ config, onRefresh }: Props) {
                 {testResults[action.id] !== undefined && (
                   <div
                     className={[
-                      "mt-2 rounded p-2 text-xs",
+                      "feedback-box mt-2 text-[12px]",
                       testResults[action.id].startsWith("Error:")
-                        ? "border border-error/15 bg-error/10 text-error"
-                        : "border border-success/15 bg-success/10 text-success",
+                        ? "feedback-error"
+                        : "feedback-success",
                     ].join(" ")}
                   >
                     {testResults[action.id] || "(empty result)"}

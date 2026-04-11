@@ -28,7 +28,7 @@ describe("ProviderList", () => {
 
   it("shows empty state when no providers are configured", () => {
     render(<ProviderList config={emptyConfig} onRefresh={onRefresh} />);
-    expect(screen.getByText("No providers configured.")).toBeInTheDocument();
+    expect(screen.getByText("No providers configured")).toBeInTheDocument();
   });
 
   // ── List view ─────────────────────────────────────────────────────────────
@@ -103,7 +103,7 @@ describe("ProviderList", () => {
       "New Provider",
     );
     await user.type(screen.getByPlaceholderText("sk-..."), "sk-test");
-    await user.click(screen.getByRole("button", { name: /save provider/i }));
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
 
     await waitFor(() =>
       expect(mockInvoke).toHaveBeenCalledWith(
@@ -169,7 +169,7 @@ describe("ProviderList", () => {
     render(<ProviderList config={mockConfig} onRefresh={onRefresh} />);
 
     await user.click(screen.getByTitle("Edit"));
-    await user.click(screen.getByRole("button", { name: /save provider/i }));
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
 
     await waitFor(() =>
       expect(mockInvoke).toHaveBeenCalledWith(

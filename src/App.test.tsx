@@ -43,7 +43,7 @@ describe("App", () => {
     mockInvoke.mockResolvedValue(emptyConfig);
     render(<App />);
     await waitFor(() => screen.getByText("LLM Actions"));
-    expect(screen.getByText("No actions yet.")).toBeInTheDocument();
+    expect(screen.getByText("No actions yet")).toBeInTheDocument();
   });
 
   // ── Default tab state ─────────────────────────────────────────────────────────

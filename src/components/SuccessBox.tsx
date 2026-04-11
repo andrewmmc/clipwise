@@ -1,10 +1,15 @@
 interface Props {
   message: string;
+  className?: string;
 }
 
-export default function SuccessBox({ message }: Props) {
+export default function SuccessBox({ message, className }: Props) {
   return (
-    <div className="rounded-xl border border-success/20 bg-success/10 px-3 py-2 text-[13px] text-success">
+    <div
+      className={["feedback-box feedback-success", className]
+        .filter(Boolean)
+        .join(" ")}
+    >
       {message}
     </div>
   );

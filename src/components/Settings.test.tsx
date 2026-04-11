@@ -89,7 +89,7 @@ describe("SettingsPanel", () => {
     mockInvoke.mockResolvedValue(undefined);
     const user = userEvent.setup();
     render(<SettingsPanel config={mockConfig} onRefresh={onRefresh} />);
-    await user.click(screen.getByRole("button", { name: /save settings/i }));
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
     await waitFor(() =>
       expect(mockInvoke).toHaveBeenCalledWith("save_settings", {
         settings: {
@@ -105,7 +105,7 @@ describe("SettingsPanel", () => {
     mockInvoke.mockResolvedValue(undefined);
     const user = userEvent.setup();
     render(<SettingsPanel config={mockConfig} onRefresh={onRefresh} />);
-    await user.click(screen.getByRole("button", { name: /save settings/i }));
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
     await waitFor(() => expect(onRefresh).toHaveBeenCalledOnce());
   });
 
@@ -113,7 +113,7 @@ describe("SettingsPanel", () => {
     mockInvoke.mockResolvedValue(undefined);
     const user = userEvent.setup();
     render(<SettingsPanel config={mockConfig} onRefresh={onRefresh} />);
-    await user.click(screen.getByRole("button", { name: /save settings/i }));
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
     await waitFor(() =>
       expect(
         screen.getByText("Settings saved successfully."),
@@ -125,7 +125,7 @@ describe("SettingsPanel", () => {
     mockInvoke.mockRejectedValue(new Error("write error"));
     const user = userEvent.setup();
     render(<SettingsPanel config={mockConfig} onRefresh={onRefresh} />);
-    await user.click(screen.getByRole("button", { name: /save settings/i }));
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
     await waitFor(() =>
       expect(screen.getByText(/write error/)).toBeInTheDocument(),
     );
@@ -136,7 +136,7 @@ describe("SettingsPanel", () => {
     mockInvoke.mockReturnValue(new Promise(() => {}));
     const user = userEvent.setup();
     render(<SettingsPanel config={mockConfig} onRefresh={onRefresh} />);
-    await user.click(screen.getByRole("button", { name: /save settings/i }));
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
     expect(screen.getByRole("button", { name: /saving/i })).toBeDisabled();
   });
 
@@ -147,9 +147,8 @@ describe("SettingsPanel", () => {
       screen.getByText("LLM Actions", { selector: "strong" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/After configuring your actions, copy text/i),
+      screen.getByText(/copy text, open the menu bar icon/i),
     ).toBeInTheDocument();
-    expect(screen.getByText("(c) 2026 Andrew Mok")).toBeInTheDocument();
   });
 
   it("saves updated notification setting after toggling", async () => {
@@ -158,7 +157,7 @@ describe("SettingsPanel", () => {
     render(<SettingsPanel config={mockConfig} onRefresh={onRefresh} />);
     const toggles = screen.getAllByRole("switch");
     await user.click(toggles[0]);
-    await user.click(screen.getByRole("button", { name: /save settings/i }));
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
     await waitFor(() =>
       expect(mockInvoke).toHaveBeenCalledWith("save_settings", {
         settings: expect.objectContaining({
@@ -176,7 +175,7 @@ describe("SettingsPanel", () => {
     const toggles = screen.getAllByRole("switch");
     // Second toggle is history enabled
     await user.click(toggles[1]);
-    await user.click(screen.getByRole("button", { name: /save settings/i }));
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
     await waitFor(() =>
       expect(mockInvoke).toHaveBeenCalledWith("save_settings", {
         settings: expect.objectContaining({

@@ -63,7 +63,7 @@ describe("HistoryList", () => {
     );
 
     const { container } = render(<HistoryList />);
-    expect(container.textContent).toContain("Loading history");
+    expect(container.textContent).toContain("Loading");
   });
 
   it("displays empty state when no history", async () => {
@@ -73,7 +73,7 @@ describe("HistoryList", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText(/No transformations recorded yet/),
+        screen.getByText(/transformations will appear here/i),
       ).toBeInTheDocument();
     });
   });
@@ -97,7 +97,7 @@ describe("HistoryList", () => {
     render(<HistoryList />);
 
     await waitFor(() => {
-      expect(screen.getByText("2 transformations logged.")).toBeInTheDocument();
+      expect(screen.getByText("2 transformations")).toBeInTheDocument();
     });
   });
 
@@ -145,10 +145,10 @@ describe("HistoryList", () => {
     render(<HistoryList />);
 
     await waitFor(() => {
-      expect(screen.getAllByText("Clear History")).toHaveLength(1);
+      expect(screen.getAllByText("Clear")).toHaveLength(1);
     });
 
-    const clearButton = screen.getAllByText("Clear History")[0];
+    const clearButton = screen.getAllByText("Clear")[0];
     fireEvent.click(clearButton);
 
     await waitFor(() => {

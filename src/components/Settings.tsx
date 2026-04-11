@@ -53,23 +53,23 @@ export default function SettingsPanel({ config, onRefresh }: Props) {
         <h2 className="text-[13px] font-semibold text-text-primary">
           Settings
         </h2>
-        <p className="mt-1 text-[11px] text-text-tertiary">
+        <p className="mt-0.5 text-[12px] text-text-tertiary">
           General application settings.
         </p>
       </div>
 
-      <div className="mac-panel rounded-2xl p-5">
+      <div className="card p-4">
         <div className="space-y-4">
           {error && <ErrorBox message={error} />}
           {successMessage && <SuccessBox message={successMessage} />}
 
-          <div className="space-y-5">
+          <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-[13px] font-medium text-text-secondary">
+                <p className="text-[13px] font-medium text-text-primary">
                   Show notification on complete
                 </p>
-                <p className="text-[11px] text-text-tertiary">
+                <p className="text-[12px] text-text-tertiary">
                   Display a macOS notification after text is replaced.
                 </p>
               </div>
@@ -84,31 +84,18 @@ export default function SettingsPanel({ config, onRefresh }: Props) {
                       !settings.showNotificationOnComplete,
                   })
                 }
-                className={[
-                  "relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-primary",
-                  settings.showNotificationOnComplete
-                    ? "bg-success"
-                    : "bg-surface-tertiary",
-                ].join(" ")}
+                className="toggle"
               >
-                <span
-                  aria-hidden="true"
-                  className={[
-                    "pointer-events-none absolute left-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform",
-                    settings.showNotificationOnComplete
-                      ? "translate-x-4"
-                      : "translate-x-0",
-                  ].join(" ")}
-                />
+                <span className="toggle-thumb" aria-hidden="true" />
               </button>
             </div>
 
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-[13px] font-medium text-text-secondary">
+                <p className="text-[13px] font-medium text-text-primary">
                   Enable history
                 </p>
-                <p className="text-[11px] text-text-tertiary">
+                <p className="text-[12px] text-text-tertiary">
                   Keep a log of the last 100 text transformations.
                 </p>
               </div>
@@ -122,27 +109,14 @@ export default function SettingsPanel({ config, onRefresh }: Props) {
                     historyEnabled: !settings.historyEnabled,
                   })
                 }
-                className={[
-                  "relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-primary",
-                  settings.historyEnabled
-                    ? "bg-success"
-                    : "bg-surface-tertiary",
-                ].join(" ")}
+                className="toggle"
               >
-                <span
-                  aria-hidden="true"
-                  className={[
-                    "pointer-events-none absolute left-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform",
-                    settings.historyEnabled ? "translate-x-4" : "translate-x-0",
-                  ].join(" ")}
-                />
+                <span className="toggle-thumb" aria-hidden="true" />
               </button>
             </div>
 
             <div>
-              <label className="mb-1 block text-[11px] font-medium text-text-secondary">
-                Max Tokens
-              </label>
+              <label className="label">Max Tokens</label>
               <input
                 type="number"
                 min={256}
@@ -154,22 +128,20 @@ export default function SettingsPanel({ config, onRefresh }: Props) {
                     maxTokens: parseInt(e.target.value, 10) || 4096,
                   })
                 }
-                className="mac-input w-32 rounded-md px-3 py-2 text-sm"
+                className="input w-32"
               />
-              <p className="mt-1 text-[11px] text-text-tertiary">
-                Maximum tokens in LLM responses (256–32768).
-              </p>
+              <p className="helper-text">Maximum tokens in LLM responses.</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-3 pt-1">
+          <div className="flex items-center gap-2 pt-2">
             <button
               onClick={handleSave}
               disabled={saving}
-              className="mac-button-primary flex items-center gap-1.5 rounded-md px-4 py-2 text-sm font-medium shadow-sm transition hover:brightness-105 disabled:opacity-50"
+              className="btn btn-primary"
             >
               <Save size={14} />
-              {saving ? "Saving…" : "Save Settings"}
+              {saving ? "Saving…" : "Save"}
             </button>
             <button
               type="button"
@@ -179,7 +151,7 @@ export default function SettingsPanel({ config, onRefresh }: Props) {
                 setSettings({ ...config.settings });
               }}
               disabled={saving}
-              className="mac-button-secondary flex items-center gap-1.5 rounded-md px-4 py-2 text-sm disabled:opacity-50"
+              className="btn btn-secondary"
             >
               <RotateCcw size={14} />
               Reset
@@ -188,22 +160,17 @@ export default function SettingsPanel({ config, onRefresh }: Props) {
         </div>
       </div>
 
-      {/* About */}
-      <div className="mac-card rounded-2xl p-5">
-        <h3 className="mb-3 text-[13px] font-semibold text-text-secondary">
-          About
-        </h3>
-        <div className="space-y-1 text-[11px] text-text-secondary">
+      <div className="card p-4">
+        <h3 className="text-[13px] font-semibold text-text-primary">About</h3>
+        <div className="mt-2 space-y-1 text-[12px] text-text-secondary">
           <p>
             <strong>LLM Actions</strong> v0.1.0
           </p>
           <p>macOS text transformation via LLM APIs &amp; CLI tools.</p>
-          <p className="mt-2">
-            After configuring your actions, copy text and open the menu bar
-            icon, then choose an action directly from the menu. The transformed
-            result is copied back to your clipboard.
+          <p className="mt-2 text-text-tertiary">
+            Copy text, open the menu bar icon, choose an action. The result is
+            copied to your clipboard.
           </p>
-          <p className="mt-1 text-text-tertiary">(c) 2026 Andrew Mok</p>
         </div>
       </div>
     </div>

@@ -102,7 +102,7 @@ describe("ActionForm", () => {
     render(
       <ActionForm config={mockConfig} onSave={onSave} onCancel={onCancel} />,
     );
-    await user.click(screen.getByRole("button", { name: /save action/i }));
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
     expect(
       screen.getByText("Name, provider, and prompt are required."),
     ).toBeInTheDocument();
@@ -118,7 +118,7 @@ describe("ActionForm", () => {
       screen.getByPlaceholderText("e.g. Refine wording"),
       "My Action",
     );
-    await user.click(screen.getByRole("button", { name: /save action/i }));
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
     expect(
       screen.getByText("Name, provider, and prompt are required."),
     ).toBeInTheDocument();
@@ -138,7 +138,7 @@ describe("ActionForm", () => {
     fireEvent.change(screen.getByPlaceholderText(/refine this text/i), {
       target: { value: "x".repeat(2001) },
     });
-    await user.click(screen.getByRole("button", { name: /save action/i }));
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
 
     expect(
       screen.getByText("User prompt must be 2000 characters or fewer."),
@@ -163,7 +163,7 @@ describe("ActionForm", () => {
       screen.getByPlaceholderText(/refine this text/i),
       "  Do the thing  ",
     );
-    await user.click(screen.getByRole("button", { name: /save action/i }));
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
 
     await waitFor(() =>
       expect(onSave).toHaveBeenCalledWith(
@@ -187,7 +187,7 @@ describe("ActionForm", () => {
       "Action",
     );
     await user.type(screen.getByPlaceholderText(/refine this text/i), "Prompt");
-    await user.click(screen.getByRole("button", { name: /save action/i }));
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
 
     await waitFor(() =>
       expect(onSave).toHaveBeenCalledWith(
@@ -209,10 +209,10 @@ describe("ActionForm", () => {
     );
     await user.type(screen.getByPlaceholderText(/refine this text/i), "Prompt");
     await user.type(
-      screen.getByPlaceholderText("Leave blank to use provider default"),
+      screen.getByPlaceholderText("Leave blank for provider default"),
       "gpt-4o",
     );
-    await user.click(screen.getByRole("button", { name: /save action/i }));
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
 
     await waitFor(() =>
       expect(onSave).toHaveBeenCalledWith(
@@ -240,7 +240,7 @@ describe("ActionForm", () => {
       "Action",
     );
     await user.type(screen.getByPlaceholderText(/refine this text/i), "Prompt");
-    await user.click(screen.getByRole("button", { name: /save action/i }));
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
 
     await waitFor(() =>
       expect(screen.getByText(/save failed/)).toBeInTheDocument(),
