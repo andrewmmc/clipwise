@@ -1,6 +1,13 @@
 import { useState } from "react";
+import { tauriCommands } from "../lib/tauri";
 import type { Action, AppConfig } from "../types/config";
-import { ArrowLeft, ChevronDown, RotateCcw, Save } from "lucide-react";
+import {
+  ArrowLeft,
+  ChevronDown,
+  FlaskConical,
+  RotateCcw,
+  Save,
+} from "lucide-react";
 import ErrorBox from "./ErrorBox";
 
 interface Props {
@@ -11,6 +18,7 @@ interface Props {
 }
 
 const MAX_USER_PROMPT_LENGTH = 2000;
+const DEFAULT_TEST_INPUT = "The quick brown fox jumps over the lazy dog.";
 
 export default function ActionForm({
   config,
@@ -26,6 +34,9 @@ export default function ActionForm({
   const [model, setModel] = useState(initial?.model ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [testInput, setTestInput] = useState("");
+  const [testResult, setTestResult] = useState<string | null>(null);
+  const [testing, setTesting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,6 +63,22 @@ export default function ActionForm({
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleTest = async () => {
+    if (!initial) return;
+    const input = testInput || DEFAULT_TEST_INPUT;
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const result = await tauriCommands.testAction(initial.id, input);
+      setTestResult(result);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      setTestResult(`Error: ${message}`);
+    } finally {
+      setTesting(false);
     }
   };
 
@@ -183,6 +210,43 @@ export default function ActionForm({
           </button>
         </div>
       </form>
+
+      {initial && (
+        <div className="card space-y-3 p-4">
+          <h3 className="text-[12px] font-medium text-text-secondary">
+            Test Action
+          </h3>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              placeholder="Test input text…"
+              value={testInput}
+              onChange={(e) => setTestInput(e.target.value)}
+              className="input input-sm flex-1"
+            />
+            <button
+              onClick={handleTest}
+              disabled={testing}
+              className="btn btn-secondary px-2.5 py-1.5 text-[12px]"
+            >
+              <FlaskConical size={12} />
+              {testing ? "Testing…" : "Test"}
+            </button>
+          </div>
+          {testResult !== null && (
+            <div
+              className={[
+                "feedback-box text-[12px]",
+                testResult.startsWith("Error:")
+                  ? "feedback-error"
+                  : "feedback-success",
+              ].join(" ")}
+            >
+              {testResult || "(empty result)"}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -5,22 +5,17 @@ import useTransientMessage from "../hooks/useTransientMessage";
 import ActionForm from "./ActionForm";
 import EmptyState from "./EmptyState";
 import SuccessBox from "./SuccessBox";
-import { Plus, Pencil, Trash2, FlaskConical, Zap } from "lucide-react";
+import { Plus, Pencil, Trash2, Zap } from "lucide-react";
 
 interface Props {
   config: AppConfig;
   onRefresh: () => void;
 }
 
-const DEFAULT_TEST_INPUT = "The quick brown fox jumps over the lazy dog.";
-
 export default function ActionList({ config, onRefresh }: Props) {
   const [editing, setEditing] = useState<Action | null>(null);
   const [creating, setCreating] = useState(false);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
-  const [testResults, setTestResults] = useState<Record<string, string>>({});
-  const [testInputs, setTestInputs] = useState<Record<string, string>>({});
-  const [testing, setTesting] = useState<string | null>(null);
   const {
     message: successMessage,
     showMessage: showSuccessMessage,
@@ -31,21 +26,6 @@ export default function ActionList({ config, onRefresh }: Props) {
     await tauriCommands.deleteAction(id);
     setPendingDeleteId(null);
     onRefresh();
-  };
-
-  const handleTest = async (action: Action) => {
-    const input = testInputs[action.id] || DEFAULT_TEST_INPUT;
-    setTesting(action.id);
-    setTestResults((r) => ({ ...r, [action.id]: "" }));
-    try {
-      const result = await tauriCommands.testAction(action.id, input);
-      setTestResults((r) => ({ ...r, [action.id]: result }));
-    } catch (e) {
-      const message = e instanceof Error ? e.message : String(e);
-      setTestResults((r) => ({ ...r, [action.id]: `Error: ${message}` }));
-    } finally {
-      setTesting(null);
-    }
   };
 
   const providerName = (id: string) =>
@@ -172,43 +152,6 @@ export default function ActionList({ config, onRefresh }: Props) {
                     </>
                   )}
                 </div>
-              </div>
-
-              <div className="mt-3 border-t border-border pt-3">
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    placeholder="Test input text…"
-                    value={testInputs[action.id] ?? ""}
-                    onChange={(e) =>
-                      setTestInputs((t) => ({
-                        ...t,
-                        [action.id]: e.target.value,
-                      }))
-                    }
-                    className="input input-sm flex-1"
-                  />
-                  <button
-                    onClick={() => handleTest(action)}
-                    disabled={testing === action.id}
-                    className="btn btn-secondary px-2.5 py-1.5 text-[12px]"
-                  >
-                    <FlaskConical size={12} />
-                    {testing === action.id ? "Testing…" : "Test"}
-                  </button>
-                </div>
-                {testResults[action.id] !== undefined && (
-                  <div
-                    className={[
-                      "feedback-box mt-2 text-[12px]",
-                      testResults[action.id].startsWith("Error:")
-                        ? "feedback-error"
-                        : "feedback-success",
-                    ].join(" ")}
-                  >
-                    {testResults[action.id] || "(empty result)"}
-                  </div>
-                )}
               </div>
             </div>
           ))}

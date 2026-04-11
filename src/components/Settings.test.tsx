@@ -22,14 +22,6 @@ describe("SettingsPanel", () => {
     cleanup();
   });
 
-  it("renders the settings heading", () => {
-    render(<SettingsPanel config={mockConfig} onRefresh={onRefresh} />);
-    expect(screen.getByText("Settings")).toBeInTheDocument();
-    expect(
-      screen.getByText("General application settings."),
-    ).toBeInTheDocument();
-  });
-
   it("renders the notification toggle in correct initial state", () => {
     render(<SettingsPanel config={mockConfig} onRefresh={onRefresh} />);
     const toggles = screen.getAllByRole("switch");
@@ -45,28 +37,44 @@ describe("SettingsPanel", () => {
     expect(input).toHaveValue(4096);
   });
 
-  it("clicking the toggle changes notification setting", async () => {
+  it("clicking the toggle changes notification setting and auto-saves", async () => {
+    mockInvoke.mockResolvedValue(undefined);
     const user = userEvent.setup();
     render(<SettingsPanel config={mockConfig} onRefresh={onRefresh} />);
     const toggles = screen.getAllByRole("switch");
     await user.click(toggles[0]);
     expect(toggles[0]).toHaveAttribute("aria-checked", "false");
+    await waitFor(() =>
+      expect(mockInvoke).toHaveBeenCalledWith("save_settings", {
+        settings: expect.objectContaining({
+          showNotificationOnComplete: false,
+        }),
+      }),
+    );
   });
 
-  it("syncs the toggle when config changes", () => {
+  it("syncs the toggle when config changes via key-based remount", () => {
+    const updatedConfig = {
+      ...mockConfig,
+      settings: {
+        ...mockConfig.settings,
+        showNotificationOnComplete: false,
+      },
+    };
+
     const { rerender } = render(
-      <SettingsPanel config={mockConfig} onRefresh={onRefresh} />,
+      <SettingsPanel
+        key={JSON.stringify(mockConfig.settings)}
+        config={mockConfig}
+        onRefresh={onRefresh}
+      />,
     );
 
+    // Rerender with new key to trigger remount (as App.tsx does)
     rerender(
       <SettingsPanel
-        config={{
-          ...mockConfig,
-          settings: {
-            ...mockConfig.settings,
-            showNotificationOnComplete: false,
-          },
-        }}
+        key={JSON.stringify(updatedConfig.settings)}
+        config={updatedConfig}
         onRefresh={onRefresh}
       />,
     );
@@ -76,106 +84,33 @@ describe("SettingsPanel", () => {
     expect(toggles[1]).toHaveAttribute("aria-checked", "true");
   });
 
-  it("changing max tokens input updates the value", async () => {
-    const user = userEvent.setup();
-    render(<SettingsPanel config={mockConfig} onRefresh={onRefresh} />);
-    const input = screen.getByRole("spinbutton");
-    await user.tripleClick(input);
-    await user.keyboard("2048");
-    expect(input).toHaveValue(2048);
-  });
-
-  it("save button calls saveSettings with current values", async () => {
+  it("calls onRefresh after successful auto-save", async () => {
     mockInvoke.mockResolvedValue(undefined);
     const user = userEvent.setup();
     render(<SettingsPanel config={mockConfig} onRefresh={onRefresh} />);
-    await user.click(screen.getByRole("button", { name: /^save$/i }));
-    await waitFor(() =>
-      expect(mockInvoke).toHaveBeenCalledWith("save_settings", {
-        settings: {
-          showNotificationOnComplete: true,
-          maxTokens: 4096,
-          historyEnabled: true,
-        },
-      }),
-    );
-  });
-
-  it("calls onRefresh after successful save", async () => {
-    mockInvoke.mockResolvedValue(undefined);
-    const user = userEvent.setup();
-    render(<SettingsPanel config={mockConfig} onRefresh={onRefresh} />);
-    await user.click(screen.getByRole("button", { name: /^save$/i }));
+    const toggles = screen.getAllByRole("switch");
+    await user.click(toggles[0]);
     await waitFor(() => expect(onRefresh).toHaveBeenCalledOnce());
-  });
-
-  it("shows saved confirmation after successful save", async () => {
-    mockInvoke.mockResolvedValue(undefined);
-    const user = userEvent.setup();
-    render(<SettingsPanel config={mockConfig} onRefresh={onRefresh} />);
-    await user.click(screen.getByRole("button", { name: /^save$/i }));
-    await waitFor(() =>
-      expect(
-        screen.getByText("Settings saved successfully."),
-      ).toBeInTheDocument(),
-    );
   });
 
   it("shows error message when save fails", async () => {
     mockInvoke.mockRejectedValue(new Error("write error"));
     const user = userEvent.setup();
     render(<SettingsPanel config={mockConfig} onRefresh={onRefresh} />);
-    await user.click(screen.getByRole("button", { name: /^save$/i }));
+    const toggles = screen.getAllByRole("switch");
+    await user.click(toggles[0]);
     await waitFor(() =>
       expect(screen.getByText(/write error/)).toBeInTheDocument(),
     );
   });
 
-  it("save button is disabled while saving", async () => {
-    // Never resolves — keeps button in saving state
-    mockInvoke.mockReturnValue(new Promise(() => {}));
-    const user = userEvent.setup();
-    render(<SettingsPanel config={mockConfig} onRefresh={onRefresh} />);
-    await user.click(screen.getByRole("button", { name: /^save$/i }));
-    expect(screen.getByRole("button", { name: /saving/i })).toBeDisabled();
-  });
-
-  it("renders the About section", () => {
-    render(<SettingsPanel config={mockConfig} onRefresh={onRefresh} />);
-    expect(screen.getByText("About")).toBeInTheDocument();
-    expect(
-      screen.getByText("LLM Actions", { selector: "strong" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(/copy text, open the menu bar icon/i),
-    ).toBeInTheDocument();
-  });
-
-  it("saves updated notification setting after toggling", async () => {
-    mockInvoke.mockResolvedValue(undefined);
-    const user = userEvent.setup();
-    render(<SettingsPanel config={mockConfig} onRefresh={onRefresh} />);
-    const toggles = screen.getAllByRole("switch");
-    await user.click(toggles[0]);
-    await user.click(screen.getByRole("button", { name: /^save$/i }));
-    await waitFor(() =>
-      expect(mockInvoke).toHaveBeenCalledWith("save_settings", {
-        settings: expect.objectContaining({
-          showNotificationOnComplete: false,
-          historyEnabled: true,
-        }),
-      }),
-    );
-  });
-
-  it("can toggle history enabled setting", async () => {
+  it("auto-saves when toggling history setting", async () => {
     mockInvoke.mockResolvedValue(undefined);
     const user = userEvent.setup();
     render(<SettingsPanel config={mockConfig} onRefresh={onRefresh} />);
     const toggles = screen.getAllByRole("switch");
     // Second toggle is history enabled
     await user.click(toggles[1]);
-    await user.click(screen.getByRole("button", { name: /^save$/i }));
     await waitFor(() =>
       expect(mockInvoke).toHaveBeenCalledWith("save_settings", {
         settings: expect.objectContaining({

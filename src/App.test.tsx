@@ -37,6 +37,7 @@ describe("App", () => {
     expect(
       screen.getByRole("button", { name: /settings/i }),
     ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /about/i })).toBeInTheDocument();
   });
 
   it("renders with empty config", async () => {
@@ -128,7 +129,7 @@ describe("App", () => {
     await user.click(screen.getByRole("button", { name: /settings/i }));
     await waitFor(() =>
       expect(
-        screen.getByText("General application settings."),
+        screen.getByText("Show notification on complete"),
       ).toBeInTheDocument(),
     );
   });
@@ -152,11 +153,11 @@ describe("App", () => {
     await user.click(screen.getByRole("button", { name: /actions/i }));
     await waitFor(() => screen.getAllByText("Actions").length > 1);
 
-    // Switch to settings
+    // Switch to settings tab
     await user.click(screen.getByRole("button", { name: /settings/i }));
     await waitFor(() =>
       expect(
-        screen.getByText("General application settings."),
+        screen.getByText("Show notification on complete"),
       ).toBeInTheDocument(),
     );
   });

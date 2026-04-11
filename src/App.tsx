@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
 import { tauriCommands } from "./lib/tauri";
 import type { AppConfig } from "./types/config";
+import AboutPanel from "./components/About";
 import ActionList from "./components/ActionList";
 import ErrorBox from "./components/ErrorBox";
 import HistoryList from "./components/HistoryList";
 import ProviderList from "./components/ProviderList";
 import SettingsPanel from "./components/Settings";
 
-type Tab = "actions" | "providers" | "settings" | "history";
+type Tab = "actions" | "providers" | "history" | "settings" | "about";
 
 export default function App() {
   const [config, setConfig] = useState<AppConfig | null>(null);
@@ -58,21 +59,21 @@ export default function App() {
   const tabs: { id: Tab; label: string }[] = [
     { id: "actions", label: "Actions" },
     { id: "providers", label: "Providers" },
-    { id: "settings", label: "Settings" },
     { id: "history", label: "History" },
+    { id: "settings", label: "Settings" },
+    { id: "about", label: "About" },
   ];
 
   return (
     <div className="app-shell">
       <div className="app-container flex flex-col">
-        <header className="flex items-center justify-between border-b border-border px-5 py-3">
+        <header className="border-b border-border px-5 py-3">
           <h1 className="text-[14px] font-semibold text-text-primary">
             LLM Actions
           </h1>
-          <span className="text-[11px] text-text-tertiary">Settings</span>
         </header>
 
-        <nav className="flex gap-1 border-b border-border px-4">
+        <nav className="flex gap-1 border-b border-border px-2">
           {tabs.map((tab) => (
             <button
               key={tab.id}
@@ -100,9 +101,14 @@ export default function App() {
             <ProviderList config={config} onRefresh={refresh} />
           )}
           {activeTab === "settings" && (
-            <SettingsPanel config={config} onRefresh={refresh} />
+            <SettingsPanel
+              key={JSON.stringify(config.settings)}
+              config={config}
+              onRefresh={refresh}
+            />
           )}
           {activeTab === "history" && <HistoryList />}
+          {activeTab === "about" && <AboutPanel />}
         </main>
       </div>
     </div>
