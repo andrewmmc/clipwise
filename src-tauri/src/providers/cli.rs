@@ -339,11 +339,11 @@ mod tests {
     }
 
     #[test]
-    fn test_resolve_command_path_finds_common_homebrew_location() {
-        let resolved = resolve_command_path("claude");
+    fn test_resolve_command_path_finds_common_bin_location() {
+        let resolved = resolve_command_path("sh");
         assert!(
             resolved.is_some(),
-            "expected claude to resolve from PATH or common bin directories"
+            "expected sh to resolve from PATH or common bin directories"
         );
     }
 
