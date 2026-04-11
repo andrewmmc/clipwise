@@ -82,6 +82,7 @@ pub fn run() {
             info!("Setting up Tauri application");
             setup_tray(app)?;
             setup_settings_window(app)?;
+            #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
             Ok(())
