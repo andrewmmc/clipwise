@@ -8,7 +8,7 @@ mod providers;
 mod retry;
 pub mod service;
 
-use commands::{config_cmd::*, history_cmd::*, llm_cmd::*};
+use commands::{app_info_cmd::*, config_cmd::*, history_cmd::*, llm_cmd::*};
 use config::{load_config, ConfigState};
 use models::AppConfig;
 use std::sync::mpsc;
@@ -57,6 +57,8 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(ConfigState(Mutex::new(config)))
         .invoke_handler(tauri::generate_handler![
+            // App info
+            get_app_info,
             // Config commands
             get_config,
             save_settings,

@@ -1,8 +1,15 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { Action, AppConfig, AppSettings, Provider } from "../types/config";
+import type {
+  Action,
+  AppConfig,
+  AppInfo,
+  AppSettings,
+  Provider,
+} from "../types/config";
 import type { HistoryEntry } from "../types/bindings/HistoryEntry";
 
 export const tauriCommands = {
+  getAppInfo: (): Promise<AppInfo> => invoke("get_app_info"),
   getConfig: (): Promise<AppConfig> => invoke("get_config"),
 
   saveSettings: (settings: AppSettings): Promise<void> =>

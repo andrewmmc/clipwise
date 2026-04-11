@@ -31,10 +31,10 @@ describe("SettingsPanel", () => {
     expect(toggles[1]).toHaveAttribute("aria-checked", "true");
   });
 
-  it("renders max tokens input with current value", () => {
+  it("renders max tokens select with current value", () => {
     render(<SettingsPanel config={mockConfig} onRefresh={onRefresh} />);
-    const input = screen.getByRole("spinbutton");
-    expect(input).toHaveValue(4096);
+    const select = screen.getByRole("combobox");
+    expect(select).toHaveValue("4096");
   });
 
   it("clicking the toggle changes notification setting and auto-saves", async () => {
