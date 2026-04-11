@@ -1,64 +1,100 @@
-# LLM Actions
+<h1 align="center">LLM Actions</h1>
 
-LLM Actions is a macOS menu bar app for running text transformations with LLMs. You configure providers and actions in a Tauri settings window, then trigger actions from the tray menu against the current clipboard text.
+<p align="center">
+  <strong>macOS menu bar app for LLM-powered text transformations.</strong>
+</p>
 
-The app is built with Tauri 2, a React + TypeScript frontend, and a Rust backend. A Swift package for macOS Services is also included in the repository for native Services-related work.
+<p align="center">
+  <a href="https://github.com/andrewmmc/llm-actions/actions/workflows/ci.yml">
+    <img alt="CI" src="https://github.com/andrewmmc/llm-actions/actions/workflows/ci.yml/badge.svg" />
+  </a>
+</p>
 
-## Current behavior
+LLM Actions adds LLM-powered text transformations to your macOS workflow. Configure providers (OpenAI, Anthropic, CLI) and custom actions, then trigger them from the menu bar against clipboard text.
 
-- Runs as a menu bar app with `ActivationPolicy::Accessory` and no Dock presence
-- Opens a settings window for managing providers, actions, and app settings
-- Builds the tray menu dynamically from configured actions
-- Reads text from the clipboard, runs the selected action, and writes the result back to the clipboard
-- Optionally shows a macOS notification when the action completes
-- Supports action testing from the settings UI before using the tray flow
+No browser. No context switching. Select text, run an action, get the result back in your clipboard.
+
+## Why LLM Actions
+
+- **System-wide access** — trigger actions from the menu bar in any app without switching context
+- **Multi-provider support** — OpenAI, Anthropic, and any OpenAI-compatible endpoint, plus local CLI tools like `claude` or `codex`
+- **Custom actions** — define reusable prompt + provider combinations for your specific workflows
+- **Local-first** — no backend, no telemetry; API keys and config stay on your machine
+
+## Features
+
+- **Menu bar app** — runs as a tray app with no Dock presence
+- **Settings UI** — manage providers, actions, and app settings from a dedicated window
+- **Clipboard workflow** — reads text from clipboard, runs the action, writes result back
+- **Action testing** — test actions directly in the settings UI before using them
+- **Notifications** — optional macOS notifications when actions complete
+- **Reorderable actions** — drag to reorder actions in the menu
 
 ## Providers
 
-- `anthropic`: direct Anthropic API requests
-- `openai`: OpenAI-compatible chat completion endpoints
-- `cli`: local CLI commands such as `claude` or `codex`
+- **Anthropic** — direct Anthropic API requests
+- **OpenAI** — OpenAI-compatible chat completion endpoints (works with OpenAI, OpenRouter, local models, etc.)
+- **CLI** — local CLI commands like `claude`, `codex`, or custom scripts
 
-Provider config supports:
+## Development
 
-- shared fields: `name`, `type`
-- API providers: `endpoint`, `apiKey`, `headers`, `defaultModel`
-- CLI providers: `command`, `args`
+> **Note:** This section is for contributors and developers only.
 
-All LLM responses are normalized to a JSON object containing a top-level `result` string.
+### Prerequisites
+
+- macOS
+- Node.js 22+
+- [Rust](https://www.rust-lang.org/tools/install)
+- Xcode Command Line Tools
+
+### Quick start
+
+```bash
+npm install
+npm run tauri:dev    # full Tauri app
+```
+
+### Commands
+
+```bash
+npm run dev          # Vite dev server only
+npm run build        # tsc + Vite build
+npm run tauri:dev    # full Tauri app (dev)
+npm run tauri:build  # production build
+npm run tauri:build-debug  # debug .app bundle
+npm run lint         # ESLint
+npm run typecheck    # TypeScript check
+npm run format       # Prettier
+npm test             # Vitest
+cd src-tauri && cargo test  # Rust tests
+```
+
+### Testing macOS Services
+
+macOS Services integration requires a built `.app` bundle:
+
+```bash
+npm run tauri:build-debug
+# Output: src-tauri/target/debug/bundle/macos/LLM Actions.app
+```
+
+### Tech stack
+
+React 19, TypeScript, Vite 7, Tailwind CSS v4, Tauri 2, Vitest.
+
+See **[AGENTS.md](./AGENTS.md)** for architecture, conventions, and contributor docs.
 
 ## Architecture
 
 ```text
-src/               React + TypeScript settings UI (Vite, Tailwind CSS v4)
-src-tauri/         Rust backend, tray app, config persistence, provider calls
-swift-plugin/      Swift package for macOS Services integration experiments/work
+src/           React + TypeScript settings UI (Vite, Tailwind CSS v4)
+src-tauri/     Rust backend: tray app, config persistence, provider calls
+swift-plugin/  Swift package for macOS Services integration
 ```
-
-Important frontend areas:
-
-- `src/components/ActionList.tsx`: action management and test-run UI
-- `src/components/ProviderList.tsx`: provider management
-- `src/components/Settings.tsx`: notification and max token settings
-- `src/lib/tauri.ts`: single frontend interface for Tauri commands
-
-Important backend areas:
-
-- `src-tauri/src/lib.rs`: app bootstrap, tray setup, clipboard execution flow
-- `src-tauri/src/commands/config_cmd.rs`: config CRUD and action reorder
-- `src-tauri/src/commands/llm_cmd.rs`: action execution and test execution
-- `src-tauri/src/commands/validate_cmd.rs`: response validation/normalization
-- `src-tauri/src/providers/`: Anthropic, OpenAI-compatible, and CLI provider implementations
 
 ## Configuration
 
-Config is stored at:
-
-```text
-~/Library/Application Support/llm-actions/config.json
-```
-
-Current top-level shape:
+Config is stored at `~/Library/Application Support/llm-actions/config.json`:
 
 ```json
 {
@@ -71,106 +107,9 @@ Current top-level shape:
 }
 ```
 
-## Requirements
+## Author
 
-- macOS
-- Node.js 22+
-- Rust stable
-- Xcode Command Line Tools
-
-## Development
-
-Install dependencies:
-
-```bash
-npm install
-```
-
-Start the full app in development mode:
-
-```bash
-npm run tauri:dev
-```
-
-If you only need the frontend:
-
-```bash
-npm run dev
-```
-
-## Scripts
-
-| Script                      | Description                                   |
-| --------------------------- | --------------------------------------------- |
-| `npm run dev`               | Start the Vite dev server only                |
-| `npm run build`             | Run `tsc` and build the frontend with Vite    |
-| `npm run preview`           | Preview the frontend build                    |
-| `npm run tauri:dev`         | Start the full Tauri app in development mode  |
-| `npm run tauri:build`       | Build the production Tauri app                |
-| `npm run tauri:build-debug` | Build a debug `.app` bundle for local testing |
-| `npm run lint`              | Run ESLint                                    |
-| `npm run lint:fix`          | Run ESLint with autofixes                     |
-| `npm run format`            | Format the repository with Prettier           |
-| `npm run format:check`      | Check formatting with Prettier                |
-| `npm run typecheck`         | Run `tsc --noEmit`                            |
-| `npm test`                  | Run Vitest once                               |
-| `npm run test:watch`        | Run Vitest in watch mode                      |
-
-## Testing
-
-Frontend tests use Vitest and Testing Library:
-
-```bash
-npm test
-```
-
-Rust tests:
-
-```bash
-cd src-tauri && cargo test
-```
-
-Useful local verification commands:
-
-```bash
-npm run lint
-npm run typecheck
-npm run format:check
-```
-
-## Building
-
-Production build:
-
-```bash
-npm run tauri:build
-```
-
-Debug app bundle:
-
-```bash
-npm run tauri:build-debug
-```
-
-The debug app bundle is written to:
-
-```text
-src-tauri/target/debug/bundle/macos/LLM Actions.app
-```
-
-## CI
-
-GitHub Actions runs on push and pull request for `master` and checks:
-
-- lint
-- prettier
-- typecheck
-- test
-- frontend build
-
-## Notes on macOS Services
-
-The repository includes `swift-plugin/` with a native `LLMActionsPlugin` Swift package and `ServiceHandler.swift` for macOS Services integration. The active Tauri app flow in `src-tauri/src/lib.rs` is currently tray + clipboard based, so the README documents that runtime behavior first.
+Created by **Andrew Mok** ([@andrewmmc](https://github.com/andrewmmc))
 
 ## License
 
