@@ -11,13 +11,13 @@ export default function ErrorBox({ message, title, action, className }: Props) {
   return (
     <div
       className={[
-        "rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600",
+        "rounded-xl border border-error/20 bg-error/10 px-3 py-2 text-[13px] text-error",
         className,
       ]
         .filter(Boolean)
         .join(" ")}
     >
-      {title && <p className="font-semibold text-red-700">{title}</p>}
+      {title && <p className="font-semibold text-error">{title}</p>}
       <p className={title ? "mt-1" : undefined}>{message}</p>
       {action}
     </div>

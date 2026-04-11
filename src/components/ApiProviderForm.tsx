@@ -40,9 +40,9 @@ export default function ApiProviderForm({
   return (
     <>
       <div>
-        <label className="mb-1 block text-xs font-medium text-gray-700">
+        <label className="mb-1 block text-[11px] font-medium text-text-secondary">
           API Endpoint{" "}
-          <span className="font-normal text-gray-400">(optional)</span>
+          <span className="font-normal text-text-tertiary">(optional)</span>
         </label>
         <input
           type="text"
@@ -51,13 +51,13 @@ export default function ApiProviderForm({
           placeholder={DEFAULT_ENDPOINTS[type]}
           className={fieldClassName}
         />
-        <p className="mt-1 text-xs text-gray-400">
+        <p className="mt-1 text-[11px] text-text-tertiary">
           Custom endpoints must use a valid <code>https://</code> URL.
         </p>
       </div>
 
       <div>
-        <label className="mb-1 block text-xs font-medium text-gray-700">
+        <label className="mb-1 block text-[11px] font-medium text-text-secondary">
           API Key <span className="text-red-500">*</span>
         </label>
         <input
@@ -70,7 +70,7 @@ export default function ApiProviderForm({
       </div>
 
       <div>
-        <label className="mb-1 block text-xs font-medium text-gray-700">
+        <label className="mb-1 block text-[11px] font-medium text-text-secondary">
           Default Model
         </label>
         <input
@@ -86,13 +86,13 @@ export default function ApiProviderForm({
 
       <div>
         <div className="mb-2 flex items-center justify-between">
-          <label className="text-xs font-medium text-gray-700">
+          <label className="text-[11px] font-medium text-text-secondary">
             Custom Headers
           </label>
           <button
             type="button"
             onClick={onAddHeader}
-            className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700"
+            className="flex items-center gap-1 text-[11px] font-medium text-accent hover:text-accent-strong"
           >
             <Plus size={12} />
             Add header
@@ -106,19 +106,19 @@ export default function ApiProviderForm({
                 value={key}
                 onChange={(e) => onHeaderKeyChange(index, e.target.value)}
                 placeholder="Header name"
-                className="flex-1 rounded border border-gray-200 px-2 py-1 text-xs focus:border-blue-400 focus:outline-none"
+                className="mac-input flex-1 rounded-md px-2.5 py-1.5 text-[11px]"
               />
               <input
                 type="text"
                 value={value}
                 onChange={(e) => onHeaderValueChange(index, e.target.value)}
                 placeholder="Value"
-                className="flex-1 rounded border border-gray-200 px-2 py-1 text-xs focus:border-blue-400 focus:outline-none"
+                className="mac-input flex-1 rounded-md px-2.5 py-1.5 text-[11px]"
               />
               <button
                 type="button"
                 onClick={() => onRemoveHeader(index)}
-                className="rounded p-1 text-gray-400 hover:text-red-500"
+                className="rounded-md p-1.5 text-text-tertiary hover:bg-error/10 hover:text-error"
               >
                 <Trash2 size={12} />
               </button>

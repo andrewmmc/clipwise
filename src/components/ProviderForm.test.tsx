@@ -109,8 +109,8 @@ describe("ProviderForm", () => {
     expect(screen.getByText("where claude")).toBeInTheDocument();
     expect(screen.getByText("where codex")).toBeInTheDocument();
     expect(screen.getByText("where copilot")).toBeInTheDocument();
-    expect(screen.getByText("where claude")).toHaveClass("bg-gray-100");
-    expect(hint).not.toHaveClass("bg-gray-50");
+    expect(screen.getByText("where claude")).toHaveClass("bg-surface-tertiary");
+    expect(hint).toHaveClass("text-text-tertiary");
   });
 
   it("shows a headless mode hint for CLI arguments", async () => {

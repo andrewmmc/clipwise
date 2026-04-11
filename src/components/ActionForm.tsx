@@ -18,9 +18,8 @@ export default function ActionForm({
   onSave,
   onCancel,
 }: Props) {
-  const fieldClassName =
-    "w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-400";
-  const selectClassName = `${fieldClassName} appearance-none bg-white pr-9`;
+  const fieldClassName = "mac-input w-full rounded-md px-3 py-2 text-sm";
+  const selectClassName = `${fieldClassName} appearance-none bg-surface-primary pr-9`;
   const [name, setName] = useState(initial?.name ?? "");
   const [providerId, setProviderId] = useState(
     initial?.providerId ?? config.providers[0]?.id ?? "",
@@ -63,23 +62,23 @@ export default function ActionForm({
       <div className="flex items-center gap-3">
         <button
           onClick={onCancel}
-          className="rounded p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+          className="rounded-md p-1.5 text-text-tertiary transition-colors hover:bg-surface-tertiary hover:text-text-secondary"
         >
           <ArrowLeft size={16} />
         </button>
-        <h2 className="text-base font-semibold text-gray-800">
+        <h2 className="text-[13px] font-semibold text-text-primary">
           {initial ? "Edit Action" : "New Action"}
         </h2>
       </div>
 
       <form
         onSubmit={handleSubmit}
-        className="space-y-4 rounded-lg border border-gray-200 bg-white p-5"
+        className="mac-panel space-y-4 rounded-2xl p-5"
       >
         {error && <ErrorBox message={error} />}
 
         <div>
-          <label className="mb-1 block text-xs font-medium text-gray-700">
+          <label className="mb-1 block text-[11px] font-medium text-text-secondary">
             Action Name <span className="text-red-500">*</span>
           </label>
           <input
@@ -92,13 +91,13 @@ export default function ActionForm({
             placeholder="e.g. Refine wording"
             className={fieldClassName}
           />
-          <p className="mt-1 text-xs text-gray-400">
+          <p className="mt-1 text-[11px] text-text-tertiary">
             Shown in the LLM Actions menu bar popup.
           </p>
         </div>
 
         <div>
-          <label className="mb-1 block text-xs font-medium text-gray-700">
+          <label className="mb-1 block text-[11px] font-medium text-text-secondary">
             Provider <span className="text-red-500">*</span>
           </label>
           <div className="relative">
@@ -119,13 +118,13 @@ export default function ActionForm({
             </select>
             <ChevronDown
               size={16}
-              className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-gray-400"
+              className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-text-tertiary"
             />
           </div>
         </div>
 
         <div>
-          <label className="mb-1 block text-xs font-medium text-gray-700">
+          <label className="mb-1 block text-[11px] font-medium text-text-secondary">
             User Prompt <span className="text-red-500">*</span>
           </label>
           <textarea
@@ -140,14 +139,14 @@ export default function ActionForm({
             className={fieldClassName}
           />
           <div className="mt-1 flex items-center justify-between gap-3 text-xs">
-            <p className="text-gray-400">
+            <p className="text-[11px] text-text-tertiary">
               The selected text will be appended to this prompt.
             </p>
             <p
               className={
                 userPrompt.length > MAX_USER_PROMPT_LENGTH - 200
-                  ? "text-amber-600"
-                  : "text-gray-400"
+                  ? "text-orange-500"
+                  : "text-text-tertiary"
               }
             >
               {userPrompt.length}/{MAX_USER_PROMPT_LENGTH}
@@ -156,9 +155,9 @@ export default function ActionForm({
         </div>
 
         <div>
-          <label className="mb-1 block text-xs font-medium text-gray-700">
+          <label className="mb-1 block text-[11px] font-medium text-text-secondary">
             Model Override{" "}
-            <span className="font-normal text-gray-400">(optional)</span>
+            <span className="font-normal text-text-tertiary">(optional)</span>
           </label>
           <input
             type="text"
@@ -176,7 +175,7 @@ export default function ActionForm({
           <button
             type="button"
             onClick={onCancel}
-            className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50"
+            className="mac-button-secondary rounded-md px-4 py-2 text-sm hover:brightness-98"
           >
             Cancel
           </button>
@@ -192,7 +191,7 @@ export default function ActionForm({
               setError(null);
             }}
             disabled={saving}
-            className="flex items-center gap-1.5 rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+            className="mac-button-secondary flex items-center gap-1.5 rounded-md px-4 py-2 text-sm disabled:opacity-50"
           >
             <RotateCcw size={14} />
             Reset
@@ -200,7 +199,7 @@ export default function ActionForm({
           <button
             type="submit"
             disabled={saving}
-            className="flex items-center gap-1.5 rounded-md bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
+            className="mac-button-primary flex items-center gap-1.5 rounded-md px-4 py-2 text-sm font-medium shadow-sm transition hover:brightness-105 disabled:opacity-50"
           >
             <Save size={14} />
             {saving ? "Saving…" : "Save Action"}

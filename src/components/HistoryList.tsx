@@ -130,17 +130,19 @@ export default function HistoryList() {
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center">
-        <div className="text-sm text-gray-400">Loading history…</div>
+        <div className="text-sm text-text-tertiary">Loading history…</div>
       </div>
     );
   }
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-base font-semibold text-gray-800">History</h2>
-          <p className="text-xs text-gray-500">
+          <h2 className="text-[13px] font-semibold text-text-primary">
+            History
+          </h2>
+          <p className="mt-1 text-[11px] text-text-tertiary">
             {history.length === 0
               ? "No transformations recorded yet."
               : `${history.length} transformation${history.length === 1 ? "" : "s"} logged.`}
@@ -151,7 +153,7 @@ export default function HistoryList() {
             type="button"
             onClick={handleClearHistory}
             disabled={clearing}
-            className="flex items-center gap-1.5 rounded-md border border-red-300 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50"
+            className="mac-button-danger flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium disabled:opacity-50"
           >
             <Trash2 size={14} />
             {clearing ? "Clearing…" : "Clear History"}
@@ -163,8 +165,8 @@ export default function HistoryList() {
       {successMessage && <SuccessBox message={successMessage} />}
 
       {history.length === 0 ? (
-        <div className="rounded-lg border border-gray-200 bg-white p-8 text-center">
-          <p className="text-sm text-gray-400">
+        <div className="rounded-2xl border border-border-subtle bg-surface-primary/65 p-8 text-center backdrop-blur-sm">
+          <p className="text-sm text-text-tertiary">
             History is empty. Transformations will be logged here when you run
             actions.
           </p>
@@ -174,13 +176,10 @@ export default function HistoryList() {
           {history.map((entry) => {
             const isExpanded = expandedIds.has(entry.id);
             return (
-              <div
-                key={entry.id}
-                className="rounded-lg border border-gray-200 bg-white"
-              >
+              <div key={entry.id} className="mac-card rounded-2xl">
                 <div
                   onClick={() => toggleExpanded(entry.id)}
-                  className="flex w-full cursor-pointer items-start gap-3 p-4 hover:bg-gray-50"
+                  className="flex w-full cursor-pointer items-start gap-3 p-4 transition-colors hover:bg-surface-tertiary/60"
                   role="button"
                   tabIndex={0}
                   onKeyDown={(e) => {
@@ -190,7 +189,7 @@ export default function HistoryList() {
                     }
                   }}
                 >
-                  <div className="mt-0.5 text-gray-400">
+                  <div className="mt-0.5 text-text-tertiary">
                     {isExpanded ? (
                       <ChevronDown size={16} />
                     ) : (
@@ -198,30 +197,32 @@ export default function HistoryList() {
                     )}
                   </div>
 
-                  <div className="flex-1 min-w-0">
+                  <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       {entry.success ? (
                         <CheckCircle2
                           size={16}
-                          className="text-green-500 shrink-0"
+                          className="shrink-0 text-success"
                         />
                       ) : (
-                        <XCircle size={16} className="text-red-500 shrink-0" />
+                        <XCircle size={16} className="shrink-0 text-error" />
                       )}
-                      <span className="text-sm font-medium text-gray-800">
+                      <span className="text-[13px] font-semibold text-text-primary">
                         {entry.actionName}
                       </span>
-                      <span className="text-xs text-gray-400">via</span>
-                      <span className="text-xs text-gray-500">
+                      <span className="text-[11px] text-text-tertiary">
+                        via
+                      </span>
+                      <span className="text-[11px] text-text-secondary">
                         {entry.providerName}
                       </span>
                     </div>
-                    <p className="text-xs text-gray-400 mt-0.5">
+                    <p className="mt-0.5 text-[11px] text-text-tertiary">
                       {formatTimestamp(entry.timestamp)}
                     </p>
 
                     {!isExpanded && (
-                      <p className="text-xs text-gray-500 mt-2 line-clamp-2">
+                      <p className="mt-2 line-clamp-2 text-[11px] text-text-secondary">
                         {entry.inputText}
                       </p>
                     )}
@@ -235,7 +236,7 @@ export default function HistoryList() {
                         handleDeleteEntry(entry.id);
                       }}
                       disabled={deletingIds.has(entry.id)}
-                      className="text-gray-400 hover:text-red-600 disabled:opacity-50"
+                      className="rounded-md p-1 text-text-tertiary hover:bg-error/10 hover:text-error disabled:opacity-50"
                       title="Delete entry"
                     >
                       <Trash2 size={14} />
@@ -244,30 +245,30 @@ export default function HistoryList() {
                 </div>
 
                 {isExpanded && (
-                  <div className="border-t border-gray-100 p-4 pt-2 space-y-3">
+                  <div className="space-y-3 border-t border-border-subtle p-4 pt-2">
                     <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs font-medium text-gray-600">
+                      <div className="mb-1 flex items-center justify-between">
+                        <span className="text-[11px] font-medium text-text-secondary">
                           Input
                         </span>
                         <button
                           onClick={() =>
                             copyToClipboard(entry.inputText, "input")
                           }
-                          className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700"
+                          className="flex items-center gap-1 text-[11px] font-medium text-accent hover:text-accent-strong"
                         >
                           <Copy size={12} />
                           Copy
                         </button>
                       </div>
-                      <p className="text-xs text-gray-700 whitespace-pre-wrap break-words font-mono bg-gray-50 rounded p-2">
+                      <p className="whitespace-pre-wrap break-words rounded-xl border border-border-subtle bg-surface-tertiary/60 p-2 text-[11px] font-mono text-text-secondary">
                         {entry.inputText}
                       </p>
                     </div>
 
                     <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs font-medium text-gray-600">
+                      <div className="mb-1 flex items-center justify-between">
+                        <span className="text-[11px] font-medium text-text-secondary">
                           {entry.success ? "Output" : "Error"}
                         </span>
                         <button
@@ -277,17 +278,17 @@ export default function HistoryList() {
                               entry.success ? "output" : "error",
                             )
                           }
-                          className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700"
+                          className="flex items-center gap-1 text-[11px] font-medium text-accent hover:text-accent-strong"
                         >
                           <Copy size={12} />
                           Copy
                         </button>
                       </div>
                       <p
-                        className={`text-xs whitespace-pre-wrap break-words font-mono rounded p-2 ${
+                        className={`rounded-xl border p-2 text-[11px] whitespace-pre-wrap break-words font-mono ${
                           entry.success
-                            ? "text-gray-700 bg-gray-50"
-                            : "text-red-700 bg-red-50"
+                            ? "border-border-subtle bg-surface-tertiary/60 text-text-secondary"
+                            : "border-error/15 bg-error/10 text-error"
                         }`}
                       >
                         {entry.outputText}

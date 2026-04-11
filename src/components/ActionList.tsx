@@ -91,10 +91,12 @@ export default function ActionList({ config, onRefresh }: Props) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-base font-semibold text-gray-800">Actions</h2>
-          <p className="text-xs text-gray-500">
+          <h2 className="text-[13px] font-semibold text-text-primary">
+            Actions
+          </h2>
+          <p className="mt-1 max-w-xl text-[11px] text-text-tertiary">
             Your actions appear in the LLM Actions menu bar popup and transform
             the current clipboard text.
           </p>
@@ -104,7 +106,7 @@ export default function ActionList({ config, onRefresh }: Props) {
             clearSuccessMessage();
             setCreating(true);
           }}
-          className="flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700"
+          className="mac-button-primary flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium shadow-sm transition hover:brightness-105"
         >
           <Plus size={14} />
           Add Action
@@ -120,22 +122,24 @@ export default function ActionList({ config, onRefresh }: Props) {
           description="Add an action to get started."
         />
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-2.5">
           {config.actions.map((action) => (
-            <div
-              key={action.id}
-              className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm"
-            >
+            <div key={action.id} className="mac-card rounded-2xl p-4">
               <div className="flex items-start justify-between">
                 <div className="flex items-start gap-3">
-                  <GripVertical size={16} className="mt-0.5 text-gray-300" />
+                  <GripVertical
+                    size={16}
+                    className="mt-0.5 text-text-tertiary/60"
+                  />
                   <div>
-                    <p className="font-medium text-gray-800">{action.name}</p>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-[13px] font-semibold text-text-primary">
+                      {action.name}
+                    </p>
+                    <p className="text-[11px] text-text-secondary">
                       {providerName(action.providerId)}
                       {action.model && ` · ${action.model}`}
                     </p>
-                    <p className="mt-1 text-xs text-gray-400 italic">
+                    <p className="mt-1 text-[11px] italic text-text-tertiary">
                       {action.userPrompt}
                     </p>
                   </div>
@@ -146,14 +150,14 @@ export default function ActionList({ config, onRefresh }: Props) {
                       <button
                         type="button"
                         onClick={() => handleDelete(action.id)}
-                        className="rounded bg-red-600 px-2 py-1 text-xs font-medium text-white hover:bg-red-700"
+                        className="mac-button-danger rounded-md px-2.5 py-1 text-[11px] font-medium"
                       >
                         Delete
                       </button>
                       <button
                         type="button"
                         onClick={() => setPendingDeleteId(null)}
-                        className="rounded border border-gray-200 px-2 py-1 text-xs text-gray-500 hover:bg-gray-50 hover:text-gray-700"
+                        className="mac-button-secondary rounded-md px-2.5 py-1 text-[11px] hover:brightness-98"
                       >
                         Cancel
                       </button>
@@ -166,7 +170,7 @@ export default function ActionList({ config, onRefresh }: Props) {
                           clearSuccessMessage();
                           setEditing(action);
                         }}
-                        className="rounded p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                        className="rounded-md p-1.5 text-text-tertiary transition-colors hover:bg-surface-tertiary hover:text-text-secondary"
                         title="Edit"
                       >
                         <Pencil size={14} />
@@ -174,7 +178,7 @@ export default function ActionList({ config, onRefresh }: Props) {
                       <button
                         type="button"
                         onClick={() => setPendingDeleteId(action.id)}
-                        className="rounded p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-500"
+                        className="rounded-md p-1.5 text-text-tertiary transition-colors hover:bg-error/10 hover:text-error"
                         title="Delete"
                       >
                         <Trash2 size={14} />
@@ -185,7 +189,7 @@ export default function ActionList({ config, onRefresh }: Props) {
               </div>
 
               {/* Test section */}
-              <div className="mt-3 border-t border-gray-100 pt-3">
+              <div className="mt-3 border-t border-border-subtle pt-3">
                 <div className="flex gap-2">
                   <input
                     type="text"
@@ -197,12 +201,12 @@ export default function ActionList({ config, onRefresh }: Props) {
                         [action.id]: e.target.value,
                       }))
                     }
-                    className="flex-1 rounded border border-gray-200 px-2.5 py-1 text-xs focus:border-blue-400 focus:outline-none"
+                    className="mac-input flex-1 rounded-md px-2.5 py-1.5 text-[11px]"
                   />
                   <button
                     onClick={() => handleTest(action)}
                     disabled={testing === action.id}
-                    className="flex items-center gap-1 rounded bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-200 disabled:opacity-50"
+                    className="mac-button-secondary flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[11px] font-medium disabled:opacity-50"
                   >
                     <FlaskConical size={12} />
                     {testing === action.id ? "Testing…" : "Test"}
@@ -213,8 +217,8 @@ export default function ActionList({ config, onRefresh }: Props) {
                     className={[
                       "mt-2 rounded p-2 text-xs",
                       testResults[action.id].startsWith("Error:")
-                        ? "bg-red-50 text-red-600"
-                        : "bg-green-50 text-green-700",
+                        ? "border border-error/15 bg-error/10 text-error"
+                        : "border border-success/15 bg-success/10 text-success",
                     ].join(" ")}
                   >
                     {testResults[action.id] || "(empty result)"}

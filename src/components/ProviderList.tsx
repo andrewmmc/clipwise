@@ -71,10 +71,12 @@ export default function ProviderList({ config, onRefresh }: Props) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-base font-semibold text-gray-800">Providers</h2>
-          <p className="text-xs text-gray-500">
+          <h2 className="text-[13px] font-semibold text-text-primary">
+            Providers
+          </h2>
+          <p className="mt-1 text-[11px] text-text-tertiary">
             Configure LLM API or CLI providers.
           </p>
         </div>
@@ -83,7 +85,7 @@ export default function ProviderList({ config, onRefresh }: Props) {
             clearSuccessMessage();
             setCreating(true);
           }}
-          className="flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700"
+          className="mac-button-primary flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium shadow-sm transition hover:brightness-105"
         >
           <Plus size={14} />
           Add Provider
@@ -99,21 +101,25 @@ export default function ProviderList({ config, onRefresh }: Props) {
           description="Add an API key to start."
         />
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-2.5">
           {config.providers.map((provider) => (
             <div
               key={provider.id}
-              className="flex items-center justify-between rounded-lg border border-gray-200 bg-white p-4 shadow-sm"
+              className="mac-card flex items-center justify-between rounded-2xl p-4"
             >
               <div>
-                <p className="font-medium text-gray-800">{provider.name}</p>
-                <p className="text-xs text-gray-500">
+                <p className="text-[13px] font-semibold text-text-primary">
+                  {provider.name}
+                </p>
+                <p className="text-[11px] text-text-secondary">
                   {typeLabel[provider.type] ?? provider.type}
                   {provider.defaultModel && ` · ${provider.defaultModel}`}
                   {provider.command && ` · ${provider.command}`}
                 </p>
                 {provider.endpoint && (
-                  <p className="text-xs text-gray-400">{provider.endpoint}</p>
+                  <p className="text-[11px] text-text-tertiary">
+                    {provider.endpoint}
+                  </p>
                 )}
               </div>
               <div className="flex items-center gap-1.5">
@@ -122,14 +128,14 @@ export default function ProviderList({ config, onRefresh }: Props) {
                     clearSuccessMessage();
                     setEditing(provider);
                   }}
-                  className="rounded p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                  className="rounded-md p-1.5 text-text-tertiary transition-colors hover:bg-surface-tertiary hover:text-text-secondary"
                   title="Edit"
                 >
                   <Pencil size={14} />
                 </button>
                 <button
                   onClick={() => handleDelete(provider.id)}
-                  className="rounded p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-500"
+                  className="rounded-md p-1.5 text-text-tertiary transition-colors hover:bg-error/10 hover:text-error"
                   title="Delete"
                 >
                   <Trash2 size={14} />

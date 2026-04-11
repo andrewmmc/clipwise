@@ -15,7 +15,8 @@
         "title": "LLM Actions — Settings",
         "width": 900,
         "height": 650,
-        "resizable": true,
+        "resizable": false,
+        "transparent": true,
         "visible": false,
         "label": "settings"
       }

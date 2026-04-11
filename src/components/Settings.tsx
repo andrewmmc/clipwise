@@ -50,11 +50,15 @@ export default function SettingsPanel({ config, onRefresh }: Props) {
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-base font-semibold text-gray-800">Settings</h2>
-        <p className="text-xs text-gray-500">General application settings.</p>
+        <h2 className="text-[13px] font-semibold text-text-primary">
+          Settings
+        </h2>
+        <p className="mt-1 text-[11px] text-text-tertiary">
+          General application settings.
+        </p>
       </div>
 
-      <div className="rounded-lg border border-gray-200 bg-white p-5">
+      <div className="mac-panel rounded-2xl p-5">
         <div className="space-y-4">
           {error && <ErrorBox message={error} />}
           {successMessage && <SuccessBox message={successMessage} />}
@@ -62,10 +66,10 @@ export default function SettingsPanel({ config, onRefresh }: Props) {
           <div className="space-y-5">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-700">
+                <p className="text-[13px] font-medium text-text-secondary">
                   Show notification on complete
                 </p>
-                <p className="text-xs text-gray-400">
+                <p className="text-[11px] text-text-tertiary">
                   Display a macOS notification after text is replaced.
                 </p>
               </div>
@@ -81,16 +85,16 @@ export default function SettingsPanel({ config, onRefresh }: Props) {
                   })
                 }
                 className={[
-                  "relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2",
+                  "relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-primary",
                   settings.showNotificationOnComplete
-                    ? "bg-blue-600"
-                    : "bg-gray-200",
+                    ? "bg-success"
+                    : "bg-surface-tertiary",
                 ].join(" ")}
               >
                 <span
                   aria-hidden="true"
                   className={[
-                    "pointer-events-none absolute left-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform",
+                    "pointer-events-none absolute left-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform",
                     settings.showNotificationOnComplete
                       ? "translate-x-4"
                       : "translate-x-0",
@@ -101,10 +105,10 @@ export default function SettingsPanel({ config, onRefresh }: Props) {
 
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-700">
+                <p className="text-[13px] font-medium text-text-secondary">
                   Enable history
                 </p>
-                <p className="text-xs text-gray-400">
+                <p className="text-[11px] text-text-tertiary">
                   Keep a log of the last 100 text transformations.
                 </p>
               </div>
@@ -119,14 +123,16 @@ export default function SettingsPanel({ config, onRefresh }: Props) {
                   })
                 }
                 className={[
-                  "relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2",
-                  settings.historyEnabled ? "bg-blue-600" : "bg-gray-200",
+                  "relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-primary",
+                  settings.historyEnabled
+                    ? "bg-success"
+                    : "bg-surface-tertiary",
                 ].join(" ")}
               >
                 <span
                   aria-hidden="true"
                   className={[
-                    "pointer-events-none absolute left-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform",
+                    "pointer-events-none absolute left-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform",
                     settings.historyEnabled ? "translate-x-4" : "translate-x-0",
                   ].join(" ")}
                 />
@@ -134,7 +140,7 @@ export default function SettingsPanel({ config, onRefresh }: Props) {
             </div>
 
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">
+              <label className="mb-1 block text-[11px] font-medium text-text-secondary">
                 Max Tokens
               </label>
               <input
@@ -148,9 +154,9 @@ export default function SettingsPanel({ config, onRefresh }: Props) {
                     maxTokens: parseInt(e.target.value, 10) || 4096,
                   })
                 }
-                className="w-32 rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none"
+                className="mac-input w-32 rounded-md px-3 py-2 text-sm"
               />
-              <p className="mt-1 text-xs text-gray-400">
+              <p className="mt-1 text-[11px] text-text-tertiary">
                 Maximum tokens in LLM responses (256–32768).
               </p>
             </div>
@@ -160,7 +166,7 @@ export default function SettingsPanel({ config, onRefresh }: Props) {
             <button
               onClick={handleSave}
               disabled={saving}
-              className="flex items-center gap-1.5 rounded-md bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
+              className="mac-button-primary flex items-center gap-1.5 rounded-md px-4 py-2 text-sm font-medium shadow-sm transition hover:brightness-105 disabled:opacity-50"
             >
               <Save size={14} />
               {saving ? "Saving…" : "Save Settings"}
@@ -173,7 +179,7 @@ export default function SettingsPanel({ config, onRefresh }: Props) {
                 setSettings({ ...config.settings });
               }}
               disabled={saving}
-              className="flex items-center gap-1.5 rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+              className="mac-button-secondary flex items-center gap-1.5 rounded-md px-4 py-2 text-sm disabled:opacity-50"
             >
               <RotateCcw size={14} />
               Reset
@@ -183,9 +189,11 @@ export default function SettingsPanel({ config, onRefresh }: Props) {
       </div>
 
       {/* About */}
-      <div className="rounded-lg border border-gray-200 bg-white p-5">
-        <h3 className="mb-3 text-sm font-semibold text-gray-700">About</h3>
-        <div className="space-y-1 text-xs text-gray-500">
+      <div className="mac-card rounded-2xl p-5">
+        <h3 className="mb-3 text-[13px] font-semibold text-text-secondary">
+          About
+        </h3>
+        <div className="space-y-1 text-[11px] text-text-secondary">
           <p>
             <strong>LLM Actions</strong> v0.1.0
           </p>
@@ -195,7 +203,7 @@ export default function SettingsPanel({ config, onRefresh }: Props) {
             icon, then choose an action directly from the menu. The transformed
             result is copied back to your clipboard.
           </p>
-          <p className="mt-1 text-gray-400">(c) 2026 Andrew Mok</p>
+          <p className="mt-1 text-text-tertiary">(c) 2026 Andrew Mok</p>
         </div>
       </div>
     </div>
