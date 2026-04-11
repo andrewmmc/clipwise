@@ -231,7 +231,7 @@ mod tests {
 
     #[test]
     fn test_config_state_lock_returns_error_when_poisoned() {
-        use std::sync::{Arc, Mutex};
+        use std::sync::Arc;
         use std::thread;
 
         let config = AppConfig::default();

@@ -177,16 +177,13 @@ mod tests {
 
     #[test]
     fn test_default_max_retries_is_reasonable() {
-        assert!(DEFAULT_MAX_RETRIES >= 1, "should retry at least once");
-        assert!(DEFAULT_MAX_RETRIES <= 5, "should not retry excessively");
+        const { assert!(DEFAULT_MAX_RETRIES >= 1, "should retry at least once") };
+        const { assert!(DEFAULT_MAX_RETRIES <= 5, "should not retry excessively") };
     }
 
     #[test]
     fn test_initial_delay_is_reasonable() {
-        assert!(INITIAL_DELAY_MS >= 100, "initial delay should be at least 100ms");
-        assert!(
-            INITIAL_DELAY_MS <= 5000,
-            "initial delay should not exceed 5 seconds"
-        );
+        const { assert!(INITIAL_DELAY_MS >= 100, "initial delay should be at least 100ms") };
+        const { assert!(INITIAL_DELAY_MS <= 5000, "initial delay should not exceed 5 seconds") };
     }
 }

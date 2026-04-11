@@ -189,7 +189,7 @@ mod tests {
     #[test]
     fn test_add_entry_prepends_to_existing_history() {
         let dir = TempDir::new().unwrap();
-        let path = setup_test_history_file(
+        let _path = setup_test_history_file(
             &dir,
             vec![make_test_entry("old-id", "OldAction")],
         );
