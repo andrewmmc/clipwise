@@ -16,12 +16,12 @@ impl ConfigState {
 }
 
 /// Returns the path to the config file:
-/// ~/Library/Application Support/llm-actions/config.json
+/// ~/Library/Application Support/clipwise/config.json
 pub fn config_path() -> Result<PathBuf, AppError> {
     let base = dirs::data_local_dir()
         .or_else(|| dirs::home_dir().map(|h| h.join(".local").join("share")))
         .ok_or_else(|| AppError::Config("Cannot locate app support directory".into()))?;
-    Ok(base.join("llm-actions").join("config.json"))
+    Ok(base.join("clipwise").join("config.json"))
 }
 
 /// Load config from an explicit path (used by tests).
@@ -153,7 +153,7 @@ mod tests {
         let path = config_path().unwrap();
         let s = path.to_string_lossy();
         assert!(
-            s.ends_with("llm-actions/config.json") || s.ends_with("llm-actions\\config.json"),
+            s.ends_with("clipwise/config.json") || s.ends_with("clipwise\\config.json"),
             "unexpected config path: {}",
             s
         );

@@ -48,7 +48,7 @@ pub fn run() {
     info!(
         provider_count = config.providers.len(),
         action_count = config.actions.len(),
-        "Starting LLM Actions"
+        "Starting Clipwise"
     );
 
     let app = tauri::Builder::default()
@@ -137,7 +137,7 @@ fn build_tray_menu<R: Runtime, M: Manager<R>>(
     let open_settings =
         MenuItem::with_id(app, "open_settings", "Open Settings...", true, None::<&str>)?;
     let separator = tauri::menu::PredefinedMenuItem::separator(app)?;
-    let quit = MenuItem::with_id(app, "quit", "Quit LLM Actions", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", "Quit Clipwise", true, None::<&str>)?;
     let mut menu_items: Vec<&dyn tauri::menu::IsMenuItem<R>> = action_items
         .iter()
         .map(|item| item as &dyn tauri::menu::IsMenuItem<R>)
@@ -196,7 +196,7 @@ fn run_tray_action<R: Runtime>(app: AppHandle<R>, action_id: String) {
                 let _ = app
                     .notification()
                     .builder()
-                    .title("LLM Actions")
+                    .title("Clipwise")
                     .body("Clipboard does not contain any text to transform.")
                     .show();
                 return;
@@ -206,7 +206,7 @@ fn run_tray_action<R: Runtime>(app: AppHandle<R>, action_id: String) {
                 let _ = app
                     .notification()
                     .builder()
-                    .title("LLM Actions")
+                    .title("Clipwise")
                     .body(format!("Could not read the clipboard: {err}"))
                     .show();
                 return;
@@ -222,7 +222,7 @@ fn run_tray_action<R: Runtime>(app: AppHandle<R>, action_id: String) {
                     let _ = app
                         .notification()
                         .builder()
-                        .title("LLM Actions")
+                        .title("Clipwise")
                         .body(format!("Failed to access config: {e}"))
                         .show();
                     return;
@@ -235,7 +235,7 @@ fn run_tray_action<R: Runtime>(app: AppHandle<R>, action_id: String) {
                     let _ = app
                         .notification()
                         .builder()
-                        .title("LLM Actions")
+                        .title("Clipwise")
                         .body("That action could not be found.")
                         .show();
                     return;
@@ -261,7 +261,7 @@ fn run_tray_action<R: Runtime>(app: AppHandle<R>, action_id: String) {
         let _ = app
             .notification()
             .builder()
-            .title("LLM Actions")
+            .title("Clipwise")
             .body(format!("Processing \"{}\"...", action_name))
             .show();
 
@@ -299,7 +299,7 @@ fn run_tray_action<R: Runtime>(app: AppHandle<R>, action_id: String) {
                     let _ = app
                         .notification()
                         .builder()
-                        .title("LLM Actions")
+                        .title("Clipwise")
                         .body(format!("Could not write the clipboard: {err}"))
                         .show();
                     return;
@@ -317,7 +317,7 @@ fn run_tray_action<R: Runtime>(app: AppHandle<R>, action_id: String) {
                     let _ = app
                         .notification()
                         .builder()
-                        .title("LLM Actions")
+                        .title("Clipwise")
                         .body(format!(
                             "\"{action_name}\" finished. Copied to clipboard: {preview}"
                         ))
@@ -351,7 +351,7 @@ fn run_tray_action<R: Runtime>(app: AppHandle<R>, action_id: String) {
                 let _ = app
                     .notification()
                     .builder()
-                    .title("LLM Actions")
+                    .title("Clipwise")
                     .body(err.to_string())
                     .show();
             }

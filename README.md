@@ -1,4 +1,4 @@
-<h1 align="center">LLM Actions</h1>
+<h1 align="center">Clipwise</h1>
 
 <p align="center">
   <strong>macOS menu bar app for LLM-powered text transformations.</strong>
@@ -10,11 +10,11 @@
   </a>
 </p>
 
-LLM Actions adds LLM-powered text transformations to your macOS workflow. Configure providers (OpenAI, Anthropic, CLI) and custom actions, then trigger them from the menu bar against clipboard text.
+Clipwise adds LLM-powered text transformations to your macOS workflow. Configure providers (OpenAI, Anthropic, CLI) and custom actions, then trigger them from the menu bar against clipboard text.
 
 No browser. No context switching. Select text, run an action, get the result back in your clipboard.
 
-## Why LLM Actions
+## Why Clipwise
 
 - **System-wide access** — trigger actions from the menu bar in any app without switching context
 - **Multi-provider support** — OpenAI, Anthropic, and any OpenAI-compatible endpoint, plus local CLI tools like `claude` or `codex`
@@ -69,13 +69,13 @@ npm test             # Vitest
 cd src-tauri && cargo test  # Rust tests
 ```
 
-### Testing macOS Services
+### Testing macOS build
 
-macOS Services integration requires a built `.app` bundle:
+To test a built `.app` bundle:
 
 ```bash
 npm run tauri:build-debug
-# Output: src-tauri/target/debug/bundle/macos/LLM Actions.app
+# Output: src-tauri/target/debug/bundle/macos/Clipwise.app
 ```
 
 ### Tech stack
@@ -89,12 +89,11 @@ See **[AGENTS.md](./AGENTS.md)** for architecture, conventions, and contributor 
 ```text
 src/           React + TypeScript settings UI (Vite, Tailwind CSS v4)
 src-tauri/     Rust backend: tray app, config persistence, provider calls
-swift-plugin/  Swift package for macOS Services integration
 ```
 
 ## Configuration
 
-Config is stored at `~/Library/Application Support/llm-actions/config.json`:
+Config is stored at `~/Library/Application Support/clipwise/config.json`:
 
 ```json
 {

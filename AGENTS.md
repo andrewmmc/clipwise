@@ -2,7 +2,7 @@
 
 ## Project overview
 
-LLM Actions is a macOS menu bar app (Tauri 2) that adds LLM-powered text transformation via the system tray. Users configure providers (OpenAI, Anthropic, CLI) and actions (prompt + provider), then copy text, select an action from the tray menu, and the transformed result is written back to the clipboard.
+Clipwise is a macOS menu bar app (Tauri 2) that adds LLM-powered text transformation via the system tray. Users configure providers (OpenAI, Anthropic, CLI) and actions (prompt + provider), then copy text, select an action from the tray menu, and the transformed result is written back to the clipboard.
 
 ## Architecture
 
@@ -16,7 +16,7 @@ LLM Actions is a macOS menu bar app (Tauri 2) that adds LLM-powered text transfo
 - **Styling**: Tailwind CSS v4 (utility classes, no component library).
 - **State**: React `useState`/`useEffect` — no external state management. Config is loaded from Tauri commands on mount.
 - **Testing**: Vitest + Testing Library (frontend), standard Rust tests (backend). All Tauri `invoke` calls are mocked in tests via `vi.mock`.
-- **Config file**: `~/Library/Application Support/llm-actions/config.json` — JSON with `providers`, `actions`, `settings`.
+- **Config file**: `~/Library/Application Support/clipwise/config.json` — JSON with `providers`, `actions`, `settings`.
 
 ## Commands
 

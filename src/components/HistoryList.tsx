@@ -7,9 +7,11 @@ import {
   Copy,
   ChevronDown,
   ChevronRight,
+  History,
   Trash2,
   XCircle,
 } from "lucide-react";
+import EmptyState from "./EmptyState";
 import ErrorBox from "./ErrorBox";
 import SuccessBox from "./SuccessBox";
 
@@ -163,11 +165,11 @@ export default function HistoryList() {
       {successMessage && <SuccessBox message={successMessage} />}
 
       {history.length === 0 ? (
-        <div className="empty-state">
-          <p className="text-[13px] text-text-tertiary">
-            Transformations will appear here when you run actions.
-          </p>
-        </div>
+        <EmptyState
+          icon={<History size={18} />}
+          title="No history yet"
+          description="Transformations will appear here when you run actions."
+        />
       ) : (
         <div className="space-y-2">
           {history.map((entry) => {

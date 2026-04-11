@@ -1,12 +1,12 @@
 [package]
-name = "llm-actions"
+name = "clipwise"
 version = "0.1.0"
-description = "macOS LLM Text Action Plugin"
+description = "macOS menu bar app for LLM-powered text transformations"
 authors = ["andrewmmc"]
 edition = "2021"
 
 [lib]
-name = "llm_actions_lib"
+name = "clipwise_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

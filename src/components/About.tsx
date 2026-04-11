@@ -18,7 +18,7 @@ export default function AboutPanel() {
       <div className="card p-4">
         <div className="space-y-1 text-[12px] text-text-secondary">
           <p>
-            <strong>LLM Actions</strong> {versionString}
+            <strong>Clipwise</strong> {versionString}
           </p>
           <p>macOS text transformation via LLM APIs &amp; CLI tools.</p>
           <p className="mt-2 text-text-tertiary">

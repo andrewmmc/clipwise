@@ -9,12 +9,12 @@ const INPUT_TRUNCATE_CHARS: usize = 500;
 const OUTPUT_TRUNCATE_CHARS: usize = 2000;
 
 /// Returns the path to the history file:
-/// ~/Library/Application Support/llm-actions/history.json
+/// ~/Library/Application Support/clipwise/history.json
 pub fn history_path() -> Result<PathBuf, AppError> {
     let base = dirs::data_local_dir()
         .or_else(|| dirs::home_dir().map(|h| h.join(".local").join("share")))
         .ok_or_else(|| AppError::Config("Cannot locate app support directory".into()))?;
-    Ok(base.join("llm-actions").join("history.json"))
+    Ok(base.join("clipwise").join("history.json"))
 }
 
 /// Load history from disk, returning an empty vec if the file doesn't exist.

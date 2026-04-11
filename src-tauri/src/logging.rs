@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
-const LOG_FILE_NAME: &str = "llm-actions.log";
+const LOG_FILE_NAME: &str = "clipwise.log";
 
 pub fn init_logging() -> Option<PathBuf> {
     let log_path = match log_file_path() {
@@ -88,7 +88,7 @@ fn log_file_path() -> Result<PathBuf, Box<dyn Error + Send + Sync>> {
     let base_dir = dirs::data_local_dir()
         .or_else(|| dirs::home_dir().map(|home| home.join(".local").join("share")))
         .ok_or("cannot locate local app data directory")?;
-    let log_dir = base_dir.join("llm-actions").join("logs");
+    let log_dir = base_dir.join("clipwise").join("logs");
     fs::create_dir_all(&log_dir)?;
     Ok(log_dir.join(LOG_FILE_NAME))
 }
