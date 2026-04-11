@@ -265,10 +265,28 @@ fn run_tray_action<R: Runtime>(app: AppHandle<R>, action_id: String) {
             .body(format!("Processing \"{}\"...", action_name))
             .show();
 
+        // Show loading tray icon while waiting for the LLM
+        if let Some(tray) = app.tray_by_id(TRAY_ID) {
+            if let Ok(img) = tauri::image::Image::from_bytes(include_bytes!("../icons/tray-icon-loading-0.png")) {
+                let _ = tray.set_icon(Some(img));
+                #[cfg(target_os = "macos")]
+                let _ = tray.set_icon_as_template(true);
+            }
+        }
+
         let result = {
             let config_state = app.state::<ConfigState>();
             run_action_inner(action_id, clipboard_text, &config_state).await
         };
+
+        // Restore the original tray icon
+        if let Some(tray) = app.tray_by_id(TRAY_ID) {
+            if let Ok(img) = tauri::image::Image::from_bytes(include_bytes!("../icons/tray-icon.png")) {
+                let _ = tray.set_icon(Some(img));
+                #[cfg(target_os = "macos")]
+                let _ = tray.set_icon_as_template(true);
+            }
+        }
 
         match result {
             Ok(text) => {

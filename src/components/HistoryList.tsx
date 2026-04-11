@@ -248,12 +248,13 @@ export default function HistoryList() {
                           Input
                         </span>
                         <button
+                          type="button"
                           onClick={() =>
                             copyToClipboard(entry.inputText, "input")
                           }
-                          className="flex items-center gap-1 text-[12px] font-medium text-accent hover:text-accent-hover"
+                          className="btn btn-ghost"
                         >
-                          <Copy size={12} />
+                          <Copy size={14} />
                           Copy
                         </button>
                       </div>
@@ -268,15 +269,16 @@ export default function HistoryList() {
                           {entry.success ? "Output" : "Error"}
                         </span>
                         <button
+                          type="button"
                           onClick={() =>
                             copyToClipboard(
                               entry.outputText,
                               entry.success ? "output" : "error",
                             )
                           }
-                          className="flex items-center gap-1 text-[12px] font-medium text-accent hover:text-accent-hover"
+                          className="btn btn-ghost"
                         >
-                          <Copy size={12} />
+                          <Copy size={14} />
                           Copy
                         </button>
                       </div>
