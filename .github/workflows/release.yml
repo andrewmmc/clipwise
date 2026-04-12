@@ -132,9 +132,9 @@ jobs:
             exit 1
           }
 
-          # Verify certificate password works
-          openssl pkcs12 -in /tmp/dev_cert.p12 -passin pass:"$DEVELOPER_ID_CERTIFICATE_PASSWORD" -info -noout || {
-            echo "::error::DEVELOPER_ID_CERTIFICATE_PASSWORD is incorrect or certificate is corrupted."
+          # Verify certificate password works, including legacy PKCS#12 exports from Keychain Access.
+          openssl pkcs12 -legacy -in /tmp/dev_cert.p12 -passin pass:"$DEVELOPER_ID_CERTIFICATE_PASSWORD" -info -noout || {
+            echo "::error::Failed to read DEVELOPER_ID_CERTIFICATE. Password may be incorrect, certificate may be corrupted, or the PKCS#12 file may use unsupported legacy encryption."
             exit 1
           }
 

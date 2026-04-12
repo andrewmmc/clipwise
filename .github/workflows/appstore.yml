@@ -90,8 +90,8 @@ jobs:
             echo "::error::Failed to decode APPLE_CERTIFICATE. Ensure it's base64 encoded."
             exit 1
           }
-          openssl pkcs12 -in /tmp/apple_dist.p12 -passin pass:"$APPLE_CERTIFICATE_PASSWORD" -info -noout || {
-            echo "::error::APPLE_CERTIFICATE_PASSWORD is incorrect or certificate is corrupted."
+          openssl pkcs12 -legacy -in /tmp/apple_dist.p12 -passin pass:"$APPLE_CERTIFICATE_PASSWORD" -info -noout || {
+            echo "::error::Failed to read APPLE_CERTIFICATE. Password may be incorrect, certificate may be corrupted, or the PKCS#12 file may use unsupported legacy encryption."
             exit 1
           }
           echo "✅ Apple Distribution certificate verified"
@@ -101,8 +101,8 @@ jobs:
             echo "::error::Failed to decode MAC_INSTALLER_CERTIFICATE. Ensure it's base64 encoded."
             exit 1
           }
-          openssl pkcs12 -in /tmp/mac_installer.p12 -passin pass:"$MAC_INSTALLER_CERTIFICATE_PASSWORD" -info -noout || {
-            echo "::error::MAC_INSTALLER_CERTIFICATE_PASSWORD is incorrect or certificate is corrupted."
+          openssl pkcs12 -legacy -in /tmp/mac_installer.p12 -passin pass:"$MAC_INSTALLER_CERTIFICATE_PASSWORD" -info -noout || {
+            echo "::error::Failed to read MAC_INSTALLER_CERTIFICATE. Password may be incorrect, certificate may be corrupted, or the PKCS#12 file may use unsupported legacy encryption."
             exit 1
           }
           echo "✅ Mac Installer certificate verified"
