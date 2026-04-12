@@ -75,7 +75,13 @@ export default function App() {
       <div className="app-container flex flex-col">
         <header className="flex items-center justify-between border-b border-border px-5 py-3">
           <h1 className="flex items-center gap-1.5 text-[14px] font-semibold text-text-primary">
-            <img src="/app-icon.png" alt="" width={18} height={18} />
+            <img
+              src="/app-icon.png"
+              alt=""
+              width={18}
+              height={18}
+              className="shrink-0 rounded-[4px]"
+            />
             Clipwise
           </h1>
           <span className="text-[12px] text-text-tertiary">

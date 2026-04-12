@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="./public/app-icon.png" alt="Clipwise app icon" width="96" height="96" />
+</p>
+
 <h1 align="center">Clipwise</h1>
 
 <p align="center">
