@@ -110,9 +110,9 @@ export default function ApiProviderForm({
               <button
                 type="button"
                 onClick={() => onRemoveHeader(index)}
-                className="btn-icon btn-icon-danger"
+                className="btn-icon btn-icon-danger flex size-[30px] shrink-0 items-center justify-center"
               >
-                <Trash2 size={12} />
+                <Trash2 size={14} />
               </button>
             </div>
           ))}
