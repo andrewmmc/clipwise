@@ -1,57 +1,103 @@
 use std::process::Command;
 
 #[cfg(target_os = "macos")]
-fn compile_swift_helper() {
+fn compile_swift_helper() -> Result<(), String> {
     use std::fs;
-    use std::path::PathBuf;
+    use std::path::{Path, PathBuf};
+
+    fn run_command(command: &mut Command, description: &str) -> Result<(), String> {
+        let output = command
+            .output()
+            .map_err(|err| format!("Failed to run {description}: {err}"))?;
+
+        if output.status.success() {
+            return Ok(());
+        }
+
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        Err(format!(
+            "{description} failed with status {}: {}",
+            output.status,
+            stderr.trim()
+        ))
+    }
+
+    fn compile_arch(
+        swift_src: &Path,
+        module_cache_dir: &Path,
+        output_path: &Path,
+        target: &str,
+    ) -> Result<(), String> {
+        let mut command = Command::new("xcrun");
+        command
+            .args([
+                "swiftc",
+                "-O",
+                "-target",
+                target,
+                "-module-cache-path",
+                module_cache_dir.to_str().unwrap(),
+                "-o",
+            ])
+            .arg(output_path)
+            .arg(swift_src);
+
+        run_command(&mut command, &format!("swift helper compile for {target}"))
+    }
+
     let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
     let out_dir = std::env::var("OUT_DIR").unwrap();
-    let swift_src = std::path::Path::new(&manifest_dir).join("swift/apple-model-runner.swift");
-    let swift_bin = std::path::Path::new(&out_dir).join("apple-model-runner");
-    let module_cache_dir = std::path::Path::new(&out_dir).join("swift-module-cache");
+    let swift_src = Path::new(&manifest_dir).join("swift/apple-model-runner.swift");
+    let swift_bin = Path::new(&out_dir).join("apple-model-runner");
+    let arm64_bin = Path::new(&out_dir).join("apple-model-runner-arm64");
+    let x64_bin = Path::new(&out_dir).join("apple-model-runner-x86_64");
+    let module_cache_dir = Path::new(&out_dir).join("swift-module-cache");
 
     println!("cargo:rerun-if-changed=swift/apple-model-runner.swift");
+    println!("cargo:rerun-if-env-changed=CLIPWISE_REQUIRE_APPLE_MODEL_RUNNER");
     let _ = fs::create_dir_all(&module_cache_dir);
 
-    let result = Command::new("xcrun")
-        .args([
-            "swiftc",
-            "-O",
-            "-target",
-            "arm64-apple-macos26.0",
-            "-module-cache-path",
-            module_cache_dir.to_str().unwrap(),
-            "-o",
-        ])
+    compile_arch(
+        &swift_src,
+        &module_cache_dir,
+        &arm64_bin,
+        "arm64-apple-macos26.0",
+    )?;
+    compile_arch(
+        &swift_src,
+        &module_cache_dir,
+        &x64_bin,
+        "x86_64-apple-macos26.0",
+    )?;
+
+    let mut lipo = Command::new("xcrun");
+    lipo.args(["lipo", "-create", "-output"])
         .arg(&swift_bin)
-        .arg(&swift_src)
-        .output();
+        .arg(&arm64_bin)
+        .arg(&x64_bin);
+    run_command(&mut lipo, "swift helper lipo")?;
 
-    match result {
-        Ok(output) if output.status.success() => {
-            // Also copy to resources directory for bundling
-            let resources_dir = PathBuf::from(&manifest_dir).join("resources");
-            fs::create_dir_all(&resources_dir).ok();
-            let resource_bin = resources_dir.join("apple-model-runner");
-            let _ = fs::copy(&swift_bin, &resource_bin);
+    let resources_dir = PathBuf::from(&manifest_dir).join("resources");
+    fs::create_dir_all(&resources_dir).map_err(|err| {
+        format!(
+            "Failed to create Tauri resources directory '{}': {err}",
+            resources_dir.display()
+        )
+    })?;
+    let resource_bin = resources_dir.join("apple-model-runner");
+    fs::copy(&swift_bin, &resource_bin).map_err(|err| {
+        format!(
+            "Failed to copy Apple helper into Tauri resources '{}': {err}",
+            resource_bin.display()
+        )
+    })?;
 
-            println!(
-                "cargo:rustc-env=APPLE_MODEL_RUNNER_PATH={}",
-                swift_bin.display()
-            );
-        }
-        Ok(output) => {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            println!(
-                "cargo:warning=Swift helper compilation failed with status {}: {}",
-                output.status,
-                stderr.trim()
-            );
-        }
-        Err(e) => {
-            println!("cargo:warning=Failed to run xcrun swiftc: {e}");
-        }
-    }
+    println!(
+        "cargo:rustc-env=APPLE_MODEL_RUNNER_PATH={}",
+        swift_bin.display()
+    );
+
+    Ok(())
 }
 
 fn main() {
@@ -83,7 +129,9 @@ fn main() {
         .ok()
         .and_then(|output| {
             if output.status.success() {
-                String::from_utf8(output.stdout).ok().map(|s| s.trim().to_string())
+                String::from_utf8(output.stdout)
+                    .ok()
+                    .map(|s| s.trim().to_string())
             } else {
                 None
             }
@@ -98,7 +146,16 @@ fn main() {
     println!("cargo:rerun-if-env-changed=LLM_ACTIONS_VERSION");
 
     #[cfg(target_os = "macos")]
-    compile_swift_helper();
+    if let Err(err) = compile_swift_helper() {
+        let message = format!(
+            "Apple model runner build failed. This usually means the selected Xcode/macOS SDK does not include FoundationModels or cannot build macOS 26 binaries. Original error: {err}"
+        );
+        if std::env::var_os("CLIPWISE_REQUIRE_APPLE_MODEL_RUNNER").is_some() {
+            panic!("{message}");
+        } else {
+            println!("cargo:warning={message}");
+        }
+    }
 
     tauri_build::build()
 }
