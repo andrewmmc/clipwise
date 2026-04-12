@@ -64,6 +64,9 @@ jobs:
           mkdir -p $RUNNER_TEMP/apple-keys
           echo "$APPLE_API_KEY_BASE64" | base64 --decode > $RUNNER_TEMP/apple-keys/AuthKey.p8
 
+      - name: Verify certificate
+        run: security find-identity -v -p codesigning
+
       - name: Build and sign (Apple Silicon)
         env:
           APPLE_SIGNING_IDENTITY: ${{ vars.APPLE_SIGNING_IDENTITY }}
