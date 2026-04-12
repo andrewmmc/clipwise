@@ -38,8 +38,7 @@
       "signingIdentity": null,
       "providerShortName": null,
       "entitlements": "entitlements.plist",
-      "infoPlist": "Info.plist",
-      "provisioningProfile": "embedded.provisionprofile"
+      "infoPlist": "Info.plist"
     }
   }
 }
