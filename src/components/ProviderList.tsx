@@ -44,6 +44,7 @@ export default function ProviderList({ config, onRefresh }: Props) {
   if (creating) {
     return (
       <ProviderForm
+        existingProviders={config.providers}
         onSave={async (data) => {
           await tauriCommands.addProvider(data);
           onRefresh();
@@ -59,6 +60,7 @@ export default function ProviderList({ config, onRefresh }: Props) {
     return (
       <ProviderForm
         initial={editing}
+        existingProviders={config.providers}
         onSave={async (data) => {
           await tauriCommands.updateProvider({ ...data, id: editing.id });
           onRefresh();

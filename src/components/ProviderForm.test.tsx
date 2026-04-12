@@ -114,6 +114,35 @@ describe("ProviderForm", () => {
     ).toBeInTheDocument();
   });
 
+  it("disables Apple Intelligence when another Apple provider already exists", async () => {
+    render(
+      <ProviderForm
+        existingProviders={[
+          {
+            id: "apple-intelligence",
+            name: "Apple Intelligence",
+            type: "apple",
+            headers: {},
+            args: [],
+          },
+        ]}
+        onSave={onSave}
+        onCancel={onCancel}
+      />,
+    );
+
+    const option = await screen.findByRole("option", {
+      name: "Apple Intelligence (On-Device)",
+    });
+
+    expect(option).toBeDisabled();
+    expect(
+      screen.getByText(
+        "Only one Apple Intelligence provider can be configured.",
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("shows CLI fields when initial type is cli", () => {
     render(
       <ProviderForm
@@ -292,6 +321,41 @@ describe("ProviderForm", () => {
         }),
       ),
     );
+  });
+
+  it("prevents saving a duplicate Apple provider", async () => {
+    const user = userEvent.setup();
+    render(
+      <ProviderForm
+        initial={{
+          id: "apple-duplicate",
+          name: "Second Apple",
+          type: "apple",
+          headers: {},
+          args: [],
+        }}
+        existingProviders={[
+          {
+            id: "apple-intelligence",
+            name: "Apple Intelligence",
+            type: "apple",
+            headers: {},
+            args: [],
+          },
+        ]}
+        onSave={onSave}
+        onCancel={onCancel}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+    expect(
+      screen.getAllByText(
+        "Only one Apple Intelligence provider can be configured.",
+      ).length,
+    ).toBeGreaterThan(0);
+    expect(onSave).not.toHaveBeenCalled();
   });
 
   it("shows an inline error when testing an empty CLI command", async () => {

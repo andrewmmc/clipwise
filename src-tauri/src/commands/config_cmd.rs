@@ -9,14 +9,37 @@ use uuid::Uuid;
 
 // ── Pure business-logic helpers (pub(crate) so tests can call them) ──────────
 
-pub(crate) fn insert_provider(config: &mut AppConfig, provider: Provider) -> Provider {
+fn ensure_single_apple_provider(config: &AppConfig, provider: &Provider) -> Result<(), AppError> {
+    if provider.provider_type != ProviderType::Apple {
+        return Ok(());
+    }
+
+    let duplicate_exists = config.providers.iter().any(|existing| {
+        existing.provider_type == ProviderType::Apple && existing.id != provider.id
+    });
+
+    if duplicate_exists {
+        return Err(AppError::Config(
+            "Only one Apple Intelligence provider can be configured.".into(),
+        ));
+    }
+
+    Ok(())
+}
+
+pub(crate) fn insert_provider(
+    config: &mut AppConfig,
+    provider: Provider,
+) -> Result<Provider, AppError> {
+    ensure_single_apple_provider(config, &provider)?;
     let mut provider = provider;
     provider.id = Uuid::new_v4().to_string();
     config.providers.push(provider.clone());
-    provider
+    Ok(provider)
 }
 
 pub(crate) fn replace_provider(config: &mut AppConfig, provider: Provider) -> Result<(), AppError> {
+    ensure_single_apple_provider(config, &provider)?;
     let pos = config
         .providers
         .iter()
@@ -117,7 +140,7 @@ pub fn add_provider(
     _app: AppHandle,
 ) -> Result<Provider, AppError> {
     let mut config = state.lock()?;
-    let result = insert_provider(&mut config, provider);
+    let result = insert_provider(&mut config, provider)?;
     save_config(&config)?;
     info!(
         provider_id = %result.id,
@@ -312,7 +335,7 @@ mod tests {
     #[test]
     fn test_insert_provider_replaces_id_with_uuid() {
         let mut config = AppConfig::default();
-        let result = insert_provider(&mut config, stub_provider("original-id"));
+        let result = insert_provider(&mut config, stub_provider("original-id")).unwrap();
         assert_eq!(result.id.len(), 36, "UUID v4 should be 36 chars");
         assert_ne!(result.id, "original-id");
     }
@@ -320,8 +343,8 @@ mod tests {
     #[test]
     fn test_insert_provider_appends_to_list() {
         let mut config = AppConfig::default();
-        insert_provider(&mut config, stub_provider("a"));
-        insert_provider(&mut config, stub_provider("b"));
+        insert_provider(&mut config, stub_provider("a")).unwrap();
+        insert_provider(&mut config, stub_provider("b")).unwrap();
         assert_eq!(config.providers.len(), 2);
     }
 
@@ -330,8 +353,20 @@ mod tests {
         let mut config = AppConfig::default();
         let mut p = stub_provider("x");
         p.name = "My Provider".into();
-        let result = insert_provider(&mut config, p);
+        let result = insert_provider(&mut config, p).unwrap();
         assert_eq!(result.name, "My Provider");
+    }
+
+    #[test]
+    fn test_insert_provider_rejects_duplicate_apple_provider() {
+        let mut config = AppConfig {
+            providers: vec![stub_apple_provider("apple-1")],
+            ..AppConfig::default()
+        };
+
+        let result = insert_provider(&mut config, stub_apple_provider("apple-2"));
+
+        assert!(matches!(result, Err(AppError::Config(_))));
     }
 
     // ── replace_provider ──────────────────────────────────────────────────────
@@ -354,6 +389,20 @@ mod tests {
         let mut config = AppConfig::default();
         let result = replace_provider(&mut config, stub_provider("ghost"));
         assert!(matches!(result, Err(AppError::ProviderNotFound(_))));
+    }
+
+    #[test]
+    fn test_replace_provider_rejects_changing_to_duplicate_apple_provider() {
+        let mut config = AppConfig {
+            providers: vec![stub_apple_provider("apple-1"), stub_provider("p2")],
+            ..AppConfig::default()
+        };
+        let mut updated = stub_provider("p2");
+        updated.provider_type = ProviderType::Apple;
+
+        let result = replace_provider(&mut config, updated);
+
+        assert!(matches!(result, Err(AppError::Config(_))));
     }
 
     // ── remove_provider ───────────────────────────────────────────────────────

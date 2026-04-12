@@ -1,6 +1,7 @@
 use crate::commands::validate_cmd::normalize_response_str;
 use crate::error::AppError;
 use crate::models::SYSTEM_PROMPT;
+use serde_json::Value;
 use std::process::Stdio;
 use tokio::io::AsyncWriteExt;
 use tokio::process::Command;
@@ -9,6 +10,16 @@ use tracing::{debug, info, warn};
 /// Path to the compiled Swift helper binary, set by build.rs.
 /// If the build step failed or wasn't run (non-macOS), this will be empty.
 const APPLE_MODEL_RUNNER: Option<&str> = option_env!("APPLE_MODEL_RUNNER_PATH");
+
+fn normalize_apple_output(raw: &str) -> Result<Value, AppError> {
+    let normalized = normalize_response_str(raw)?;
+
+    if let Some(result) = normalized.get("result").and_then(|value| value.as_str()) {
+        return normalize_response_str(result);
+    }
+
+    Ok(normalized)
+}
 
 pub async fn call_apple(user_message: &str) -> Result<serde_json::Value, AppError> {
     let runner_path = APPLE_MODEL_RUNNER.ok_or_else(|| {
@@ -73,7 +84,7 @@ pub async fn call_apple(user_message: &str) -> Result<serde_json::Value, AppErro
 
     debug!(stdout_bytes = stdout.len(), "Apple model runner returned output");
 
-    normalize_response_str(stdout)
+    normalize_apple_output(stdout)
 }
 
 /// Check if Apple Intelligence is available on this device.
@@ -139,5 +150,26 @@ mod tests {
                 result
             );
         }
+    }
+
+    #[test]
+    fn test_normalize_apple_output_unwraps_nested_result_json() {
+        let raw = r#"{"result":"{\"result\":\"cleaned up\"}"}"#;
+
+        let result = normalize_apple_output(raw).unwrap();
+
+        assert_eq!(result, serde_json::json!({ "result": "cleaned up" }));
+    }
+
+    #[test]
+    fn test_normalize_apple_output_preserves_plain_text_result() {
+        let raw = r#"{"result":"plain transformed text"}"#;
+
+        let result = normalize_apple_output(raw).unwrap();
+
+        assert_eq!(
+            result,
+            serde_json::json!({ "result": "plain transformed text" })
+        );
     }
 }

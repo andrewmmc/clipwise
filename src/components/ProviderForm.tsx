@@ -13,6 +13,7 @@ import useTransientMessage from "../hooks/useTransientMessage";
 
 interface Props {
   initial?: Provider;
+  existingProviders?: Provider[];
   onSave: (data: Omit<Provider, "id">) => Promise<void>;
   onCancel: () => void;
 }
@@ -50,7 +51,12 @@ function validateEndpoint(endpoint: string) {
   }
 }
 
-export default function ProviderForm({ initial, onSave, onCancel }: Props) {
+export default function ProviderForm({
+  initial,
+  existingProviders = [],
+  onSave,
+  onCancel,
+}: Props) {
   const [name, setName] = useState(initial?.name ?? "");
   const [type, setType] = useState<ProviderType>(initial?.type ?? "anthropic");
   const [endpoint, setEndpoint] = useState(initial?.endpoint ?? "");
@@ -111,7 +117,14 @@ export default function ProviderForm({ initial, onSave, onCancel }: Props) {
 
   const appleUnavailableMessage =
     type === "apple" ? getAppleAvailabilityMessage(appleAvailability) : null;
-  const appleOptionDisabled = appleAvailability?.available === false;
+  const appleProviderExists = existingProviders.some(
+    (provider) => provider.type === "apple" && provider.id !== initial?.id,
+  );
+  const appleDuplicateMessage = appleProviderExists
+    ? "Only one Apple Intelligence provider can be configured."
+    : null;
+  const appleOptionDisabled =
+    appleAvailability?.available === false || appleProviderExists;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -132,6 +145,10 @@ export default function ProviderForm({ initial, onSave, onCancel }: Props) {
     }
     if (type === "cli" && !command.trim()) {
       setError("Command is required for CLI providers.");
+      return;
+    }
+    if (type === "apple" && appleProviderExists) {
+      setError("Only one Apple Intelligence provider can be configured.");
       return;
     }
     setSaving(true);
@@ -232,7 +249,8 @@ export default function ProviderForm({ initial, onSave, onCancel }: Props) {
             </div>
             {appleOptionDisabled && (
               <p className="mt-1 text-[12px] text-text-tertiary">
-                {getAppleAvailabilityMessage(appleAvailability)}
+                {appleDuplicateMessage ??
+                  getAppleAvailabilityMessage(appleAvailability)}
               </p>
             )}
           </div>
@@ -244,9 +262,9 @@ export default function ProviderForm({ initial, onSave, onCancel }: Props) {
               Uses Apple&apos;s on-device Foundation Model. No API key or
               configuration needed. Runs privately on your Mac.
             </p>
-            {appleUnavailableMessage && (
+            {(appleDuplicateMessage || appleUnavailableMessage) && (
               <p className="text-[12px] text-amber-600">
-                {appleUnavailableMessage}
+                {appleDuplicateMessage ?? appleUnavailableMessage}
               </p>
             )}
           </div>
