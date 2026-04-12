@@ -16,6 +16,7 @@ const typeLabel: Record<string, string> = {
   openai: "OpenAI-compatible",
   anthropic: "Anthropic",
   cli: "CLI",
+  apple: "Apple Intelligence (On-Device)",
 };
 
 export default function ProviderList({ config, onRefresh }: Props) {
@@ -102,47 +103,52 @@ export default function ProviderList({ config, onRefresh }: Props) {
         />
       ) : (
         <div className="space-y-2">
-          {config.providers.map((provider) => (
-            <div
-              key={provider.id}
-              className="card flex items-center justify-between p-3"
-            >
-              <div className="min-w-0 flex-1">
-                <p className="text-[13px] font-medium text-text-primary">
-                  {provider.name}
-                </p>
-                <p className="mt-0.5 text-[12px] text-text-secondary">
-                  {typeLabel[provider.type] ?? provider.type}
-                  {provider.defaultModel && ` · ${provider.defaultModel}`}
-                  {provider.command && ` · ${provider.command}`}
-                </p>
-                {provider.endpoint && (
-                  <p className="truncate text-[12px] text-text-tertiary">
-                    {provider.endpoint}
+          {config.providers.map((provider) => {
+            const isApple = provider.type === "apple";
+            return (
+              <div
+                key={provider.id}
+                className="card flex items-center justify-between p-3"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="text-[13px] font-medium text-text-primary">
+                    {provider.name}
                   </p>
+                  <p className="mt-0.5 text-[12px] text-text-secondary">
+                    {typeLabel[provider.type] ?? provider.type}
+                    {provider.defaultModel && ` · ${provider.defaultModel}`}
+                    {provider.command && ` · ${provider.command}`}
+                  </p>
+                  {provider.endpoint && (
+                    <p className="truncate text-[12px] text-text-tertiary">
+                      {provider.endpoint}
+                    </p>
+                  )}
+                </div>
+                {!isApple && (
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => {
+                        clearSuccessMessage();
+                        setEditing(provider);
+                      }}
+                      className="btn-icon"
+                      title="Edit"
+                    >
+                      <Pencil size={14} />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(provider.id)}
+                      className="btn-icon btn-icon-danger"
+                      title="Delete"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
                 )}
               </div>
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => {
-                    clearSuccessMessage();
-                    setEditing(provider);
-                  }}
-                  className="btn-icon"
-                  title="Edit"
-                >
-                  <Pencil size={14} />
-                </button>
-                <button
-                  onClick={() => handleDelete(provider.id)}
-                  className="btn-icon btn-icon-danger"
-                  title="Delete"
-                >
-                  <Trash2 size={14} />
-                </button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

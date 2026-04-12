@@ -2,7 +2,7 @@ use crate::config::ConfigState;
 use crate::error::AppError;
 use crate::history;
 use crate::models::{LlmResult, ProviderType};
-use crate::providers::{anthropic, cli, openai};
+use crate::providers::{anthropic, apple, cli, openai};
 use tauri::State;
 use tracing::{error, info};
 
@@ -53,6 +53,7 @@ pub(crate) async fn run_action_inner(
             anthropic::call_anthropic(&provider, &user_message, model, max_tokens).await?
         }
         ProviderType::Cli => cli::call_cli(&provider, &user_message).await?,
+        ProviderType::Apple => apple::call_apple(&user_message).await?,
     };
 
     let raw_result: serde_json::Value = provider_result;

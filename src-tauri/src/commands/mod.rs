@@ -1,4 +1,5 @@
 pub mod app_info_cmd;
+pub mod apple_cmd;
 pub mod config_cmd;
 pub mod history_cmd;
 pub mod llm_cmd;

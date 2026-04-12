@@ -1,5 +1,43 @@
 use std::process::Command;
 
+#[cfg(target_os = "macos")]
+fn compile_swift_helper() {
+    let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+    let swift_src = std::path::Path::new(&manifest_dir).join("swift/apple-model-runner.swift");
+    let swift_bin = std::path::Path::new(&manifest_dir).join("swift/apple-model-runner");
+
+    println!("cargo:rerun-if-changed=swift/apple-model-runner.swift");
+
+    let result = Command::new("xcrun")
+        .args([
+            "swiftc",
+            "-O",
+            "-target",
+            "arm64-apple-macos26.0",
+            "-o",
+        ])
+        .arg(&swift_bin)
+        .arg(&swift_src)
+        .status();
+
+    match result {
+        Ok(status) if status.success() => {
+            println!(
+                "cargo:rustc-env=APPLE_MODEL_RUNNER_PATH={}",
+                swift_bin.display()
+            );
+        }
+        Ok(status) => {
+            println!(
+                "cargo:warning=Swift helper compilation failed with status: {status}"
+            );
+        }
+        Err(e) => {
+            println!("cargo:warning=Failed to run xcrun swiftc: {e}");
+        }
+    }
+}
+
 fn main() {
     // Get version from env var or git tag, fallback to Cargo.toml version
     let version = std::env::var("LLM_ACTIONS_VERSION").ok().or_else(|| {
@@ -42,6 +80,9 @@ fn main() {
     // Rerun if git HEAD changes
     println!("cargo:rerun-if-changed=.git/HEAD");
     println!("cargo:rerun-if-env-changed=LLM_ACTIONS_VERSION");
+
+    #[cfg(target_os = "macos")]
+    compile_swift_helper();
 
     tauri_build::build()
 }

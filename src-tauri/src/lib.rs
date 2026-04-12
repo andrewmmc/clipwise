@@ -8,9 +8,9 @@ mod providers;
 mod retry;
 pub mod service;
 
-use commands::{app_info_cmd::*, config_cmd::*, history_cmd::*, llm_cmd::*};
-use config::{load_config, ConfigState};
-use models::AppConfig;
+use commands::{app_info_cmd::*, apple_cmd::*, config_cmd::*, history_cmd::*, llm_cmd::*};
+use config::{load_config, save_config, ConfigState};
+use models::{AppConfig, Provider, ProviderType, APPLE_PROVIDER_ID};
 use std::sync::mpsc;
 use std::sync::Mutex;
 use std::time::Duration;
@@ -27,6 +27,58 @@ const TRAY_ID: &str = "main";
 const TRAY_ACTION_PREFIX: &str = "tray_action:";
 const NOTIFICATION_PREVIEW_LIMIT: usize = 120;
 
+// ── Apple Intelligence auto-attach ────────────────────────────────────────────
+
+fn maybe_attach_apple_provider(config: &mut AppConfig) {
+    // Skip if an Apple provider already exists
+    if config
+        .providers
+        .iter()
+        .any(|p| p.provider_type == ProviderType::Apple)
+    {
+        return;
+    }
+
+    // Check availability synchronously (runs the Swift helper subprocess)
+    let (available, reason) =
+        match tauri::async_runtime::block_on(providers::apple::check_availability()) {
+            Ok(result) => result,
+            Err(err) => {
+                debug!(error = %err, "Apple Intelligence availability check failed");
+                return;
+            }
+        };
+
+    if !available {
+        debug!(
+            reason = reason.as_deref().unwrap_or("unknown"),
+            "Apple Intelligence not available; skipping auto-attach"
+        );
+        return;
+    }
+
+    info!("Auto-attaching Apple Intelligence provider");
+    config.providers.insert(
+        0,
+        Provider {
+            id: APPLE_PROVIDER_ID.to_string(),
+            name: "Apple Intelligence".to_string(),
+            provider_type: ProviderType::Apple,
+            endpoint: None,
+            api_key: None,
+            headers: serde_json::Map::new(),
+            default_model: None,
+            command: None,
+            args: vec![],
+        },
+    );
+
+    // Persist so it appears on subsequent launches without re-checking
+    if let Err(err) = save_config(config) {
+        warn!(error = %err, "Failed to persist auto-attached Apple Intelligence provider");
+    }
+}
+
 // ── App bootstrap ─────────────────────────────────────────────────────────────
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -37,13 +89,16 @@ pub fn run() {
         None => warn!("File logging unavailable; continuing with stderr logging only"),
     }
 
-    let config = match load_config() {
+    let mut config = match load_config() {
         Ok(config) => config,
         Err(err) => {
             error!(error = %err, "Failed to load config; using defaults instead");
             AppConfig::default()
         }
     };
+
+    // Auto-attach Apple Intelligence provider if available and not already present
+    maybe_attach_apple_provider(&mut config);
 
     info!(
         provider_count = config.providers.len(),
@@ -77,6 +132,8 @@ pub fn run() {
             get_history,
             clear_history,
             delete_history_entry,
+            // Apple Intelligence
+            check_apple_model_availability,
         ])
         .setup(move |app| {
             info!("Setting up Tauri application");

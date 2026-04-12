@@ -2,7 +2,7 @@ import { Plus, Trash2 } from "lucide-react";
 import type { ProviderType } from "../types/config";
 
 interface Props {
-  type: Exclude<ProviderType, "cli">;
+  type: Exclude<ProviderType, "cli" | "apple">;
   endpoint: string;
   apiKey: string;
   defaultModel: string;
@@ -16,7 +16,10 @@ interface Props {
   onRemoveHeader: (index: number) => void;
 }
 
-const DEFAULT_ENDPOINTS: Record<Exclude<ProviderType, "cli">, string> = {
+const DEFAULT_ENDPOINTS: Record<
+  Exclude<ProviderType, "cli" | "apple">,
+  string
+> = {
   openai: "https://api.openai.com/v1/chat/completions",
   anthropic: "https://api.anthropic.com/v1/messages",
 };

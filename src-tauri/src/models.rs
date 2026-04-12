@@ -50,6 +50,7 @@ pub enum ProviderType {
     OpenAI,
     Anthropic,
     Cli,
+    Apple,
 }
 
 /// A user-defined action that appears in the menu bar popup.
@@ -153,6 +154,9 @@ Respond ONLY with valid JSON in this exact format: {\"result\": \"transformed te
 Do not include any explanation, markdown formatting, or code blocks. \
 Only output the raw JSON object.";
 
+/// Well-known ID for the built-in Apple Intelligence provider.
+pub const APPLE_PROVIDER_ID: &str = "apple-intelligence";
+
 /// The validated result extracted from an LLM response.
 #[derive(Debug, Deserialize)]
 pub struct LlmResult {
@@ -250,10 +254,19 @@ mod tests {
     }
 
     #[test]
+    fn test_provider_type_apple_round_trip() {
+        let json = "\"apple\"";
+        let pt: ProviderType = serde_json::from_str(json).unwrap();
+        assert_eq!(pt, ProviderType::Apple);
+        assert_eq!(serde_json::to_string(&pt).unwrap(), json);
+    }
+
+    #[test]
     fn test_provider_type_wrong_case_is_rejected() {
         assert!(serde_json::from_str::<ProviderType>("\"OpenAI\"").is_err());
         assert!(serde_json::from_str::<ProviderType>("\"Anthropic\"").is_err());
         assert!(serde_json::from_str::<ProviderType>("\"CLI\"").is_err());
+        assert!(serde_json::from_str::<ProviderType>("\"Apple\"").is_err());
     }
 
     // ── Provider serde ────────────────────────────────────────────────────────

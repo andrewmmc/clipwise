@@ -68,11 +68,11 @@ export default function ProviderForm({ initial, onSave, onCancel }: Props) {
       setError("Provider name is required.");
       return;
     }
-    if (type !== "cli" && !apiKey.trim()) {
+    if (type !== "cli" && type !== "apple" && !apiKey.trim()) {
       setError("API key is required for API providers.");
       return;
     }
-    if (type !== "cli") {
+    if (type !== "cli" && type !== "apple") {
       const endpointError = validateEndpoint(endpoint);
       if (endpointError) {
         setError(endpointError);
@@ -86,13 +86,14 @@ export default function ProviderForm({ initial, onSave, onCancel }: Props) {
     setSaving(true);
     setError(null);
     try {
+      const isApi = type !== "cli" && type !== "apple";
       const headersObj = Object.fromEntries(headers.filter(([k]) => k.trim()));
       await onSave({
         name: name.trim(),
         type,
-        endpoint: type !== "cli" ? endpoint.trim() || undefined : undefined,
-        apiKey: type !== "cli" ? apiKey.trim() || undefined : undefined,
-        headers: headersObj,
+        endpoint: isApi ? endpoint.trim() || undefined : undefined,
+        apiKey: isApi ? apiKey.trim() || undefined : undefined,
+        headers: isApi ? headersObj : {},
         defaultModel: defaultModel.trim() || undefined,
         command: type === "cli" ? command.trim() : undefined,
         args: type === "cli" ? args.filter(Boolean) : [],
@@ -178,7 +179,12 @@ export default function ProviderForm({ initial, onSave, onCancel }: Props) {
           </div>
         </div>
 
-        {type !== "cli" ? (
+        {type === "apple" ? (
+          <p className="text-[12px] text-text-secondary">
+            Uses Apple&apos;s on-device Foundation Model. No API key or
+            configuration needed. Runs privately on your Mac.
+          </p>
+        ) : type !== "cli" ? (
           <ApiProviderForm
             type={type}
             endpoint={endpoint}

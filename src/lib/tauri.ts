@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
   Action,
+  AppleModelAvailability,
   AppConfig,
   AppInfo,
   AppSettings,
@@ -37,6 +38,10 @@ export const tauriCommands = {
   // LLM
   testAction: (actionId: string, sampleText: string): Promise<string> =>
     invoke("test_action", { actionId, sampleText }),
+
+  // Apple Intelligence
+  checkAppleModelAvailability: (): Promise<AppleModelAvailability> =>
+    invoke("check_apple_model_availability"),
 
   // History
   getHistory: (): Promise<HistoryEntry[]> => invoke("get_history"),
