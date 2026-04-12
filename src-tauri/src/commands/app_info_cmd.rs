@@ -25,6 +25,11 @@ pub fn get_app_info() -> AppInfo {
     }
 }
 
+#[tauri::command]
+pub fn is_cli_provider_enabled() -> bool {
+    cfg!(feature = "cli-provider")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

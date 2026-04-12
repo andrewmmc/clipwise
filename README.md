@@ -122,28 +122,61 @@ npm install
 npm run tauri:dev    # full Tauri app
 ```
 
+### Build modes
+
+Clipwise supports two build modes via a Cargo feature flag:
+
+| Mode                        | CLI Provider | Use case                                               |
+| --------------------------- | ------------ | ------------------------------------------------------ |
+| **Default** (with CLI)      | Yes          | Development, non-App-Store distribution (DMG/Homebrew) |
+| **App Store** (without CLI) | No           | Mac App Store submission (sandbox-compliant)           |
+
+The `cli-provider` feature is enabled by default. ```bash
+
+# Default build (with CLI provider)
+
+npm run tauri:dev
+npm run tauri:build
+npm run tauri:build-debug
+
+# App Store build (without CLI provider)
+
+npm run tauri:dev:appstore
+npm run tauri:build:appstore
+
+````
+
+> **Why two modes?** The Mac App Store requires the App Sandbox, which prevents running arbitrary subprocesses. CLI providers (e.g. `claude`, `codex`) execute local commands and are incompatible with sandboxing. The UI automatically hides the CLI option when the build doesn't support it.
+
 ### Commands
 
 ```bash
 npm run dev          # Vite dev server only
 npm run build        # tsc + Vite build
-npm run tauri:dev    # full Tauri app (dev)
-npm run tauri:build  # production build
+npm run tauri:dev    # full Tauri app (dev, with CLI)
+npm run tauri:dev:appstore  # full Tauri app (dev, without CLI / App Store mode)
+npm run tauri:build  # production build (with CLI)
+npm run tauri:build:appstore # production build (App Store)
 npm run tauri:build-debug  # debug .app bundle
 npm run lint         # ESLint
 npm run typecheck    # TypeScript check
 npm run format       # Prettier
 npm test             # Vitest
-cd src-tauri && cargo test  # Rust tests
-```
+cd src-tauri && cargo test  # Rust tests (default features)
+cd src-tauri && cargo test --no-default-features  # Rust tests (App Store mode)
+````
 
 ### Testing macOS build
 
 To test a built `.app` bundle:
 
 ```bash
+# Default build (with CLI provider)
 npm run tauri:build-debug
 # Output: src-tauri/target/debug/bundle/macos/Clipwise.app
+
+# App Store build (without CLI provider)
+npm run tauri:dev:appstore
 ```
 
 ### Tech stack

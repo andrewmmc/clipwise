@@ -21,6 +21,9 @@ describe("ProviderList", () => {
       if (command === "check_apple_model_availability") {
         return { available: true, reason: null };
       }
+      if (command === "is_cli_provider_enabled") {
+        return true;
+      }
       return undefined;
     });
     vi.spyOn(window, "confirm").mockReturnValue(true);

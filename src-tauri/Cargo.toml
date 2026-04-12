@@ -25,7 +25,7 @@ uuid = { version = "1", features = ["v4"] }
 chrono = "0.4"
 dirs = "5"
 thiserror = "1"
-shlex = "1"
+shlex = { version = "1", optional = true }
 ts-rs = { version = "12", optional = true, features = ["serde-compat"] }
 tracing = "0.1"
 tracing-appender = "0.2"
@@ -52,5 +52,7 @@ wiremock = "0.6"
 tempfile = "3"
 
 [features]
+default = ["cli-provider"]
 custom-protocol = ["tauri/custom-protocol"]
+cli-provider = ["dep:shlex"]
 ts = ["dep:ts-rs"]

@@ -120,6 +120,7 @@ pub fn run() {
             add_provider,
             update_provider,
             delete_provider,
+            #[cfg(feature = "cli-provider")]
             test_cli_command,
             add_action,
             update_action,
@@ -134,6 +135,8 @@ pub fn run() {
             delete_history_entry,
             // Apple Intelligence
             check_apple_model_availability,
+            // Build info
+            is_cli_provider_enabled,
         ])
         .setup(move |app| {
             info!("Setting up Tauri application");

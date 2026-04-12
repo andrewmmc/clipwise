@@ -2,7 +2,9 @@ use crate::config::ConfigState;
 use crate::error::AppError;
 use crate::history;
 use crate::models::{LlmResult, ProviderType};
-use crate::providers::{anthropic, apple, cli, openai};
+use crate::providers::{anthropic, apple, openai};
+#[cfg(feature = "cli-provider")]
+use crate::providers::cli;
 use tauri::State;
 use tracing::{error, info};
 
@@ -52,7 +54,18 @@ pub(crate) async fn run_action_inner(
         ProviderType::Anthropic => {
             anthropic::call_anthropic(&provider, &user_message, model, max_tokens).await?
         }
-        ProviderType::Cli => cli::call_cli(&provider, &user_message).await?,
+        ProviderType::Cli => {
+            #[cfg(feature = "cli-provider")]
+            {
+                cli::call_cli(&provider, &user_message).await?
+            }
+            #[cfg(not(feature = "cli-provider"))]
+            {
+                return Err(AppError::Config(
+                    "CLI providers are not available in this build.".into(),
+                ));
+            }
+        }
         ProviderType::Apple => apple::call_apple(&user_message).await?,
     };
 
@@ -175,31 +188,33 @@ mod tests {
     use std::sync::Mutex;
 
     fn make_test_config_state() -> ConfigState {
+        let mut providers = vec![
+            Provider {
+                id: "anthropic-provider".into(),
+                name: "Anthropic".into(),
+                provider_type: ProviderType::Anthropic,
+                endpoint: None,
+                api_key: Some("sk-test-key".into()),
+                headers: serde_json::Map::new(),
+                default_model: Some("claude-sonnet-4-20250514".into()),
+                command: None,
+                args: vec![],
+            },
+        ];
+        #[cfg(feature = "cli-provider")]
+        providers.push(Provider {
+            id: "cli-provider".into(),
+            name: "CLI".into(),
+            provider_type: ProviderType::Cli,
+            endpoint: None,
+            api_key: None,
+            headers: serde_json::Map::new(),
+            default_model: None,
+            command: Some("echo".into()),
+            args: vec!["-n".into()],
+        });
         ConfigState(Mutex::new(AppConfig {
-            providers: vec![
-                Provider {
-                    id: "anthropic-provider".into(),
-                    name: "Anthropic".into(),
-                    provider_type: ProviderType::Anthropic,
-                    endpoint: None,
-                    api_key: Some("sk-test-key".into()),
-                    headers: serde_json::Map::new(),
-                    default_model: Some("claude-sonnet-4-20250514".into()),
-                    command: None,
-                    args: vec![],
-                },
-                Provider {
-                    id: "cli-provider".into(),
-                    name: "CLI".into(),
-                    provider_type: ProviderType::Cli,
-                    endpoint: None,
-                    api_key: None,
-                    headers: serde_json::Map::new(),
-                    default_model: None,
-                    command: Some("echo".into()),
-                    args: vec!["-n".into()],
-                },
-            ],
+            providers,
             actions: vec![
                 Action {
                     id: "action-with-provider".into(),

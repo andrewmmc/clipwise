@@ -2,6 +2,7 @@ use crate::config::{save_config, ConfigState};
 use crate::error::AppError;
 use crate::history;
 use crate::models::{Action, AppConfig, AppSettings, Provider, ProviderType};
+#[cfg(feature = "cli-provider")]
 use crate::providers::cli::validate_cli_command;
 use tauri::{AppHandle, State};
 use tracing::{debug, info};
@@ -189,6 +190,7 @@ pub fn delete_provider(
     Ok(())
 }
 
+#[cfg(feature = "cli-provider")]
 #[tauri::command]
 pub fn test_cli_command(command: String) -> Result<String, AppError> {
     let result = validate_cli_command(&command)?;

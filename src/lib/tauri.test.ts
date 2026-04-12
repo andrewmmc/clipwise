@@ -145,4 +145,11 @@ describe("tauriCommands", () => {
     });
     expect(result).toBe(true);
   });
+
+  it("isCliProviderEnabled calls invoke with 'is_cli_provider_enabled'", async () => {
+    mockInvoke.mockResolvedValue(true);
+    const result = await tauriCommands.isCliProviderEnabled();
+    expect(mockInvoke).toHaveBeenCalledWith("is_cli_provider_enabled");
+    expect(result).toBe(true);
+  });
 });

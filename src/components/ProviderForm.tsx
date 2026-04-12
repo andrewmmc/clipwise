@@ -71,6 +71,7 @@ export default function ProviderForm({
   );
   const [saving, setSaving] = useState(false);
   const [testingCommand, setTestingCommand] = useState(false);
+  const [cliEnabled, setCliEnabled] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [commandTestError, setCommandTestError] = useState<string | null>(null);
   const [appleAvailability, setAppleAvailability] =
@@ -107,6 +108,19 @@ export default function ProviderForm({
             available: false,
             reason: "unknown",
           });
+        }
+      });
+
+    void tauriCommands
+      .isCliProviderEnabled()
+      .then((enabled) => {
+        if (!cancelled) {
+          setCliEnabled(enabled);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setCliEnabled(false);
         }
       });
 
@@ -240,7 +254,9 @@ export default function ProviderForm({
                 </option>
                 <option value="anthropic">Anthropic</option>
                 <option value="openai">OpenAI-compatible</option>
-                <option value="cli">CLI (claude/codex/copilot)</option>
+                {cliEnabled && (
+                  <option value="cli">CLI (claude/codex/copilot)</option>
+                )}
               </select>
               <ChevronDown
                 size={16}

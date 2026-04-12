@@ -11,6 +11,8 @@ import type { HistoryEntry } from "../types/bindings/HistoryEntry";
 
 export const tauriCommands = {
   getAppInfo: (): Promise<AppInfo> => invoke("get_app_info"),
+  isCliProviderEnabled: (): Promise<boolean> =>
+    invoke("is_cli_provider_enabled"),
   getConfig: (): Promise<AppConfig> => invoke("get_config"),
 
   saveSettings: (settings: AppSettings): Promise<void> =>
