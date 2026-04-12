@@ -66,7 +66,7 @@ macOS builds are available for both Apple Silicon (M1+) and Intel.
 ## How to Use
 
 <p align="center">
-  <img src="./assets/Screenshot_5.png" alt="Clipwise menu bar dropdown" width="534" />
+  <img src="./assets/Screenshot_5.png" alt="Clipwise menu bar dropdown" width="400" />
 </p>
 
 1. **Add a provider** — open Clipwise settings and add an LLM provider (OpenAI, Anthropic, or a CLI tool).
