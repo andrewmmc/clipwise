@@ -1,9 +1,9 @@
-use std::fs;
-use std::path::PathBuf;
 use std::process::Command;
 
 #[cfg(target_os = "macos")]
 fn compile_swift_helper() {
+    use std::fs;
+    use std::path::PathBuf;
     let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
     let out_dir = std::env::var("OUT_DIR").unwrap();
     let swift_src = std::path::Path::new(&manifest_dir).join("swift/apple-model-runner.swift");
