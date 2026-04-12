@@ -15,6 +15,12 @@ describe("ProviderForm", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockInvoke.mockReset();
+    mockInvoke.mockImplementation(async (command) => {
+      if (command === "check_apple_model_availability") {
+        return { available: true, reason: null };
+      }
+      return undefined;
+    });
     onSave.mockReset();
     onCancel.mockReset();
   });
@@ -68,6 +74,44 @@ describe("ProviderForm", () => {
   it("shows API fields by default (anthropic type)", () => {
     render(<ProviderForm onSave={onSave} onCancel={onCancel} />);
     expect(screen.getByPlaceholderText("sk-...")).toBeInTheDocument();
+  });
+
+  it("shows Apple Intelligence as a provider type option", async () => {
+    const user = userEvent.setup();
+    render(<ProviderForm onSave={onSave} onCancel={onCancel} />);
+
+    await user.selectOptions(screen.getByDisplayValue("Anthropic"), "apple");
+
+    expect(
+      screen.getByDisplayValue("Apple Intelligence (On-Device)"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/uses apple's on-device foundation model/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("sk-...")).not.toBeInTheDocument();
+    expect(
+      screen.queryByPlaceholderText("e.g. claude"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("disables Apple Intelligence when availability check says it is unsupported", async () => {
+    mockInvoke.mockImplementation(async (command) => {
+      if (command === "check_apple_model_availability") {
+        return { available: false, reason: "not_supported" };
+      }
+      return undefined;
+    });
+
+    render(<ProviderForm onSave={onSave} onCancel={onCancel} />);
+
+    const option = await screen.findByRole("option", {
+      name: "Apple Intelligence (On-Device)",
+    });
+
+    expect(option).toBeDisabled();
+    expect(
+      screen.getByText("Apple Intelligence is not supported on this Mac."),
+    ).toBeInTheDocument();
   });
 
   it("shows CLI fields when initial type is cli", () => {
@@ -260,7 +304,10 @@ describe("ProviderForm", () => {
     expect(
       screen.getByText("Enter a command before testing."),
     ).toBeInTheDocument();
-    expect(mockInvoke).not.toHaveBeenCalled();
+    expect(mockInvoke).not.toHaveBeenCalledWith(
+      "test_cli_command",
+      expect.anything(),
+    );
   });
 
   // ── Headers ───────────────────────────────────────────────────────────────

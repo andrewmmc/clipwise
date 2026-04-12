@@ -1,7 +1,7 @@
 use crate::config::{save_config, ConfigState};
 use crate::error::AppError;
 use crate::history;
-use crate::models::{Action, AppConfig, AppSettings, Provider};
+use crate::models::{Action, AppConfig, AppSettings, Provider, ProviderType};
 use crate::providers::cli::validate_cli_command;
 use tauri::{AppHandle, State};
 use tracing::{debug, info};
@@ -28,6 +28,20 @@ pub(crate) fn replace_provider(config: &mut AppConfig, provider: Provider) -> Re
 
 pub(crate) fn remove_provider(config: &mut AppConfig, id: &str) {
     config.providers.retain(|p| p.id != id);
+}
+
+pub(crate) fn ensure_provider_deletable(config: &AppConfig, id: &str) -> Result<(), AppError> {
+    if config
+        .providers
+        .iter()
+        .any(|provider| provider.id == id && provider.provider_type == ProviderType::Apple)
+    {
+        return Err(AppError::Config(
+            "Apple Intelligence provider cannot be deleted".into(),
+        ));
+    }
+
+    Ok(())
 }
 
 pub(crate) fn insert_action(config: &mut AppConfig, action: Action) -> Action {
@@ -144,6 +158,7 @@ pub fn delete_provider(
     _app: AppHandle,
 ) -> Result<(), AppError> {
     let mut config = state.lock()?;
+    ensure_provider_deletable(&config, &id)?;
     remove_provider(&mut config, &id);
     save_config(&config)?;
     info!(provider_id = %id, "Deleted provider");
@@ -268,6 +283,20 @@ mod tests {
         }
     }
 
+    fn stub_apple_provider(id: &str) -> Provider {
+        Provider {
+            id: id.into(),
+            name: "Apple Intelligence".into(),
+            provider_type: ProviderType::Apple,
+            endpoint: None,
+            api_key: None,
+            headers: serde_json::Map::new(),
+            default_model: None,
+            command: None,
+            args: vec![],
+        }
+    }
+
     fn stub_action(id: &str, provider_id: &str) -> Action {
         Action {
             id: id.into(),
@@ -348,6 +377,30 @@ mod tests {
         };
         remove_provider(&mut config, "nonexistent");
         assert_eq!(config.providers.len(), 1);
+    }
+
+    #[test]
+    fn test_ensure_provider_deletable_rejects_apple_provider() {
+        let config = AppConfig {
+            providers: vec![stub_apple_provider("apple-intelligence")],
+            ..AppConfig::default()
+        };
+
+        let result = ensure_provider_deletable(&config, "apple-intelligence");
+
+        assert!(matches!(result, Err(AppError::Config(_))));
+    }
+
+    #[test]
+    fn test_ensure_provider_deletable_allows_non_apple_provider() {
+        let config = AppConfig {
+            providers: vec![stub_provider("p1")],
+            ..AppConfig::default()
+        };
+
+        let result = ensure_provider_deletable(&config, "p1");
+
+        assert!(result.is_ok());
     }
 
     // ── insert_action ─────────────────────────────────────────────────────────

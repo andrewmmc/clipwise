@@ -1,6 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { tauriCommands } from "../lib/tauri";
-import type { Provider, ProviderType } from "../types/config";
+import type {
+  AppleModelAvailability,
+  Provider,
+  ProviderType,
+} from "../types/config";
 import { ArrowLeft, ChevronDown, RotateCcw, Save } from "lucide-react";
 import ApiProviderForm from "./ApiProviderForm";
 import CliProviderForm from "./CliProviderForm";
@@ -14,6 +18,23 @@ interface Props {
 }
 
 const DEFAULT_CLI_ARGS = ["-p"];
+
+function getAppleAvailabilityMessage(
+  availability: AppleModelAvailability | null,
+): string | null {
+  if (!availability || availability.available) return null;
+
+  switch (availability.reason) {
+    case "not_enabled":
+      return "Apple Intelligence is available on this Mac but not enabled in system settings.";
+    case "not_ready":
+      return "Apple Intelligence is still preparing its on-device model on this Mac.";
+    case "not_supported":
+      return "Apple Intelligence is not supported on this Mac.";
+    default:
+      return "Apple Intelligence is currently unavailable on this Mac.";
+  }
+}
 
 function validateEndpoint(endpoint: string) {
   const trimmed = endpoint.trim();
@@ -46,6 +67,8 @@ export default function ProviderForm({ initial, onSave, onCancel }: Props) {
   const [testingCommand, setTestingCommand] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [commandTestError, setCommandTestError] = useState<string | null>(null);
+  const [appleAvailability, setAppleAvailability] =
+    useState<AppleModelAvailability | null>(null);
   const {
     message: commandTestSuccess,
     showMessage: showCommandTestSuccess,
@@ -61,6 +84,34 @@ export default function ProviderForm({ initial, onSave, onCancel }: Props) {
     clearFormFeedback();
     clearCommandFeedback();
   };
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void tauriCommands
+      .checkAppleModelAvailability()
+      .then((availability) => {
+        if (!cancelled) {
+          setAppleAvailability(availability);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setAppleAvailability({
+            available: false,
+            reason: "unknown",
+          });
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const appleUnavailableMessage =
+    type === "apple" ? getAppleAvailabilityMessage(appleAvailability) : null;
+  const appleOptionDisabled = appleAvailability?.available === false;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -167,6 +218,9 @@ export default function ProviderForm({ initial, onSave, onCancel }: Props) {
                 }}
                 className="input select"
               >
+                <option value="apple" disabled={appleOptionDisabled}>
+                  Apple Intelligence (On-Device)
+                </option>
                 <option value="anthropic">Anthropic</option>
                 <option value="openai">OpenAI-compatible</option>
                 <option value="cli">CLI (claude/codex/copilot)</option>
@@ -176,14 +230,26 @@ export default function ProviderForm({ initial, onSave, onCancel }: Props) {
                 className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-text-tertiary"
               />
             </div>
+            {appleOptionDisabled && (
+              <p className="mt-1 text-[12px] text-text-tertiary">
+                {getAppleAvailabilityMessage(appleAvailability)}
+              </p>
+            )}
           </div>
         </div>
 
         {type === "apple" ? (
-          <p className="text-[12px] text-text-secondary">
-            Uses Apple&apos;s on-device Foundation Model. No API key or
-            configuration needed. Runs privately on your Mac.
-          </p>
+          <div className="space-y-1">
+            <p className="text-[12px] text-text-secondary">
+              Uses Apple&apos;s on-device Foundation Model. No API key or
+              configuration needed. Runs privately on your Mac.
+            </p>
+            {appleUnavailableMessage && (
+              <p className="text-[12px] text-amber-600">
+                {appleUnavailableMessage}
+              </p>
+            )}
+          </div>
         ) : type !== "cli" ? (
           <ApiProviderForm
             type={type}

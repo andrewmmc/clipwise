@@ -16,6 +16,13 @@ describe("ProviderList", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     onRefresh.mockReset();
+    mockInvoke.mockReset();
+    mockInvoke.mockImplementation(async (command) => {
+      if (command === "check_apple_model_availability") {
+        return { available: true, reason: null };
+      }
+      return undefined;
+    });
     vi.spyOn(window, "confirm").mockReturnValue(true);
     vi.spyOn(window, "alert").mockImplementation(() => {});
   });
@@ -73,6 +80,30 @@ describe("ProviderList", () => {
     };
     render(<ProviderList config={config} onRefresh={onRefresh} />);
     expect(screen.getByText(/claude/)).toBeInTheDocument();
+  });
+
+  it("does not render edit or delete controls for Apple providers", () => {
+    const config = {
+      ...mockConfig,
+      providers: [
+        {
+          id: "apple-intelligence",
+          name: "Apple Intelligence",
+          type: "apple" as const,
+          headers: {},
+          args: [],
+        },
+      ],
+      actions: [],
+    };
+
+    render(<ProviderList config={config} onRefresh={onRefresh} />);
+
+    expect(
+      screen.getByText("Apple Intelligence (On-Device)"),
+    ).toBeInTheDocument();
+    expect(screen.queryByTitle("Edit")).not.toBeInTheDocument();
+    expect(screen.queryByTitle("Delete")).not.toBeInTheDocument();
   });
 
   it("renders the section heading and description", () => {

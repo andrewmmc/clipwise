@@ -13,7 +13,7 @@
   </a>
 </p>
 
-Clipwise adds LLM-powered text transformations to your macOS workflow. Configure providers (OpenAI, Anthropic, CLI) and custom actions, then trigger them from the menu bar against clipboard text.
+Clipwise adds LLM-powered text transformations to your macOS workflow. On Macs that support Apple Intelligence, Clipwise auto-attaches the built-in on-device provider at startup. You can also configure OpenAI-compatible, Anthropic, and CLI providers, then trigger custom actions from the menu bar against clipboard text.
 
 No browser. No context switching. Select text, run an action, get the result back in your clipboard.
 
@@ -33,7 +33,7 @@ No browser. No context switching. Select text, run an action, get the result bac
       <img src="./assets/Screenshot_2.png" alt="Clipwise providers view" />
       <p>
         <strong>Manage providers</strong><br />
-        Connect OpenAI, Anthropic, or local CLI tools like <code>copilot</code> and <code>claude</code>.
+        Use Apple Intelligence automatically on supported Macs, or connect OpenAI, Anthropic, and local CLI tools like <code>copilot</code> and <code>claude</code>.
       </p>
     </td>
     <td width="33%" valign="top">
@@ -69,23 +69,25 @@ macOS builds are available for both Apple Silicon (M1+) and Intel.
   <img src="./assets/Screenshot_5.png" alt="Clipwise menu bar dropdown" width="400" />
 </p>
 
-1. **Add a provider** — open Clipwise settings and add an LLM provider (OpenAI, Anthropic, or a CLI tool).
-2. **Create an action** — define a prompt and select a provider (e.g., "Refine wording" with OpenAI).
-3. **Copy text** — select and copy text in any app.
-4. **Run the action** — click the Clipwise icon in the menu bar and select an action.
-5. **Paste the result** — the transformed text is written back to your clipboard, ready to paste.
+1. **Open settings** — launch Clipwise and open the settings window from the menu bar.
+2. **Check providers** — if your Mac supports Apple Intelligence, the Apple provider is added automatically. Otherwise add an LLM provider manually (OpenAI-compatible, Anthropic, or a CLI tool).
+3. **Create an action** — define a prompt and select a provider (for example, "Refine wording" with Apple Intelligence or OpenAI).
+4. **Copy text** — select and copy text in any app.
+5. **Run the action** — click the Clipwise icon in the menu bar and select an action.
+6. **Paste the result** — the transformed text is written back to your clipboard, ready to paste.
 
 ## Why Clipwise
 
 - **System-wide access** — trigger actions from the menu bar in any app without switching context
-- **Multi-provider support** — OpenAI, Anthropic, and any OpenAI-compatible endpoint, plus local CLI tools like `claude` or `codex`
+- **Multi-provider support** — Apple Intelligence on supported Macs, plus OpenAI, Anthropic, any OpenAI-compatible endpoint, and local CLI tools like `claude` or `codex`
 - **Custom actions** — define reusable prompt + provider combinations for your specific workflows
-- **Local-first** — no backend, no telemetry; API keys and config stay on your machine
+- **Local-first** — no backend, no telemetry; on-device Apple Intelligence, API keys, and config stay on your machine
 
 ## Features
 
 - **Menu bar app** — runs as a tray app with no Dock presence
 - **Settings UI** — manage providers, actions, and app settings from a dedicated window
+- **Apple Intelligence support** — auto-attaches the on-device Apple provider when the current Mac supports it
 - **Clipboard workflow** — reads text from clipboard, runs the action, writes result back
 - **Action testing** — test actions directly in the settings UI before using them
 - **Notifications** — optional macOS notifications when actions complete
@@ -94,10 +96,13 @@ macOS builds are available for both Apple Silicon (M1+) and Intel.
 
 ## Providers
 
-Clipwise is a BYOK (Bring Your Own Key) application — you need to provide your own API keys or CLI tools. No keys are included or shared. You can get started for free with [OpenRouter's free models](https://openrouter.ai/openrouter/free).
+Clipwise supports two provider modes:
 
+- **Apple Intelligence** — on supported Macs, Clipwise auto-adds the built-in on-device Apple provider. No API key is required.
+- **BYOK / local tools** — for Anthropic, OpenAI-compatible APIs, and CLI tools, you provide your own API keys or local commands. No keys are included or shared. You can get started for free with [OpenRouter's free models](https://openrouter.ai/openrouter/free).
+
+- **OpenAI-compatible** — works with OpenAI, OpenRouter, local gateways, and other compatible chat completion endpoints
 - **Anthropic** — direct Anthropic API requests
-- **OpenAI** — OpenAI-compatible chat completion endpoints (works with OpenAI, OpenRouter, local models, etc.)
 - **CLI** — local CLI commands like `claude`, `codex`, or custom scripts
 
 ## Development
@@ -161,14 +166,23 @@ Config is stored at `~/Library/Application Support/clipwise/config.json`:
 
 ```json
 {
-  "providers": [],
+  "providers": [
+    {
+      "id": "apple-intelligence",
+      "name": "Apple Intelligence",
+      "type": "apple"
+    }
+  ],
   "actions": [],
   "settings": {
     "showNotificationOnComplete": true,
-    "maxTokens": 4096
+    "maxTokens": 4096,
+    "historyEnabled": true
   }
 }
 ```
+
+On Macs without Apple Intelligence support, `providers` may start as an empty array until you add one manually.
 
 ## Author
 

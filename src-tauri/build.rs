@@ -3,8 +3,9 @@ use std::process::Command;
 #[cfg(target_os = "macos")]
 fn compile_swift_helper() {
     let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+    let out_dir = std::env::var("OUT_DIR").unwrap();
     let swift_src = std::path::Path::new(&manifest_dir).join("swift/apple-model-runner.swift");
-    let swift_bin = std::path::Path::new(&manifest_dir).join("swift/apple-model-runner");
+    let swift_bin = std::path::Path::new(&out_dir).join("apple-model-runner");
 
     println!("cargo:rerun-if-changed=swift/apple-model-runner.swift");
 

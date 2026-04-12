@@ -2,7 +2,7 @@
 
 ## Project overview
 
-Clipwise is a macOS menu bar app (Tauri 2) that adds LLM-powered text transformation via the system tray. Users configure providers (OpenAI, Anthropic, CLI) and actions (prompt + provider), then copy text, select an action from the tray menu, and the transformed result is written back to the clipboard.
+Clipwise is a macOS menu bar app (Tauri 2) that adds LLM-powered text transformation via the system tray. On supported Macs, the app auto-attaches an Apple Intelligence provider at startup; users can also configure OpenAI, Anthropic, and CLI providers plus custom actions. Users copy text, select an action from the tray menu, and the transformed result is written back to the clipboard.
 
 ## Architecture
 
