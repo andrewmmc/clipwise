@@ -100,10 +100,9 @@ Clipwise supports two provider modes:
 
 - **Apple Intelligence** — on supported Macs, Clipwise auto-adds the built-in on-device Apple provider. No API key is required.
 - **BYOK / local tools** — for Anthropic, OpenAI-compatible APIs, and CLI tools, you provide your own API keys or local commands. No keys are included or shared. You can get started for free with [OpenRouter's free models](https://openrouter.ai/openrouter/free).
-
-- **OpenAI-compatible** — works with OpenAI, OpenRouter, local gateways, and other compatible chat completion endpoints
-- **Anthropic** — direct Anthropic API requests
-- **CLI** — local CLI commands like `claude`, `codex`, or custom scripts
+  - **OpenAI-compatible** — works with OpenAI, OpenRouter, local gateways, and other compatible chat completion endpoints
+  - **Anthropic** — direct Anthropic API requests
+  - **CLI** — local CLI commands like `claude`, `codex`, or custom scripts
 
 ## Development
 
