@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    clipwise_lib::run()
+    clipwise_lib::app::run()
 }

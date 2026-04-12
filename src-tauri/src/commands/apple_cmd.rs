@@ -12,7 +12,7 @@ pub struct AppleModelAvailability {
     pub reason: Option<String>,
 }
 
-#[tauri::command]
+#[cfg_attr(not(test), tauri::command)]
 pub async fn check_apple_model_availability() -> AppleModelAvailability {
     match apple::check_availability().await {
         Ok((available, reason)) => AppleModelAvailability { available, reason },

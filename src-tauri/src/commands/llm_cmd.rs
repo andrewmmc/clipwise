@@ -1,10 +1,12 @@
 use crate::config::ConfigState;
 use crate::error::AppError;
+#[cfg(not(test))]
 use crate::history;
 use crate::models::{LlmResult, ProviderType};
 use crate::providers::{anthropic, apple, openai};
 #[cfg(feature = "cli-provider")]
 use crate::providers::cli;
+#[cfg(not(test))]
 use tauri::State;
 use tracing::{error, info};
 
@@ -88,6 +90,7 @@ pub(crate) async fn run_action_inner(
 
 /// Runs an action on the given text. Returns the transformed text, or an error.
 /// On any error, the caller (Swift/JS) must NOT replace the original text.
+#[cfg(not(test))]
 #[tauri::command]
 pub async fn run_action(
     action_id: String,
@@ -134,6 +137,7 @@ pub async fn run_action(
 }
 
 /// Test an action from the settings UI. Same as run_action but called from the frontend.
+#[cfg(not(test))]
 #[tauri::command]
 pub async fn test_action(
     action_id: String,

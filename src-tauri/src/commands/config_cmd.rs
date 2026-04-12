@@ -1,10 +1,17 @@
+#[cfg(not(test))]
 use crate::config::{save_config, ConfigState};
 use crate::error::AppError;
+#[cfg(not(test))]
 use crate::history;
-use crate::models::{Action, AppConfig, AppSettings, Provider, ProviderType};
+use crate::models::{Action, AppConfig, Provider, ProviderType};
+#[cfg(not(test))]
+use crate::models::AppSettings;
 #[cfg(feature = "cli-provider")]
+#[cfg(not(test))]
 use crate::providers::cli::validate_cli_command;
+#[cfg(not(test))]
 use tauri::{AppHandle, State};
+#[cfg(not(test))]
 use tracing::{debug, info};
 use uuid::Uuid;
 
@@ -101,6 +108,7 @@ pub(crate) fn apply_action_reorder(config: &mut AppConfig, ids: &[String]) {
 
 // ── Tauri commands ────────────────────────────────────────────────────────────
 
+#[cfg(not(test))]
 #[tauri::command]
 pub fn get_config(state: State<ConfigState>) -> Result<AppConfig, AppError> {
     let config = state.lock()?.clone();
@@ -112,6 +120,7 @@ pub fn get_config(state: State<ConfigState>) -> Result<AppConfig, AppError> {
     Ok(config)
 }
 
+#[cfg(not(test))]
 #[tauri::command]
 pub fn save_settings(
     settings: AppSettings,
@@ -134,6 +143,7 @@ pub fn save_settings(
     Ok(())
 }
 
+#[cfg(not(test))]
 #[tauri::command]
 pub fn add_provider(
     provider: Provider,
@@ -153,6 +163,7 @@ pub fn add_provider(
     Ok(result)
 }
 
+#[cfg(not(test))]
 #[tauri::command]
 pub fn update_provider(
     provider: Provider,
@@ -175,6 +186,7 @@ pub fn update_provider(
     Ok(())
 }
 
+#[cfg(not(test))]
 #[tauri::command]
 pub fn delete_provider(
     id: String,
@@ -191,6 +203,7 @@ pub fn delete_provider(
 }
 
 #[cfg(feature = "cli-provider")]
+#[cfg(not(test))]
 #[tauri::command]
 pub fn test_cli_command(command: String) -> Result<String, AppError> {
     let result = validate_cli_command(&command)?;
@@ -198,6 +211,7 @@ pub fn test_cli_command(command: String) -> Result<String, AppError> {
     Ok(result)
 }
 
+#[cfg(not(test))]
 #[tauri::command]
 pub fn add_action(
     action: Action,
@@ -211,7 +225,7 @@ pub fn add_action(
         (result, config.clone())
     };
 
-    crate::refresh_tray_menu(&app, &updated_config)
+    crate::app::refresh_tray_menu(&app, &updated_config)
         .map_err(|e| AppError::Service(e.to_string()))?;
     info!(
         action_id = %result.id,
@@ -222,6 +236,7 @@ pub fn add_action(
     Ok(result)
 }
 
+#[cfg(not(test))]
 #[tauri::command]
 pub fn update_action(
     action: Action,
@@ -238,7 +253,7 @@ pub fn update_action(
         config.clone()
     };
 
-    crate::refresh_tray_menu(&app, &updated_config)
+    crate::app::refresh_tray_menu(&app, &updated_config)
         .map_err(|e| AppError::Service(e.to_string()))?;
     info!(
         action_id = %action_id,
@@ -249,6 +264,7 @@ pub fn update_action(
     Ok(())
 }
 
+#[cfg(not(test))]
 #[tauri::command]
 pub fn delete_action(
     id: String,
@@ -262,12 +278,13 @@ pub fn delete_action(
         config.clone()
     };
 
-    crate::refresh_tray_menu(&app, &updated_config)
+    crate::app::refresh_tray_menu(&app, &updated_config)
         .map_err(|e| AppError::Service(e.to_string()))?;
     info!(action_id = %id, "Deleted action");
     Ok(())
 }
 
+#[cfg(not(test))]
 #[tauri::command]
 pub fn reorder_actions(
     ids: Vec<String>,
@@ -281,7 +298,7 @@ pub fn reorder_actions(
         config.clone()
     };
 
-    crate::refresh_tray_menu(&app, &updated_config)
+    crate::app::refresh_tray_menu(&app, &updated_config)
         .map_err(|e| AppError::Service(e.to_string()))?;
     info!(action_count = ids.len(), "Reordered actions");
     Ok(())

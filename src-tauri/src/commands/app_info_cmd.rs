@@ -11,7 +11,7 @@ pub struct AppInfo {
     pub commit_hash: Option<String>,
 }
 
-#[tauri::command]
+#[cfg_attr(not(test), tauri::command)]
 pub fn get_app_info() -> AppInfo {
     let version = option_env!("LLM_ACTIONS_VERSION")
         .map(String::from)
@@ -25,7 +25,7 @@ pub fn get_app_info() -> AppInfo {
     }
 }
 
-#[tauri::command]
+#[cfg_attr(not(test), tauri::command)]
 pub fn is_cli_provider_enabled() -> bool {
     cfg!(feature = "cli-provider")
 }
