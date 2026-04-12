@@ -1,0 +1,175 @@
+name: App Store Upload
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to upload (e.g., 1.0.0)"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  upload:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Import Apple Distribution certificate
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          CERT_PATH=$RUNNER_TEMP/certificate.p12
+          KEYCHAIN_PATH=$RUNNER_TEMP/build.keychain
+          echo "$APPLE_CERTIFICATE" | base64 --decode > "$CERT_PATH"
+          security create-keychain -p "" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "" "$KEYCHAIN_PATH"
+          security import "$CERT_PATH" -P "$APPLE_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple: -k "" "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain
+
+      - name: Import Mac Installer certificate
+        env:
+          MAC_INSTALLER_CERTIFICATE: ${{ secrets.MAC_INSTALLER_CERTIFICATE }}
+          MAC_INSTALLER_CERTIFICATE_PASSWORD: ${{ secrets.MAC_INSTALLER_CERTIFICATE_PASSWORD }}
+        run: |
+          CERT_PATH=$RUNNER_TEMP/installer-certificate.p12
+          KEYCHAIN_PATH=$RUNNER_TEMP/build.keychain
+          echo "$MAC_INSTALLER_CERTIFICATE" | base64 --decode > "$CERT_PATH"
+          security unlock-keychain -p "" "$KEYCHAIN_PATH"
+          security import "$CERT_PATH" -P "$MAC_INSTALLER_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple: -k "" "$KEYCHAIN_PATH"
+
+      - name: Write App Store Connect API key
+        run: |
+          mkdir -p ~/private_keys
+          echo "${{ secrets.APPLE_API_KEY_BASE64 }}" | base64 --decode > ~/private_keys/AuthKey_${{ vars.APPLE_API_KEY }}.p8
+
+      - name: Write provisioning profile
+        run: |
+          echo "${{ secrets.PROVISIONING_PROFILE_BASE64 }}" | base64 --decode > src-tauri/embedded.provisionprofile
+
+      - name: Verify certificates before import
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          MAC_INSTALLER_CERTIFICATE: ${{ secrets.MAC_INSTALLER_CERTIFICATE }}
+          MAC_INSTALLER_CERTIFICATE_PASSWORD: ${{ secrets.MAC_INSTALLER_CERTIFICATE_PASSWORD }}
+          PROVISIONING_PROFILE_BASE64: ${{ secrets.PROVISIONING_PROFILE_BASE64 }}
+        run: |
+          # Verify Apple Distribution certificate
+          echo "$APPLE_CERTIFICATE" | base64 --decode > /tmp/apple_dist.p12 || {
+            echo "::error::Failed to decode APPLE_CERTIFICATE. Ensure it's base64 encoded."
+            exit 1
+          }
+          openssl pkcs12 -in /tmp/apple_dist.p12 -passin pass:"$APPLE_CERTIFICATE_PASSWORD" -info -noout || {
+            echo "::error::APPLE_CERTIFICATE_PASSWORD is incorrect or certificate is corrupted."
+            exit 1
+          }
+          echo "✅ Apple Distribution certificate verified"
+
+          # Verify Mac Installer certificate
+          echo "$MAC_INSTALLER_CERTIFICATE" | base64 --decode > /tmp/mac_installer.p12 || {
+            echo "::error::Failed to decode MAC_INSTALLER_CERTIFICATE. Ensure it's base64 encoded."
+            exit 1
+          }
+          openssl pkcs12 -in /tmp/mac_installer.p12 -passin pass:"$MAC_INSTALLER_CERTIFICATE_PASSWORD" -info -noout || {
+            echo "::error::MAC_INSTALLER_CERTIFICATE_PASSWORD is incorrect or certificate is corrupted."
+            exit 1
+          }
+          echo "✅ Mac Installer certificate verified"
+
+          # Verify provisioning profile
+          echo "$PROVISIONING_PROFILE_BASE64" | base64 --decode > /tmp/profile.mobileprovision || {
+            echo "::error::Failed to decode PROVISIONING_PROFILE_BASE64. Ensure it's base64 encoded."
+            exit 1
+          }
+          security cms -D -i /tmp/profile.mobileprovision > /dev/null || {
+            echo "::error::PROVISIONING_PROFILE_BASE64 is not a valid provisioning profile."
+            exit 1
+          }
+          echo "✅ Provisioning profile verified"
+
+          rm -f /tmp/apple_dist.p12 /tmp/mac_installer.p12 /tmp/profile.mobileprovision
+
+      - name: Set version
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          npm version "$VERSION" --no-git-tag-version --allow-same-version
+          jq --arg v "$VERSION" '.version = $v' src-tauri/tauri.conf.json > tmp.json && mv tmp.json src-tauri/tauri.conf.json
+          jq --arg v "$VERSION" '.version = $v' src-tauri/tauri.appstore.conf.json > tmp.json && mv tmp.json src-tauri/tauri.appstore.conf.json
+          sed -i '' "s/^version = \".*\"/version = \"$VERSION\"/" src-tauri/Cargo.toml
+          cd src-tauri && cargo generate-lockfile
+
+      - name: Verify signing identities
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ vars.APPLE_SIGNING_IDENTITY }}
+          MAC_INSTALLER_IDENTITY: ${{ vars.MAC_INSTALLER_IDENTITY }}
+        run: |
+          echo "Looking for code signing identity..."
+          CODESIGN_IDENTITIES=$(security find-identity -v -p codesigning "$RUNNER_TEMP/build.keychain")
+          echo "$CODESIGN_IDENTITIES" | grep -Fq "$APPLE_SIGNING_IDENTITY" || {
+            if echo "$CODESIGN_IDENTITIES" | grep -Fq "Developer ID Application:"; then
+              echo "::error::App Store builds require an Apple Distribution certificate, but the imported APPLE_CERTIFICATE appears to be a Developer ID Application certificate."
+            else
+              echo "::error::Signing identity not found in keychain"
+            fi
+            exit 1
+          }
+
+          echo "Looking for installer identity..."
+          INSTALLER_IDENTITIES=$(security find-identity -v "$RUNNER_TEMP/build.keychain")
+          echo "$INSTALLER_IDENTITIES" | grep -Fq "$MAC_INSTALLER_IDENTITY" || {
+            echo "::error::Installer identity not found in keychain. App Store uploads require a Mac Installer Distribution identity for productbuild."
+            exit 1
+          }
+
+      - name: Build universal binary (App Store config, no CLI feature)
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ vars.APPLE_SIGNING_IDENTITY }}
+        run: |
+          # Build without cli-provider feature for App Store
+          npx tauri build --bundles app --target universal-apple-darwin \
+            --config src-tauri/tauri.appstore.conf.json \
+            --no-default-features
+
+      - name: Create signed .pkg and upload to App Store Connect
+        env:
+          APPLE_API_KEY: ${{ vars.APPLE_API_KEY }}
+          APPLE_API_ISSUER: ${{ vars.APPLE_API_ISSUER }}
+          MAC_INSTALLER_IDENTITY: ${{ vars.MAC_INSTALLER_IDENTITY }}
+        run: |
+          xcrun productbuild \
+            --sign "$MAC_INSTALLER_IDENTITY" \
+            --component "src-tauri/target/universal-apple-darwin/release/bundle/macos/Clipwise.app" \
+            /Applications \
+            "Clipwise.pkg"
+
+          xcrun altool --upload-app \
+            --type macos \
+            --file "Clipwise.pkg" \
+            --apiKey "$APPLE_API_KEY" \
+            --apiIssuer "$APPLE_API_ISSUER"

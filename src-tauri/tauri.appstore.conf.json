@@ -12,11 +12,11 @@
   "app": {
     "windows": [
       {
-"title": "Clipwise",
+        "title": "Clipwise",
         "width": 900,
         "height": 650,
         "resizable": false,
-"visible": false,
+        "visible": false,
         "label": "settings"
       }
     ],

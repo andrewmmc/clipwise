@@ -27,5 +27,8 @@ dist-ssr
 .env
 .env.local
 
+# Apple provisioning profiles (sensitive)
+*.provisionprofile
+
 # Compiled Swift helper binary
 src-tauri/swift/apple-model-runner
