@@ -118,7 +118,10 @@ pub async fn call_apple(user_message: &str) -> Result<serde_json::Value, AppErro
 pub async fn check_availability() -> Result<(bool, Option<String>), AppError> {
     let runner_path = match get_runner_path() {
         Ok(path) => path,
-        Err(_) => return Ok((false, Some("not_supported".to_string()))),
+        Err(err) => {
+            warn!(error = %err, "Apple model runner is unavailable");
+            return Ok((false, Some("helper_unavailable".to_string())));
+        }
     };
 
     let output = Command::new(&runner_path)

@@ -8,8 +8,10 @@ fn compile_swift_helper() {
     let out_dir = std::env::var("OUT_DIR").unwrap();
     let swift_src = std::path::Path::new(&manifest_dir).join("swift/apple-model-runner.swift");
     let swift_bin = std::path::Path::new(&out_dir).join("apple-model-runner");
+    let module_cache_dir = std::path::Path::new(&out_dir).join("swift-module-cache");
 
     println!("cargo:rerun-if-changed=swift/apple-model-runner.swift");
+    let _ = fs::create_dir_all(&module_cache_dir);
 
     let result = Command::new("xcrun")
         .args([
@@ -17,14 +19,16 @@ fn compile_swift_helper() {
             "-O",
             "-target",
             "arm64-apple-macos26.0",
+            "-module-cache-path",
+            module_cache_dir.to_str().unwrap(),
             "-o",
         ])
         .arg(&swift_bin)
         .arg(&swift_src)
-        .status();
+        .output();
 
     match result {
-        Ok(status) if status.success() => {
+        Ok(output) if output.status.success() => {
             // Also copy to resources directory for bundling
             let resources_dir = PathBuf::from(&manifest_dir).join("resources");
             fs::create_dir_all(&resources_dir).ok();
@@ -36,9 +40,12 @@ fn compile_swift_helper() {
                 swift_bin.display()
             );
         }
-        Ok(status) => {
+        Ok(output) => {
+            let stderr = String::from_utf8_lossy(&output.stderr);
             println!(
-                "cargo:warning=Swift helper compilation failed with status: {status}"
+                "cargo:warning=Swift helper compilation failed with status {}: {}",
+                output.status,
+                stderr.trim()
             );
         }
         Err(e) => {
