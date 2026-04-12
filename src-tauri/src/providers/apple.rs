@@ -16,6 +16,17 @@ const APPLE_MODEL_RUNNER: Option<&str> = option_env!("APPLE_MODEL_RUNNER_PATH");
 /// Get the path to the Apple model runner binary.
 /// First tries to find it in the app bundle resources, falls back to compile-time path.
 fn get_runner_path() -> Result<PathBuf, AppError> {
+    // Sidecars bundled via Tauri externalBin live next to the main executable.
+    if let Ok(exe_path) = env::current_exe() {
+        if let Some(exe_dir) = exe_path.parent() {
+            let runner = exe_dir.join("apple-model-runner");
+            if runner.exists() {
+                debug!(path = %runner.display(), "Found Apple model runner next to app executable");
+                return Ok(runner);
+            }
+        }
+    }
+
     // Try to find in app bundle resources first (for production builds)
     if let Ok(exe_path) = env::current_exe() {
         let bundle_dir = exe_path.parent().and_then(|p| p.parent());

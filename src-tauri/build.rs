@@ -77,20 +77,26 @@ fn compile_swift_helper() -> Result<(), String> {
         .arg(&x64_bin);
     run_command(&mut lipo, "swift helper lipo")?;
 
-    let resources_dir = PathBuf::from(&manifest_dir).join("resources");
-    fs::create_dir_all(&resources_dir).map_err(|err| {
+    let binaries_dir = PathBuf::from(&manifest_dir).join("binaries");
+    fs::create_dir_all(&binaries_dir).map_err(|err| {
         format!(
-            "Failed to create Tauri resources directory '{}': {err}",
-            resources_dir.display()
+            "Failed to create Tauri binaries directory '{}': {err}",
+            binaries_dir.display()
         )
     })?;
-    let resource_bin = resources_dir.join("apple-model-runner");
-    fs::copy(&swift_bin, &resource_bin).map_err(|err| {
-        format!(
-            "Failed to copy Apple helper into Tauri resources '{}': {err}",
-            resource_bin.display()
-        )
-    })?;
+    for (source, name) in [
+        (&arm64_bin, "apple-model-runner-aarch64-apple-darwin"),
+        (&x64_bin, "apple-model-runner-x86_64-apple-darwin"),
+        (&swift_bin, "apple-model-runner-universal-apple-darwin"),
+    ] {
+        let bundled_bin = binaries_dir.join(name);
+        fs::copy(source, &bundled_bin).map_err(|err| {
+            format!(
+                "Failed to copy Apple helper into Tauri sidecar binaries '{}': {err}",
+                bundled_bin.display()
+            )
+        })?;
+    }
 
     println!(
         "cargo:rustc-env=APPLE_MODEL_RUNNER_PATH={}",

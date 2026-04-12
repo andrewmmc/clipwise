@@ -27,8 +27,8 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "resources": [
-      "resources/apple-model-runner"
+    "externalBin": [
+      "binaries/apple-model-runner"
     ],
     "icon": [
       "icons/32x32.png",
