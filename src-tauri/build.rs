@@ -1,3 +1,5 @@
+use std::fs;
+use std::path::PathBuf;
 use std::process::Command;
 
 #[cfg(target_os = "macos")]
@@ -23,6 +25,12 @@ fn compile_swift_helper() {
 
     match result {
         Ok(status) if status.success() => {
+            // Also copy to resources directory for bundling
+            let resources_dir = PathBuf::from(&manifest_dir).join("resources");
+            fs::create_dir_all(&resources_dir).ok();
+            let resource_bin = resources_dir.join("apple-model-runner");
+            let _ = fs::copy(&swift_bin, &resource_bin);
+
             println!(
                 "cargo:rustc-env=APPLE_MODEL_RUNNER_PATH={}",
                 swift_bin.display()

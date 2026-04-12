@@ -32,3 +32,6 @@ dist-ssr
 
 # Compiled Swift helper binary
 src-tauri/swift/apple-model-runner
+
+# Bundled resources
+src-tauri/resources/
