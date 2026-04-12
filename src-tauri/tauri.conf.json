@@ -37,7 +37,7 @@
     "macOS": {
       "signingIdentity": null,
       "providerShortName": null,
-      "entitlements": "entitlements.plist",
+      "entitlements": "entitlements.release.plist",
       "infoPlist": "Info.plist"
     }
   }
