@@ -13,7 +13,7 @@
   </a>
 </p>
 
-Clipwise adds LLM-powered text transformations to your macOS workflow. On Macs that support Apple Intelligence, Clipwise auto-attaches the built-in on-device provider at startup. You can also configure OpenAI-compatible, Anthropic, and CLI providers, then trigger custom actions from the menu bar against clipboard text.
+Clipwise is a small menu bar app that helps you quickly rewrite, summarize, translate, and clean up text anywhere on macOS. Copy text in any app, pick an action from the menu bar, and Clipwise puts the improved result back on your clipboard so you can paste it right away. On Macs that support Apple Intelligence, it can use the built-in on-device model automatically; you can also connect OpenAI-compatible, Anthropic, or local CLI tools.
 
 No browser. No context switching. Select text, run an action, get the result back in your clipboard.
 
