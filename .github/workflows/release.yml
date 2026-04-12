@@ -159,4 +159,4 @@ jobs:
           releaseDraft: false
           prerelease: ${{ contains(github.ref_name, '-') }}
           generateReleaseNotes: true
-          args: ${{ matrix.args }}
+          args: ${{ matrix.args }} --config src-tauri/tauri.macos.conf.json
