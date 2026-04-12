@@ -195,7 +195,11 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let path = dir.path().join("config.json");
         // Unknown fields should be ignored (serde default behavior)
-        std::fs::write(&path, r#"{"providers": [], "actions": [], "unknownField": 123}"#).unwrap();
+        std::fs::write(
+            &path,
+            r#"{"providers": [], "actions": [], "unknownField": 123}"#,
+        )
+        .unwrap();
         let result = load_config_from(&path);
         assert!(result.is_ok());
         assert!(result.unwrap().providers.is_empty());

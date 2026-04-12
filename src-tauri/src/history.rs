@@ -189,10 +189,7 @@ mod tests {
     #[test]
     fn test_add_entry_prepends_to_existing_history() {
         let dir = TempDir::new().unwrap();
-        let _path = setup_test_history_file(
-            &dir,
-            vec![make_test_entry("old-id", "OldAction")],
-        );
+        let _path = setup_test_history_file(&dir, vec![make_test_entry("old-id", "OldAction")]);
 
         // Temporarily override history_path to return test path
         // Note: This requires modifying the function or using a test helper
@@ -283,10 +280,7 @@ mod tests {
     #[test]
     fn test_clear_history_removes_file() {
         let dir = TempDir::new().unwrap();
-        let path = setup_test_history_file(
-            &dir,
-            vec![make_test_entry("id1", "Action1")],
-        );
+        let path = setup_test_history_file(&dir, vec![make_test_entry("id1", "Action1")]);
 
         assert!(path.exists());
         std::fs::remove_file(&path).unwrap();

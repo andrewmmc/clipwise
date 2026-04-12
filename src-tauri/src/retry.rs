@@ -133,7 +133,10 @@ mod tests {
 
         assert!(result.is_err());
         // Should be called DEFAULT_MAX_RETRIES + 1 times (initial + retries)
-        assert_eq!(call_count.load(Ordering::SeqCst), (DEFAULT_MAX_RETRIES + 1) as usize);
+        assert_eq!(
+            call_count.load(Ordering::SeqCst),
+            (DEFAULT_MAX_RETRIES + 1) as usize
+        );
     }
 
     #[tokio::test]
@@ -183,7 +186,17 @@ mod tests {
 
     #[test]
     fn test_initial_delay_is_reasonable() {
-        const { assert!(INITIAL_DELAY_MS >= 100, "initial delay should be at least 100ms") };
-        const { assert!(INITIAL_DELAY_MS <= 5000, "initial delay should not exceed 5 seconds") };
+        const {
+            assert!(
+                INITIAL_DELAY_MS >= 100,
+                "initial delay should be at least 100ms"
+            )
+        };
+        const {
+            assert!(
+                INITIAL_DELAY_MS <= 5000,
+                "initial delay should not exceed 5 seconds"
+            )
+        };
     }
 }

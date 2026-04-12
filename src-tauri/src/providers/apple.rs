@@ -78,14 +78,18 @@ pub async fn call_apple(user_message: &str) -> Result<serde_json::Value, AppErro
     // Write prompt to stdin
     if let Some(mut stdin) = child.stdin.take() {
         stdin.write_all(stdin_input.as_bytes()).await.map_err(|e| {
-            AppError::Llm(format!("Failed to write to Apple model runner stdin: {}", e))
+            AppError::Llm(format!(
+                "Failed to write to Apple model runner stdin: {}",
+                e
+            ))
         })?;
         // Drop stdin to signal EOF
     }
 
-    let output = child.wait_with_output().await.map_err(|e| {
-        AppError::Llm(format!("Failed to wait for Apple model runner: {}", e))
-    })?;
+    let output = child
+        .wait_with_output()
+        .await
+        .map_err(|e| AppError::Llm(format!("Failed to wait for Apple model runner: {}", e)))?;
 
     if !output.status.success() {
         warn!(
@@ -105,10 +109,15 @@ pub async fn call_apple(user_message: &str) -> Result<serde_json::Value, AppErro
 
     if stdout.is_empty() {
         warn!("Apple model runner produced no output");
-        return Err(AppError::Llm("Apple Intelligence model produced no output".into()));
+        return Err(AppError::Llm(
+            "Apple Intelligence model produced no output".into(),
+        ));
     }
 
-    debug!(stdout_bytes = stdout.len(), "Apple model runner returned output");
+    debug!(
+        stdout_bytes = stdout.len(),
+        "Apple model runner returned output"
+    );
 
     normalize_apple_output(stdout)
 }

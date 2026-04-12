@@ -3,9 +3,9 @@ use crate::error::AppError;
 #[cfg(not(test))]
 use crate::history;
 use crate::models::{LlmResult, ProviderType};
-use crate::providers::{anthropic, apple, openai};
 #[cfg(feature = "cli-provider")]
 use crate::providers::cli;
+use crate::providers::{anthropic, apple, openai};
 #[cfg(not(test))]
 use tauri::State;
 use tracing::{error, info};
@@ -102,13 +102,8 @@ pub async fn run_action(
     // Log to history if enabled
     let (action_name, provider_name, history_enabled) = {
         let config = state.lock()?;
-        let action = config
-            .actions
-            .iter()
-            .find(|a| a.id == action_id);
-        let provider = action.and_then(|a| {
-            config.providers.iter().find(|p| p.id == a.provider_id)
-        });
+        let action = config.actions.iter().find(|a| a.id == action_id);
+        let provider = action.and_then(|a| config.providers.iter().find(|p| p.id == a.provider_id));
         (
             action.map(|a| a.name.clone()).unwrap_or_default(),
             provider.map(|p| p.name.clone()).unwrap_or_default(),
@@ -149,13 +144,8 @@ pub async fn test_action(
     // Log to history if enabled
     let (action_name, provider_name, history_enabled) = {
         let config = state.lock()?;
-        let action = config
-            .actions
-            .iter()
-            .find(|a| a.id == action_id);
-        let provider = action.and_then(|a| {
-            config.providers.iter().find(|p| p.id == a.provider_id)
-        });
+        let action = config.actions.iter().find(|a| a.id == action_id);
+        let provider = action.and_then(|a| config.providers.iter().find(|p| p.id == a.provider_id));
         (
             action.map(|a| a.name.clone()).unwrap_or_default(),
             provider.map(|p| p.name.clone()).unwrap_or_default(),
@@ -192,19 +182,17 @@ mod tests {
     use std::sync::Mutex;
 
     fn make_test_config_state() -> ConfigState {
-        let mut providers = vec![
-            Provider {
-                id: "anthropic-provider".into(),
-                name: "Anthropic".into(),
-                provider_type: ProviderType::Anthropic,
-                endpoint: None,
-                api_key: Some("sk-test-key".into()),
-                headers: serde_json::Map::new(),
-                default_model: Some("claude-sonnet-4-20250514".into()),
-                command: None,
-                args: vec![],
-            },
-        ];
+        let mut providers = vec![Provider {
+            id: "anthropic-provider".into(),
+            name: "Anthropic".into(),
+            provider_type: ProviderType::Anthropic,
+            endpoint: None,
+            api_key: Some("sk-test-key".into()),
+            headers: serde_json::Map::new(),
+            default_model: Some("claude-sonnet-4-20250514".into()),
+            command: None,
+            args: vec![],
+        }];
         #[cfg(feature = "cli-provider")]
         providers.push(Provider {
             id: "cli-provider".into(),
@@ -286,7 +274,11 @@ mod tests {
             tokio::runtime::Handle::current().block_on(async {
                 // This would actually run the CLI command, so we just verify the lookup succeeds
                 let config = state.lock().unwrap();
-                let action = config.actions.iter().find(|a| a.id == "action-with-provider").unwrap();
+                let action = config
+                    .actions
+                    .iter()
+                    .find(|a| a.id == "action-with-provider")
+                    .unwrap();
                 assert_eq!(action.id, "action-with-provider");
                 Ok::<(), AppError>(())
             })

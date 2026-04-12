@@ -279,7 +279,11 @@ fn run_tray_action<R: Runtime>(app: AppHandle<R>, action_id: String) {
             };
             let provider = config.providers.iter().find(|p| p.id == action.provider_id);
             let provider_name = provider.map(|p| p.name.clone()).unwrap_or_default();
-            (action.name, provider_name, config.settings.show_notification_on_complete)
+            (
+                action.name,
+                provider_name,
+                config.settings.show_notification_on_complete,
+            )
         };
 
         let action_id_for_logs = action_id.clone();
@@ -509,7 +513,10 @@ mod tests {
     fn test_notification_preview_at_exact_limit() {
         let text = "a".repeat(NOTIFICATION_PREVIEW_LIMIT);
         assert_eq!(notification_preview(&text), text);
-        assert_eq!(notification_preview(&text).chars().count(), NOTIFICATION_PREVIEW_LIMIT);
+        assert_eq!(
+            notification_preview(&text).chars().count(),
+            NOTIFICATION_PREVIEW_LIMIT
+        );
     }
 
     #[test]

@@ -3,9 +3,9 @@ use crate::config::{save_config, ConfigState};
 use crate::error::AppError;
 #[cfg(not(test))]
 use crate::history;
-use crate::models::{Action, AppConfig, Provider, ProviderType};
 #[cfg(not(test))]
 use crate::models::AppSettings;
+use crate::models::{Action, AppConfig, Provider, ProviderType};
 #[cfg(feature = "cli-provider")]
 #[cfg(not(test))]
 use crate::providers::cli::validate_cli_command;
