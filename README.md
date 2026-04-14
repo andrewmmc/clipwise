@@ -135,20 +135,18 @@ Clipwise supports two build modes via a Cargo feature flag:
 | **Default** (with CLI)      | Yes          | Development, non-App-Store distribution (DMG/Homebrew) |
 | **App Store** (without CLI) | No           | Mac App Store submission (sandbox-compliant)           |
 
-The `cli-provider` feature is enabled by default. ```bash
+The `cli-provider` feature is enabled by default.
 
+```bash
 # Default build (with CLI provider)
-
 npm run tauri:dev
 npm run tauri:build
 npm run tauri:build-debug
 
 # App Store build (without CLI provider)
-
 npm run tauri:dev:appstore
 npm run tauri:build:appstore
-
-````
+```
 
 > **Why two modes?** The Mac App Store requires the App Sandbox, which prevents running arbitrary subprocesses. CLI providers (e.g. `claude`, `codex`) execute local commands and are incompatible with sandboxing. The UI automatically hides the CLI option when the build doesn't support it.
 
@@ -168,7 +166,7 @@ npm run format       # Prettier
 npm test             # Vitest
 cd src-tauri && cargo test  # Rust tests (default features)
 cd src-tauri && cargo test --no-default-features  # Rust tests (App Store mode)
-````
+```
 
 ### Testing macOS build
 
