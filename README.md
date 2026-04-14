@@ -24,7 +24,7 @@ No browser. No context switching. Select text, run an action, get the result bac
 ## Screenshots
 
 <p align="center">
-  <img src="./assets/Screenshot_1.png" alt="Clipwise actions view" width="750" />
+  <img src="./assets/screenshot-1.png" alt="Clipwise actions view" width="900" />
 </p>
 <p align="center">
   <strong>Define reusable actions</strong><br />
@@ -34,21 +34,21 @@ No browser. No context switching. Select text, run an action, get the result bac
 <table>
   <tr>
     <td width="33%" valign="top">
-      <img src="./assets/Screenshot_2.png" alt="Clipwise providers view" />
+      <img src="./assets/screenshot-2.png" alt="Clipwise providers view" width="900" />
       <p>
         <strong>Manage providers</strong><br />
         Use Apple Intelligence automatically on supported Macs, or connect OpenAI, Anthropic, and local CLI tools like <code>copilot</code> and <code>claude</code>.
       </p>
     </td>
     <td width="33%" valign="top">
-      <img src="./assets/Screenshot_3.png" alt="Clipwise history view" />
+      <img src="./assets/screenshot-3.png" alt="Clipwise history view" width="900" />
       <p>
         <strong>Review history</strong><br />
         Browse past transformations with input/output details and quick copy.
       </p>
     </td>
     <td width="33%" valign="top">
-      <img src="./assets/Screenshot_4.png" alt="Clipwise settings view" />
+      <img src="./assets/screenshot-4.png" alt="Clipwise settings view" width="900" />
       <p>
         <strong>Configure settings</strong><br />
         Toggle notifications, enable history, and set max token limits.
@@ -70,7 +70,7 @@ macOS builds are available for both Apple Silicon (M1+) and Intel.
 ## How to Use
 
 <p align="center">
-  <img src="./assets/Screenshot_5.png" alt="Clipwise menu bar dropdown" width="400" />
+  <img src="./assets/screenshot-5.png" alt="Clipwise menu bar dropdown" width="235" />
 </p>
 
 1. **Open settings** — launch Clipwise and open the settings window from the menu bar.
