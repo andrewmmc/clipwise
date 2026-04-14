@@ -41,7 +41,10 @@
       "signingIdentity": null,
       "providerShortName": null,
       "entitlements": "entitlements.plist",
-      "infoPlist": "Info.plist"
+      "infoPlist": "Info.plist",
+      "files": {
+        "embedded.provisionprofile": "embedded.provisionprofile"
+      }
     }
   }
 }
