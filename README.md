@@ -224,4 +224,4 @@ Created by **Andrew Mok** ([@andrewmmc](https://github.com/andrewmmc))
 
 ## License
 
-Private. All rights reserved.
+[MIT](./LICENSE)

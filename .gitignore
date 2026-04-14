@@ -36,3 +36,6 @@ src-tauri/binaries/
 
 # Bundled resources
 src-tauri/resources/
+
+# Generated App Store screenshots
+appstore-screenshots/
