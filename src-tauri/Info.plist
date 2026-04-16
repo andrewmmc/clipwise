@@ -8,5 +8,7 @@
     <true/>
     <key>NSAppleEventsUsageDescription</key>
     <string>Clipwise needs to send Apple Events to interact with other applications.</string>
+    <key>NSPasteboardUsageDescription</key>
+    <string>Clipwise reads your clipboard text to apply AI-powered transformations and writes the result back to the clipboard.</string>
 </dict>
 </plist>
