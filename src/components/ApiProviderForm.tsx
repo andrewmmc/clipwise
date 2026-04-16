@@ -40,6 +40,11 @@ export default function ApiProviderForm({
 }: Props) {
   return (
     <>
+      <p className="text-[12px] text-text-tertiary">
+        Text from your clipboard will be sent to this provider&apos;s API for
+        processing. Your API key is stored locally on this device only.
+      </p>
+
       <div>
         <label className="label">
           API Endpoint{" "}

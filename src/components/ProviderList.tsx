@@ -5,7 +5,7 @@ import useTransientMessage from "../hooks/useTransientMessage";
 import EmptyState from "./EmptyState";
 import ProviderForm from "./ProviderForm";
 import SuccessBox from "./SuccessBox";
-import { Plus, Pencil, Trash2, Server } from "lucide-react";
+import { Plus, Pencil, Trash2, Server, Shield } from "lucide-react";
 
 interface Props {
   config: AppConfig;
@@ -96,6 +96,22 @@ export default function ProviderList({ config, onRefresh }: Props) {
       </div>
 
       {successMessage && <SuccessBox message={successMessage} />}
+
+      <div className="feedback-box feedback-info flex gap-2 text-[12px]">
+        <Shield size={14} className="mt-0.5 shrink-0" />
+        <div>
+          <p>
+            When you use an API provider (OpenAI, Anthropic), your clipboard
+            text is sent to that provider&apos;s servers for processing. Apple
+            Intelligence runs entirely on-device and does not send data
+            externally.
+          </p>
+          <p className="mt-1 text-text-tertiary">
+            API keys are stored locally and never shared with Clipwise or any
+            third party.
+          </p>
+        </div>
+      </div>
 
       {config.providers.length === 0 ? (
         <EmptyState

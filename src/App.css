@@ -299,6 +299,12 @@ img {
   color: var(--success);
 }
 
+.feedback-info {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
+  color: var(--text-secondary);
+}
+
 /* Empty state */
 .empty-state {
   padding: 32px;
