@@ -162,6 +162,13 @@ jobs:
           EOF
           xcrun swiftc -typecheck /tmp/foundation-models-check.swift
 
+      - name: Inject application identifier into entitlements
+        env:
+          APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+        run: |
+          /usr/libexec/PlistBuddy -c "Add :com.apple.application-identifier string ${APPLE_TEAM_ID}.com.clipwise.desktop" \
+            src-tauri/entitlements.plist
+
       - name: Build universal binary (App Store config, no CLI feature)
         env:
           APPLE_SIGNING_IDENTITY: ${{ vars.APPLE_SIGNING_IDENTITY }}
