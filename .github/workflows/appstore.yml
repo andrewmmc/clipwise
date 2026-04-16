@@ -180,6 +180,23 @@ jobs:
             -- \
             --no-default-features
 
+      - name: Re-sign sidecar with helper entitlements
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ vars.APPLE_SIGNING_IDENTITY }}
+        run: |
+          APP_PATH="src-tauri/target/universal-apple-darwin/release/bundle/macos/Clipwise.app"
+          HELPER="$APP_PATH/Contents/MacOS/apple-model-runner"
+          if [ -f "$HELPER" ]; then
+            codesign --force --sign "$APPLE_SIGNING_IDENTITY" \
+              --entitlements src-tauri/entitlements.helper.plist \
+              --options runtime \
+              "$HELPER"
+            echo "✅ Re-signed apple-model-runner with helper entitlements"
+          else
+            echo "::error::apple-model-runner not found at $HELPER"
+            exit 1
+          fi
+
       - name: Create signed .pkg and upload to App Store Connect
         env:
           APPLE_API_KEY: ${{ vars.APPLE_API_KEY }}
