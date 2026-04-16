@@ -6,6 +6,8 @@
     <string>public.app-category.productivity</string>
     <key>LSUIElement</key>
     <true/>
+    <key>ITSAppUsesNonExemptEncryption</key>
+    <false/>
     <key>NSAppleEventsUsageDescription</key>
     <string>Clipwise needs to send Apple Events to interact with other applications.</string>
     <key>NSPasteboardUsageDescription</key>
