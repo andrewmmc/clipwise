@@ -42,15 +42,6 @@ export default function AboutPanel() {
           >
             GitHub
           </button>
-          <button
-            type="button"
-            onClick={() =>
-              openUrl("https://github.com/andrewmmc/clipwise/releases")
-            }
-            className="btn btn-secondary text-[12px]"
-          >
-            Check for Updates…
-          </button>
         </div>
         <div className="mt-2 flex items-center gap-3 text-[11px]">
           <button
