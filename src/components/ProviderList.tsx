@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { tauriCommands } from "../lib/tauri";
 import type { AppConfig, Provider } from "../types/config";
 import useTransientMessage from "../hooks/useTransientMessage";
@@ -108,7 +109,14 @@ export default function ProviderList({ config, onRefresh }: Props) {
           </p>
           <p className="mt-1 text-text-tertiary">
             API keys are stored locally and never shared with Clipwise or any
-            third party.
+            third party.{" "}
+            <button
+              type="button"
+              onClick={() => openUrl("https://clipwise.mmc.dev/privacy")}
+              className="cursor-pointer underline hover:text-text-secondary"
+            >
+              Privacy Policy
+            </button>
           </p>
         </div>
       </div>

@@ -30,6 +30,13 @@ export default function AboutPanel() {
         <div className="mt-3 flex items-center gap-3 border-t border-border pt-3">
           <button
             type="button"
+            onClick={() => openUrl("https://clipwise.mmc.dev")}
+            className="btn btn-secondary text-[12px]"
+          >
+            Website
+          </button>
+          <button
+            type="button"
             onClick={() => openUrl("https://github.com/andrewmmc/clipwise")}
             className="btn btn-secondary text-[12px]"
           >
@@ -43,6 +50,15 @@ export default function AboutPanel() {
             className="btn btn-secondary text-[12px]"
           >
             Check for Updates…
+          </button>
+        </div>
+        <div className="mt-2 flex items-center gap-3 text-[11px]">
+          <button
+            type="button"
+            onClick={() => openUrl("https://clipwise.mmc.dev/privacy")}
+            className="cursor-pointer text-text-tertiary underline hover:text-text-secondary"
+          >
+            Privacy Policy
           </button>
         </div>
       </div>
