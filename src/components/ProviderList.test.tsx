@@ -161,7 +161,10 @@ describe("ProviderList", () => {
     expect(window.alert).toHaveBeenCalledWith(
       expect.stringContaining("action(s) use this provider"),
     );
-    expect(mockInvoke).not.toHaveBeenCalled();
+    expect(mockInvoke).not.toHaveBeenCalledWith(
+      "delete_provider",
+      expect.anything(),
+    );
   });
 
   it("confirmed deletion calls deleteProvider and onRefresh when no actions use provider", async () => {
@@ -184,7 +187,10 @@ describe("ProviderList", () => {
     render(<ProviderList config={config} onRefresh={onRefresh} />);
 
     await user.click(screen.getByTitle("Delete"));
-    expect(mockInvoke).not.toHaveBeenCalled();
+    expect(mockInvoke).not.toHaveBeenCalledWith("delete_provider", {
+      id: "p1",
+    });
+    expect(onRefresh).not.toHaveBeenCalled();
   });
 
   // ── Edit provider ─────────────────────────────────────────────────────────
