@@ -106,8 +106,16 @@ fn compile_swift_helper() -> Result<(), String> {
     Ok(())
 }
 
+fn read_package_json_version() -> Option<String> {
+    let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").ok()?;
+    let pkg_path = std::path::Path::new(&manifest_dir).join("../package.json");
+    let content = std::fs::read_to_string(&pkg_path).ok()?;
+    let json: serde_json::Value = serde_json::from_str(&content).ok()?;
+    json["version"].as_str().map(|s| s.to_string())
+}
+
 fn main() {
-    // Get version from env var or git tag, fallback to Cargo.toml version
+    // Get version: env var > git tag > package.json > Cargo.toml (CARGO_PKG_VERSION at compile time)
     let version = std::env::var("LLM_ACTIONS_VERSION").ok().or_else(|| {
         Command::new("git")
             .args(["describe", "--tags", "--abbrev=0"])
@@ -122,11 +130,13 @@ fn main() {
                     None
                 }
             })
-    });
+    }).or_else(read_package_json_version);
 
     if let Some(v) = version {
         println!("cargo:rustc-env=LLM_ACTIONS_VERSION={v}");
     }
+
+    println!("cargo:rerun-if-changed=../package.json");
 
     // Get commit hash (9 chars)
     let commit_hash = Command::new("git")

@@ -124,8 +124,6 @@ jobs:
         run: |
           VERSION="${{ github.event.inputs.version }}"
           npm version "$VERSION" --no-git-tag-version --allow-same-version
-          jq --arg v "$VERSION" '.version = $v' src-tauri/tauri.conf.json > tmp.json && mv tmp.json src-tauri/tauri.conf.json
-          jq --arg v "$VERSION" '.version = $v' src-tauri/tauri.appstore.conf.json > tmp.json && mv tmp.json src-tauri/tauri.appstore.conf.json
           sed -i '' "s/^version = \".*\"/version = \"$VERSION\"/" src-tauri/Cargo.toml
           cd src-tauri && cargo generate-lockfile
 
@@ -173,6 +171,7 @@ jobs:
         env:
           APPLE_SIGNING_IDENTITY: ${{ vars.APPLE_SIGNING_IDENTITY }}
           CLIPWISE_REQUIRE_APPLE_MODEL_RUNNER: "1"
+          LLM_ACTIONS_VERSION: ${{ github.event.inputs.version }}
         run: |
           # Build without cli-provider feature for App Store
           npx tauri build --bundles app --target universal-apple-darwin \

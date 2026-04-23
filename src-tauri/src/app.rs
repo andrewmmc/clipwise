@@ -18,23 +18,26 @@ const TRAY_ID: &str = "main";
 const TRAY_ACTION_PREFIX: &str = "tray_action:";
 const NOTIFICATION_PREVIEW_LIMIT: usize = 120;
 
-fn maybe_attach_apple_provider(config: &mut AppConfig) {
-    if config
-        .providers
-        .iter()
-        .any(|p| p.provider_type == ProviderType::Apple)
-    {
+async fn attach_apple_provider_async<R: Runtime>(app: AppHandle<R>) {
+    let already_has_apple = {
+        let config_state = app.state::<ConfigState>();
+        config_state
+            .lock()
+            .map(|c| c.providers.iter().any(|p| p.provider_type == ProviderType::Apple))
+            .unwrap_or(true)
+    };
+
+    if already_has_apple {
         return;
     }
 
-    let (available, reason) =
-        match tauri::async_runtime::block_on(crate::providers::apple::check_availability()) {
-            Ok(result) => result,
-            Err(err) => {
-                debug!(error = %err, "Apple Intelligence availability check failed");
-                return;
-            }
-        };
+    let (available, reason) = match crate::providers::apple::check_availability().await {
+        Ok(result) => result,
+        Err(err) => {
+            debug!(error = %err, "Apple Intelligence availability check failed");
+            return;
+        }
+    };
 
     if !available {
         debug!(
@@ -45,23 +48,50 @@ fn maybe_attach_apple_provider(config: &mut AppConfig) {
     }
 
     info!("Auto-attaching Apple Intelligence provider");
-    config.providers.insert(
-        0,
-        Provider {
-            id: APPLE_PROVIDER_ID.to_string(),
-            name: "Apple Intelligence".to_string(),
-            provider_type: ProviderType::Apple,
-            endpoint: None,
-            api_key: None,
-            headers: serde_json::Map::new(),
-            default_model: None,
-            command: None,
-            args: vec![],
-        },
-    );
 
-    if let Err(err) = save_config(config) {
-        warn!(error = %err, "Failed to persist auto-attached Apple Intelligence provider");
+    let config_state = app.state::<ConfigState>();
+    let refresh_needed = {
+        let mut config = match config_state.lock() {
+            Ok(c) => c,
+            Err(e) => {
+                error!(error = %e, "Failed to lock config for Apple provider attach");
+                return;
+            }
+        };
+
+        // Double-check after acquiring lock
+        if config.providers.iter().any(|p| p.provider_type == ProviderType::Apple) {
+            return;
+        }
+
+        config.providers.insert(
+            0,
+            Provider {
+                id: APPLE_PROVIDER_ID.to_string(),
+                name: "Apple Intelligence".to_string(),
+                provider_type: ProviderType::Apple,
+                endpoint: None,
+                api_key: None,
+                headers: serde_json::Map::new(),
+                default_model: None,
+                command: None,
+                args: vec![],
+            },
+        );
+
+        if let Err(err) = save_config(&config) {
+            warn!(error = %err, "Failed to persist auto-attached Apple Intelligence provider");
+        }
+
+        true
+    };
+
+    if refresh_needed {
+        if let Ok(config) = config_state.lock() {
+            if let Err(err) = refresh_tray_menu(&app, &config) {
+                warn!(error = %err, "Failed to refresh tray menu after Apple provider attach");
+            }
+        }
     }
 }
 
@@ -73,15 +103,13 @@ pub fn run() {
         None => warn!("File logging unavailable; continuing with stderr logging only"),
     }
 
-    let mut config = match load_config() {
+    let config = match load_config() {
         Ok(config) => config,
         Err(err) => {
             error!(error = %err, "Failed to load config; using defaults instead");
             AppConfig::default()
         }
     };
-
-    maybe_attach_apple_provider(&mut config);
 
     info!(
         provider_count = config.providers.len(),
@@ -121,6 +149,12 @@ pub fn run() {
             setup_settings_window(app)?;
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+
+            // Attach Apple provider asynchronously so it never blocks app launch
+            let handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                attach_apple_provider_async(handle).await;
+            });
 
             Ok(())
         });
