@@ -59,9 +59,16 @@ No browser. No context switching. Select text, run an action, get the result bac
 
 ## Download
 
-**[Download the latest release](https://github.com/andrewmmc/clipwise/releases/latest)**
+**[Get Clipwise on the Mac App Store](https://apps.apple.com/us/app/clipwise-refine-text-with-ai/id6762086471)** (Apple Intelligence, OpenAI, Anthropic) or **[download the latest release](https://github.com/andrewmmc/clipwise/releases/latest)** (includes CLI tool support)
 
 macOS builds are available for both Apple Silicon (M1+) and Intel.
+
+### From the Mac App Store
+
+1. Open the [App Store link](https://apps.apple.com/us/app/clipwise-refine-text-with-ai/id6762086471) and click **Get**.
+2. The app will be installed to your **Applications** folder automatically.
+
+### From GitHub Releases
 
 1. Download the `.dmg` file from the [releases page](https://github.com/andrewmmc/clipwise/releases/latest) for your architecture.
 2. Open the `.dmg` and drag **Clipwise** to your **Applications** folder.
