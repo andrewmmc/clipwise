@@ -41,11 +41,12 @@ objc2-core-foundation = { version = "0.3", features = [
 ] }
 objc2-app-kit = { version = "0.3", features = [
   "NSApplication",
+  "NSImage",
   "NSPasteboard",
   "NSRunningApplication",
   "NSWorkspace",
 ] }
-objc2-foundation = { version = "0.3", features = ["NSObject", "NSString"] }
+objc2-foundation = { version = "0.3", features = ["NSData", "NSObject", "NSString"] }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros"] }

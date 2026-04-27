@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { tauriCommands } from "../lib/tauri";
 import type { AppConfig, Provider } from "../types/config";
@@ -23,6 +23,14 @@ const typeLabel: Record<string, string> = {
 export default function ProviderList({ config, onRefresh }: Props) {
   const [editing, setEditing] = useState<Provider | null>(null);
   const [creating, setCreating] = useState(false);
+  const [cliEnabled, setCliEnabled] = useState(true);
+
+  useEffect(() => {
+    tauriCommands
+      .isCliProviderEnabled()
+      .then(setCliEnabled)
+      .catch(() => setCliEnabled(false));
+  }, []);
   const {
     message: successMessage,
     showMessage: showSuccessMessage,
@@ -81,7 +89,7 @@ export default function ProviderList({ config, onRefresh }: Props) {
             Providers
           </h2>
           <p className="mt-0.5 text-[12px] text-text-tertiary">
-            Configure LLM API or CLI providers.
+            Configure LLM API{cliEnabled && " or CLI"} providers.
           </p>
         </div>
         <button

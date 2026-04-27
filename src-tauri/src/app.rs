@@ -18,6 +18,25 @@ const TRAY_ID: &str = "main";
 const TRAY_ACTION_PREFIX: &str = "tray_action:";
 const NOTIFICATION_PREVIEW_LIMIT: usize = 120;
 
+#[cfg(target_os = "macos")]
+fn set_app_icon() {
+    use objc2::AnyThread;
+    use objc2::MainThreadMarker;
+    use objc2_app_kit::{NSApplication, NSImage};
+    use objc2_foundation::NSData;
+
+    let icon_bytes = include_bytes!("../icons/128x128@2x.png");
+    unsafe {
+        let data = NSData::with_bytes(icon_bytes);
+        if let Some(image) = NSImage::initWithData(NSImage::alloc(), &data) {
+            if let Some(mtm) = MainThreadMarker::new() {
+                let app = NSApplication::sharedApplication(mtm);
+                app.setApplicationIconImage(Some(&image));
+            }
+        }
+    }
+}
+
 async fn attach_apple_provider_async<R: Runtime>(app: AppHandle<R>) {
     let already_has_apple = {
         let config_state = app.state::<ConfigState>();
@@ -145,6 +164,8 @@ pub fn run() {
         ])
         .setup(move |app| {
             info!("Setting up Tauri application");
+            #[cfg(target_os = "macos")]
+            set_app_icon();
             setup_tray(app)?;
             setup_settings_window(app)?;
             #[cfg(target_os = "macos")]
@@ -480,10 +501,7 @@ fn setup_tray<R: Runtime>(app: &tauri::App<R>) -> tauri::Result<()> {
         .on_menu_event(|app, event| match event.id.as_ref() {
             "open_settings" => {
                 info!("Tray menu requested settings window");
-                if let Some(window) = app.get_webview_window("settings") {
-                    let _ = window.show();
-                    let _ = window.set_focus();
-                }
+                show_settings_window(app);
             }
             "quit" => {
                 info!("Tray menu requested app quit");
@@ -507,10 +525,7 @@ fn setup_tray<R: Runtime>(app: &tauri::App<R>) -> tauri::Result<()> {
             {
                 let app = tray.app_handle();
                 debug!("Tray icon left click opened settings window");
-                if let Some(window) = app.get_webview_window("settings") {
-                    let _ = window.show();
-                    let _ = window.set_focus();
-                }
+                show_settings_window(app);
             }
         })
         .build(app)?;
@@ -518,14 +533,31 @@ fn setup_tray<R: Runtime>(app: &tauri::App<R>) -> tauri::Result<()> {
     Ok(())
 }
 
+fn show_settings_window<R: Runtime>(app: &AppHandle<R>) {
+    if let Some(window) = app.get_webview_window("settings") {
+        #[cfg(target_os = "macos")]
+        let _ = app.set_activation_policy(tauri::ActivationPolicy::Regular);
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
+}
+
+fn hide_settings_window<R: Runtime>(app: &AppHandle<R>) {
+    if let Some(window) = app.get_webview_window("settings") {
+        let _ = window.hide();
+        #[cfg(target_os = "macos")]
+        let _ = app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+    }
+}
+
 fn setup_settings_window<R: Runtime>(app: &tauri::App<R>) -> tauri::Result<()> {
     if let Some(window) = app.get_webview_window("settings") {
         debug!("Configuring settings window close behavior");
-        let window_handle = window.clone();
+        let app_handle = app.handle().clone();
         window.on_window_event(move |event| {
             if let WindowEvent::CloseRequested { api, .. } = event {
                 api.prevent_close();
-                let _ = window_handle.hide();
+                hide_settings_window(&app_handle);
             }
         });
     }
