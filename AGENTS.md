@@ -40,3 +40,14 @@ cd src-tauri && cargo test  # Rust tests
 - All LLM responses must return `{"result": "..."}` JSON. The system prompt enforcing this is in `models.rs::SYSTEM_PROMPT` and must not be user-editable.
 - Never commit API keys, secrets, or `.env` files.
 - Never use interactive git commands. For tags, always use `-m` to provide a message inline (e.g., `git tag -a v1.0.0 -m "v1.0.0"`).
+
+## Cursor Cloud specific instructions
+
+This is a macOS-native Tauri 2 desktop app. On Linux cloud VMs:
+
+- **Frontend (React/TS)** works fully: lint, typecheck, test, build all run as documented in the Commands section above.
+- **Rust backend tests** work fully on Linux (`cd src-tauri && cargo test`). Requires `libgtk-3-dev`, `libwebkit2gtk-4.1-dev`, `libayatana-appindicator3-dev`, `librsvg2-dev`, and `libjavascriptcoregtk-4.1-dev` system packages to compile.
+- **`npm run tauri:dev`** and **`npm run tauri:build`** require macOS (AppKit, NSPasteboard, tray icon). They will not work on Linux cloud VMs. Use `npm run dev` (Vite only) to preview the frontend at `http://localhost:1420`.
+- **Vite dev server** (`npm run dev`) serves the frontend on port 1420. The UI shows a "Failed to load config" error because the Tauri `invoke` bridge is unavailable outside the native webview — this is expected and not a bug.
+- The `prepare` script runs `lefthook install`, which may conflict with the agent's `core.hooksPath` git config. Use `npm install --ignore-scripts` if `npm install` fails on the prepare step, then run checks manually.
+- **Rust toolchain**: crate dependencies require Rust 1.85+ (edition 2024). Run `rustup default stable` if the default toolchain is too old.
