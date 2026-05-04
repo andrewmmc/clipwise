@@ -47,7 +47,8 @@ This is a macOS-native Tauri 2 desktop app. On Linux cloud VMs:
 
 - **Frontend (React/TS)** works fully: lint, typecheck, test, build all run as documented in the Commands section above.
 - **Rust backend tests** work fully on Linux (`cd src-tauri && cargo test`). Requires `libgtk-3-dev`, `libwebkit2gtk-4.1-dev`, `libayatana-appindicator3-dev`, `librsvg2-dev`, and `libjavascriptcoregtk-4.1-dev` system packages to compile.
-- **`npm run tauri:dev`** and **`npm run tauri:build`** require macOS (AppKit, NSPasteboard, tray icon). They will not work on Linux cloud VMs. Use `npm run dev` (Vite only) to preview the frontend at `http://localhost:1420`.
-- **Vite dev server** (`npm run dev`) serves the frontend on port 1420. The UI shows a "Failed to load config" error because the Tauri `invoke` bridge is unavailable outside the native webview — this is expected and not a bug.
+- **`npx tauri dev`** compiles and launches on Linux (macOS-specific code is `#[cfg]`-gated). The Rust backend, tray icon, and Vite dev server all start successfully. However, the **WebKitGTK webview renders as transparent** on the cloud VM due to missing GPU/DRI3 acceleration — even with `WEBKIT_DISABLE_COMPOSITING_MODE=1 WEBKIT_DISABLE_DMABUF_RENDERER=1 LIBGL_ALWAYS_SOFTWARE=1`. To develop the frontend UI, open `http://localhost:1420` in Chrome instead while `tauri dev` is running.
+- **`npm run tauri:build`** also compiles on Linux but produces a Linux bundle (not macOS `.app`).
+- **Vite dev server** (`npm run dev` or auto-started by `tauri dev`) serves the frontend on port 1420. When accessed in Chrome, the UI shows a "Failed to load config" error because the Tauri `invoke` bridge is unavailable outside the native webview — this is expected and not a bug.
 - The `prepare` script runs `lefthook install`, which may conflict with the agent's `core.hooksPath` git config. Use `npm install --ignore-scripts` if `npm install` fails on the prepare step, then run checks manually.
 - **Rust toolchain**: crate dependencies require Rust 1.85+ (edition 2024). Run `rustup default stable` if the default toolchain is too old.
