@@ -21,6 +21,23 @@ const CLI_INPUT_PROPS = {
   spellCheck: false,
 };
 
+/** Quote a token for shell preview if it contains whitespace or shell metacharacters. */
+function shellQuote(token: string): string {
+  if (token === "") return "''";
+  if (/^[A-Za-z0-9_\-./:=@%+,]+$/.test(token)) return token;
+  return `'${token.replace(/'/g, `'\\''`)}'`;
+}
+
+function buildCommandPreview(command: string, args: string[]): string {
+  const trimmedCommand = command.trim();
+  const cleanArgs = args.map((a) => a.trim()).filter((a) => a.length > 0);
+  const parts: string[] = [];
+  if (trimmedCommand) parts.push(trimmedCommand);
+  parts.push(...cleanArgs.map(shellQuote));
+  parts.push(shellQuote("<your prompt>"));
+  return parts.join(" ");
+}
+
 export default function CliProviderForm({
   command,
   args,
@@ -33,6 +50,7 @@ export default function CliProviderForm({
   onRemoveArg,
   onTestCommand,
 }: Props) {
+  const commandPreview = buildCommandPreview(command, args);
   return (
     <>
       <div>
@@ -110,6 +128,17 @@ export default function CliProviderForm({
             </p>
           )}
         </div>
+      </div>
+
+      <div>
+        <label className="label mb-2">Command preview</label>
+        <pre className="overflow-x-auto whitespace-pre-wrap break-all rounded bg-surface-tertiary px-3 py-2 font-mono text-[12px]">
+          {commandPreview}
+        </pre>
+        <p className="helper-text mt-2">
+          Your copied text is appended as the final argument when the action
+          runs.
+        </p>
       </div>
     </>
   );
