@@ -30,6 +30,9 @@ jobs:
 
       - run: npm ci
 
+      - name: Validate release notes
+        run: ./scripts/validate-release-notes.sh
+
       - name: Lint
         run: npx eslint .
 

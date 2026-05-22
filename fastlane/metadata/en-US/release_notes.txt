@@ -1,0 +1,5 @@
+Thanks for using Clipwise!
+
+This update includes bug fixes, performance improvements, and small refinements to make AI-powered clipboard transformations faster and more reliable.
+
+If you enjoy the app, please consider leaving a review — it really helps. Got feedback or found an issue? Reach out from the Settings tab in the app.

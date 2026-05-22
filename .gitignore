@@ -39,3 +39,13 @@ src-tauri/resources/
 
 # Generated App Store screenshots
 appstore-screenshots/
+
+# Fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots
+fastlane/test_output
+fastlane/README.md.bak
+.tmp/
+vendor/bundle/
+.bundle/
