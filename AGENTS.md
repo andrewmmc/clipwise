@@ -39,7 +39,7 @@ cd src-tauri && cargo test  # Rust tests
 - Types shared between frontend and backend live in `src/types/config.ts` (TS) and `src-tauri/src/models.rs` (Rust) — keep them in sync.
 - All LLM responses must return `{"result": "..."}` JSON. The system prompt enforcing this is in `models.rs::SYSTEM_PROMPT` and must not be user-editable.
 - Never commit API keys, secrets, or `.env` files.
-- Never use interactive git commands. For tags, always use `-m` to provide a message inline (e.g., `git tag -a v1.0.0 -m "v1.0.0"`).
+- Never use interactive git commands. For tags, always use `-m` to provide a message inline (e.g., `git tag -a v1.0.0 -m "v1.0.0"`). For `git rebase --continue`, use `GIT_EDITOR=true git rebase --continue`. For `git commit --amend`, use `--no-edit` or `-m "msg"`. For `git diff`/`git log`, use `--no-pager` or pipe output.
 - After making changes, always commit them locally, but never push unless the user explicitly asks.
 
 ## Cursor Cloud specific instructions
