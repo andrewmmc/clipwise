@@ -99,6 +99,9 @@ pub struct HistoryEntry {
     /// Whether the transformation succeeded
     #[serde(default)]
     pub success: bool,
+    /// Whether the entry is starred (favorited). Starred entries are preserved on clear.
+    #[serde(default)]
+    pub starred: bool,
 }
 
 /// Global application settings.
@@ -384,12 +387,14 @@ mod tests {
             input_text: "input".into(),
             output_text: "output".into(),
             success: true,
+            starred: false,
         };
         let json = serde_json::to_string(&entry).unwrap();
         assert!(json.contains("\"actionName\""));
         assert!(json.contains("\"providerName\""));
         assert!(json.contains("\"inputText\""));
         assert!(json.contains("\"outputText\""));
+        assert!(json.contains("\"starred\""));
         assert!(!json.contains("\"action_name\""));
     }
 
@@ -403,6 +408,7 @@ mod tests {
             input_text: "input".into(),
             output_text: "output".into(),
             success: true,
+            starred: true,
         };
         let json = serde_json::to_string(&entry).unwrap();
         let decoded: HistoryEntry = serde_json::from_str(&json).unwrap();
@@ -410,6 +416,7 @@ mod tests {
         assert_eq!(decoded.action_name, "Test Action");
         assert_eq!(decoded.provider_name, "Test Provider");
         assert!(decoded.success);
+        assert!(decoded.starred);
     }
 
     #[test]
@@ -420,6 +427,15 @@ mod tests {
         assert_eq!(entry.timestamp, "");
         assert_eq!(entry.action_name, "");
         assert!(entry.success);
+        assert!(!entry.starred);
+    }
+
+    #[test]
+    fn test_history_entry_starred_backward_compatible() {
+        let json = r#"{"id": "old-entry", "timestamp": "2024-01-01T00:00:00Z", "actionName": "Test", "providerName": "Test", "inputText": "in", "outputText": "out", "success": true}"#;
+        let entry: HistoryEntry = serde_json::from_str(json).unwrap();
+        assert_eq!(entry.id, "old-entry");
+        assert!(!entry.starred);
     }
 
     // ── AppSettings defaults ──────────────────────────────────────────────────

@@ -29,4 +29,8 @@ export type HistoryEntry = {
    * Whether the transformation succeeded
    */
   success: boolean;
+  /**
+   * Whether the entry is starred (favorited). Starred entries are preserved on clear.
+   */
+  starred: boolean;
 };

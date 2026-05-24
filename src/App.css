@@ -186,6 +186,15 @@ img {
   color: var(--error);
 }
 
+.btn-icon-muted {
+  opacity: 0.4;
+  transition: opacity 150ms ease;
+}
+
+.btn-icon-muted:hover {
+  opacity: 1;
+}
+
 /* Inputs */
 .input {
   width: 100%;

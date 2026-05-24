@@ -8,6 +8,7 @@ import {
   ChevronDown,
   ChevronRight,
   History,
+  Star,
   Trash2,
   XCircle,
 } from "lucide-react";
@@ -22,6 +23,8 @@ export default function HistoryList() {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [clearing, setClearing] = useState(false);
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
+  const [starringIds, setStarringIds] = useState<Set<string>>(new Set());
+  const [showStarredOnly, setShowStarredOnly] = useState(false);
   const {
     message: successMessage,
     showMessage,
@@ -66,6 +69,30 @@ export default function HistoryList() {
     }
   };
 
+  const handleToggleStar = (id: string) => {
+    setStarringIds((prev) => new Set(prev).add(id));
+    setError(null);
+    clearMessage();
+    tauriCommands
+      .toggleStarEntry(id)
+      .then((newStarred) => {
+        showMessage(newStarred ? "Entry starred." : "Star removed.");
+        setHistory((prev) =>
+          prev.map((e) => (e.id === id ? { ...e, starred: newStarred } : e)),
+        );
+      })
+      .catch((e) => {
+        setError(e instanceof Error ? e.message : String(e));
+      })
+      .finally(() => {
+        setStarringIds((prev) => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+      });
+  };
+
   const handleClearHistory = () => {
     setClearing(true);
     setError(null);
@@ -73,8 +100,15 @@ export default function HistoryList() {
     tauriCommands
       .clearHistory()
       .then(() => {
-        showMessage("History cleared.");
-        setHistory([]);
+        const starredCount = history.filter((e) => e.starred).length;
+        if (starredCount > 0) {
+          showMessage(
+            `Cleared non-starred entries. ${starredCount} starred item${starredCount === 1 ? "" : "s"} preserved.`,
+          );
+        } else {
+          showMessage("History cleared.");
+        }
+        setHistory((prev) => prev.filter((e) => e.starred));
       })
       .catch((e) => {
         setError(e instanceof Error ? e.message : String(e));
@@ -127,6 +161,11 @@ export default function HistoryList() {
     }
   };
 
+  const starredCount = history.filter((e) => e.starred).length;
+  const displayedHistory = showStarredOnly
+    ? history.filter((e) => e.starred)
+    : history;
+
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -148,31 +187,55 @@ export default function HistoryList() {
               : `${history.length} transformation${history.length === 1 ? "" : "s"}`}
           </p>
         </div>
-        {history.length > 0 && (
-          <button
-            type="button"
-            onClick={handleClearHistory}
-            disabled={clearing}
-            className="btn btn-danger"
-          >
-            <Trash2 size={14} />
-            {clearing ? "Clearing…" : "Clear"}
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {starredCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowStarredOnly((prev) => !prev)}
+              className={`btn ${showStarredOnly ? "btn-primary" : "btn-ghost"}`}
+              title={showStarredOnly ? "Show all entries" : "Show starred only"}
+            >
+              <Star
+                size={14}
+                className={showStarredOnly ? "fill-current" : ""}
+              />
+              {starredCount}
+            </button>
+          )}
+          {history.length > 0 && (
+            <button
+              type="button"
+              onClick={handleClearHistory}
+              disabled={clearing}
+              className="btn btn-danger"
+            >
+              <Trash2 size={14} />
+              {clearing ? "Clearing…" : "Clear"}
+            </button>
+          )}
+        </div>
       </div>
 
       {error && <ErrorBox message={error} />}
       {successMessage && <SuccessBox message={successMessage} />}
 
-      {history.length === 0 ? (
+      {displayedHistory.length === 0 ? (
         <EmptyState
           icon={<History size={18} />}
-          title="No history yet"
-          description="Transformations will appear here when you run actions."
+          title={
+            showStarredOnly && history.length > 0
+              ? "No starred entries"
+              : "No history yet"
+          }
+          description={
+            showStarredOnly && history.length > 0
+              ? "Star entries to keep them safe from clearing."
+              : "Transformations will appear here when you run actions."
+          }
         />
       ) : (
         <div className="space-y-2">
-          {history.map((entry) => {
+          {displayedHistory.map((entry) => {
             const isExpanded = expandedIds.has(entry.id);
             return (
               <div key={entry.id} className="card">
@@ -224,20 +287,38 @@ export default function HistoryList() {
                     )}
                   </div>
 
-                  {isExpanded && (
+                  <div className="flex items-center gap-1">
                     <button
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleDeleteEntry(entry.id);
+                        handleToggleStar(entry.id);
                       }}
-                      disabled={deletingIds.has(entry.id)}
-                      className="btn-icon btn-icon-danger"
-                      title="Delete entry"
+                      disabled={starringIds.has(entry.id)}
+                      className={`btn-icon ${entry.starred ? "text-warning" : "btn-icon-muted"}`}
+                      title={entry.starred ? "Unstar entry" : "Star entry"}
                     >
-                      <Trash2 size={14} />
+                      <Star
+                        size={14}
+                        className={entry.starred ? "fill-current" : ""}
+                      />
                     </button>
-                  )}
+
+                    {isExpanded && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteEntry(entry.id);
+                        }}
+                        disabled={deletingIds.has(entry.id)}
+                        className="btn-icon btn-icon-danger"
+                        title="Delete entry"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {isExpanded && (

@@ -123,6 +123,7 @@ describe("tauriCommands", () => {
         inputText: "input",
         outputText: "output",
         success: true,
+        starred: false,
       },
     ];
     mockInvoke.mockResolvedValue(mockHistory);
@@ -141,6 +142,15 @@ describe("tauriCommands", () => {
     mockInvoke.mockResolvedValue(true);
     const result = await tauriCommands.deleteHistoryEntry("entry-id-123");
     expect(mockInvoke).toHaveBeenCalledWith("delete_history_entry", {
+      id: "entry-id-123",
+    });
+    expect(result).toBe(true);
+  });
+
+  it("toggleStarEntry calls invoke with 'toggle_star_entry'", async () => {
+    mockInvoke.mockResolvedValue(true);
+    const result = await tauriCommands.toggleStarEntry("entry-id-123");
+    expect(mockInvoke).toHaveBeenCalledWith("toggle_star_entry", {
       id: "entry-id-123",
     });
     expect(result).toBe(true);

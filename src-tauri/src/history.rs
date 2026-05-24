@@ -1,10 +1,11 @@
 use crate::error::AppError;
 use crate::models::HistoryEntry;
 use std::path::PathBuf;
-use tracing::{info, warn};
+use tracing::info;
 use uuid::Uuid;
 
 const MAX_HISTORY_ENTRIES: usize = 100;
+const MAX_STARRED_ENTRIES: usize = 20;
 const INPUT_TRUNCATE_CHARS: usize = 500;
 const OUTPUT_TRUNCATE_CHARS: usize = 2000;
 
@@ -81,29 +82,50 @@ pub fn add_entry(
         input_text: truncate_text(&input_text, INPUT_TRUNCATE_CHARS),
         output_text: truncate_text(&output_text, OUTPUT_TRUNCATE_CHARS),
         success,
+        starred: false,
     };
 
     // Prepend the new entry (newest first)
     history.insert(0, entry);
 
-    // Trim to max entries
+    // Trim to max entries, preserving starred items
     if history.len() > MAX_HISTORY_ENTRIES {
-        history.truncate(MAX_HISTORY_ENTRIES);
+        let mut starred_entries: Vec<HistoryEntry> =
+            history.iter().filter(|e| e.starred).cloned().collect();
+        let mut non_starred_entries: Vec<HistoryEntry> =
+            history.iter().filter(|e| !e.starred).cloned().collect();
+        let non_starred_allowed = MAX_HISTORY_ENTRIES.saturating_sub(starred_entries.len());
+        non_starred_entries.truncate(non_starred_allowed);
+        starred_entries.extend(non_starred_entries);
+        history = starred_entries;
     }
 
     save_history(&history)?;
     Ok(())
 }
 
-/// Clear all history entries.
+/// Clear non-starred history entries. Starred entries are preserved.
 pub fn clear_history() -> Result<(), AppError> {
-    let path = history_path()?;
-    if path.exists() {
-        std::fs::remove_file(&path)?;
-        info!(path = %path.display(), "Cleared history");
+    let mut history = load_history()?;
+    let original_len = history.len();
+
+    history.retain(|entry| entry.starred);
+
+    if history.is_empty() {
+        let path = history_path()?;
+        if path.exists() {
+            std::fs::remove_file(&path)?;
+            info!(path = %path.display(), "Cleared history (no starred entries to preserve)");
+        }
     } else {
-        warn!(path = %path.display(), "History file does not exist; nothing to clear");
+        info!(
+            removed = original_len - history.len(),
+            preserved = history.len(),
+            "Cleared non-starred history entries"
+        );
+        save_history(&history)?;
     }
+
     Ok(())
 }
 
@@ -124,6 +146,47 @@ pub fn delete_entry(id: &str) -> Result<bool, AppError> {
     Ok(true)
 }
 
+/// Toggle the starred state of a history entry. Returns the new starred state.
+/// Enforces MAX_STARRED_ENTRIES: if starring would exceed the limit, the oldest
+/// starred entry is unstarred first.
+pub fn toggle_star(id: &str) -> Result<bool, AppError> {
+    let mut history = load_history()?;
+
+    let current_starred = history
+        .iter()
+        .find(|e| e.id == id)
+        .ok_or_else(|| AppError::Config(format!("History entry {id} not found")))?
+        .starred;
+
+    let new_starred = !current_starred;
+
+    if new_starred {
+        let current_starred_count = history.iter().filter(|e| e.starred).count();
+        if current_starred_count >= MAX_STARRED_ENTRIES {
+            // Unstar the oldest starred entry
+            if let Some(oldest_starred) = history
+                .iter_mut()
+                .filter(|e| e.starred && e.id != id)
+                .last()
+            {
+                info!(
+                    id = %oldest_starred.id,
+                    "Unstarring oldest entry to make room for new star"
+                );
+                oldest_starred.starred = false;
+            }
+        }
+    }
+
+    if let Some(entry) = history.iter_mut().find(|e| e.id == id) {
+        entry.starred = new_starred;
+    }
+
+    save_history(&history)?;
+    info!(id = %id, starred = new_starred, "Toggled history entry star");
+    Ok(new_starred)
+}
+
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
@@ -139,6 +202,10 @@ mod tests {
     }
 
     fn make_test_entry(id: &str, action_name: &str) -> HistoryEntry {
+        make_test_entry_with_starred(id, action_name, false)
+    }
+
+    fn make_test_entry_with_starred(id: &str, action_name: &str, starred: bool) -> HistoryEntry {
         HistoryEntry {
             id: id.to_string(),
             timestamp: "2024-01-01T00:00:00Z".to_string(),
@@ -147,6 +214,7 @@ mod tests {
             input_text: "test input".to_string(),
             output_text: "test output".to_string(),
             success: true,
+            starred,
         }
     }
 
@@ -205,6 +273,7 @@ mod tests {
             input_text: "new input".to_string(),
             output_text: "new output".to_string(),
             success: true,
+            starred: false,
         };
         history.insert(0, new_entry);
 
@@ -371,5 +440,111 @@ mod tests {
         let loaded: Vec<HistoryEntry> = serde_json::from_str(&data).unwrap();
         assert_eq!(loaded.len(), 2);
         assert!(data.contains('\n'), "expected pretty-printed JSON");
+    }
+
+    // ── toggle_star ────────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_toggle_star_sets_starred_true() {
+        let mut history = vec![make_test_entry("id1", "Action1")];
+        let entry = history.iter_mut().find(|e| e.id == "id1").unwrap();
+        entry.starred = !entry.starred;
+        assert!(entry.starred);
+    }
+
+    #[test]
+    fn test_toggle_star_unsets_starred() {
+        let mut history = vec![make_test_entry_with_starred("id1", "Action1", true)];
+        let entry = history.iter_mut().find(|e| e.id == "id1").unwrap();
+        entry.starred = !entry.starred;
+        assert!(!entry.starred);
+    }
+
+    #[test]
+    fn test_toggle_star_enforces_max_starred_limit() {
+        let mut history: Vec<HistoryEntry> = (0..MAX_STARRED_ENTRIES)
+            .map(|i| make_test_entry_with_starred(&format!("starred-{}", i), &format!("Action{}", i), true))
+            .collect();
+        history.push(make_test_entry("new-id", "NewAction"));
+
+        let new_starred = !history.iter().find(|e| e.id == "new-id").unwrap().starred;
+        assert!(new_starred);
+
+        let current_starred_count = history.iter().filter(|e| e.starred).count();
+        assert_eq!(current_starred_count, MAX_STARRED_ENTRIES);
+
+        if current_starred_count >= MAX_STARRED_ENTRIES {
+            if let Some(oldest_starred) = history
+                .iter_mut()
+                .filter(|e| e.starred && e.id != "new-id")
+                .last()
+            {
+                oldest_starred.starred = false;
+            }
+        }
+        history.iter_mut().find(|e| e.id == "new-id").unwrap().starred = new_starred;
+
+        let final_starred_count = history.iter().filter(|e| e.starred).count();
+        assert_eq!(final_starred_count, MAX_STARRED_ENTRIES);
+        assert!(history.iter().find(|e| e.id == "new-id").unwrap().starred);
+        assert!(!history.iter().find(|e| e.id == "starred-19").unwrap().starred, "Oldest starred entry should be unstarred");
+    }
+
+    // ── clear_history preserves starred ────────────────────────────────────────
+
+    #[test]
+    fn test_clear_history_preserves_starred() {
+        let mut history = vec![
+            make_test_entry("id1", "Action1"),
+            make_test_entry_with_starred("id2", "Action2", true),
+            make_test_entry("id3", "Action3"),
+        ];
+
+        history.retain(|entry| entry.starred);
+
+        assert_eq!(history.len(), 1);
+        assert!(history.iter().any(|e| e.id == "id2"));
+    }
+
+    #[test]
+    fn test_clear_history_removes_all_when_none_starred() {
+        let mut history = vec![
+            make_test_entry("id1", "Action1"),
+            make_test_entry("id2", "Action2"),
+        ];
+
+        history.retain(|entry| entry.starred);
+
+        assert!(history.is_empty());
+    }
+
+    // ── add_entry trimming preserves starred ───────────────────────────────────
+
+    #[test]
+    fn test_add_entry_trimming_preserves_starred() {
+        let mut history: Vec<HistoryEntry> = (0..100)
+            .map(|i| make_test_entry(&format!("id-{}", i), &format!("Action{}", i)))
+            .collect();
+        // Star the oldest entry (last in list)
+        history.last_mut().unwrap().starred = true;
+
+        // Add a new entry to trigger trim
+        let new_entry = make_test_entry("new-id", "NewAction");
+        history.insert(0, new_entry);
+
+        if history.len() > MAX_HISTORY_ENTRIES {
+            let mut starred_entries: Vec<HistoryEntry> =
+                history.iter().filter(|e| e.starred).cloned().collect();
+            let mut non_starred_entries: Vec<HistoryEntry> =
+                history.iter().filter(|e| !e.starred).cloned().collect();
+            let non_starred_allowed = MAX_HISTORY_ENTRIES.saturating_sub(starred_entries.len());
+            non_starred_entries.truncate(non_starred_allowed);
+            starred_entries.extend(non_starred_entries);
+            history = starred_entries;
+        }
+
+        assert_eq!(history.len(), MAX_HISTORY_ENTRIES);
+        assert!(history.iter().any(|e| e.id == "id-99"), "Starred entry should be preserved");
+        assert!(history.iter().any(|e| e.id == "new-id"), "New entry should be present");
     }
 }

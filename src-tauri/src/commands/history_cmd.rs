@@ -8,7 +8,7 @@ pub async fn get_history() -> Result<Vec<HistoryEntry>, AppError> {
     history::load_history()
 }
 
-/// Clears all history entries.
+/// Clears non-starred history entries. Starred entries are preserved.
 #[cfg_attr(not(test), tauri::command)]
 pub async fn clear_history() -> Result<(), AppError> {
     history::clear_history()
@@ -18,6 +18,12 @@ pub async fn clear_history() -> Result<(), AppError> {
 #[cfg_attr(not(test), tauri::command)]
 pub async fn delete_history_entry(id: String) -> Result<bool, AppError> {
     history::delete_entry(&id)
+}
+
+/// Toggles the starred state of a history entry. Returns the new starred state.
+#[cfg_attr(not(test), tauri::command)]
+pub async fn toggle_star_entry(id: String) -> Result<bool, AppError> {
+    history::toggle_star(&id)
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────

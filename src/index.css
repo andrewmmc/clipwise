@@ -12,6 +12,7 @@
   --color-accent-hover: var(--accent-hover);
   --color-success: var(--success);
   --color-error: var(--error);
+  --color-warning: var(--warning);
   --color-border: var(--border);
   --color-border-strong: var(--border-strong);
 }
@@ -28,6 +29,7 @@
   --accent-hover: #4c4cc4;
   --success: #22c55e;
   --error: #ef4444;
+  --warning: #eab308;
   --border: #e4e4e7;
   --border-strong: #d4d4d8;
   color: var(--text-primary);
@@ -48,6 +50,7 @@
     --accent-hover: #9191ff;
     --success: #22c55e;
     --error: #f87171;
+    --warning: #facc15;
     --border: #27272a;
     --border-strong: #3f3f46;
     background: var(--surface-secondary);

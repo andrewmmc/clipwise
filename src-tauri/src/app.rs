@@ -159,6 +159,7 @@ pub fn run() {
             get_history,
             clear_history,
             delete_history_entry,
+            toggle_star_entry,
             check_apple_model_availability,
             is_cli_provider_enabled,
         ])
