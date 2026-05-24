@@ -446,7 +446,7 @@ mod tests {
 
     #[test]
     fn test_toggle_star_sets_starred_true() {
-        let mut history = vec![make_test_entry("id1", "Action1")];
+        let mut history = [make_test_entry("id1", "Action1")];
         let entry = history.iter_mut().find(|e| e.id == "id1").unwrap();
         entry.starred = !entry.starred;
         assert!(entry.starred);
@@ -454,7 +454,7 @@ mod tests {
 
     #[test]
     fn test_toggle_star_unsets_starred() {
-        let mut history = vec![make_test_entry_with_starred("id1", "Action1", true)];
+        let mut history = [make_test_entry_with_starred("id1", "Action1", true)];
         let entry = history.iter_mut().find(|e| e.id == "id1").unwrap();
         entry.starred = !entry.starred;
         assert!(!entry.starred);
