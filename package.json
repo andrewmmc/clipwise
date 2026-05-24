@@ -25,7 +25,7 @@
     "gen-types": "cd src-tauri && TS_RS_EXPORT_DIR=../src/types/bindings cargo test --features ts export_bindings"
   },
   "dependencies": {
-    "@tauri-apps/api": "^2",
+    "@tauri-apps/api": "^2.11.0",
     "@tauri-apps/plugin-opener": "^2",
     "lucide-react": "^1.8.0",
     "react": "^19.1.0",
