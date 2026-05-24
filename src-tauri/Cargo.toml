@@ -1,6 +1,6 @@
 [package]
 name = "clipwise"
-version = "0.1.4"
+version = "0.1.5"
 description = "macOS menu bar app for LLM-powered text transformations"
 authors = ["andrewmmc"]
 edition = "2021"
