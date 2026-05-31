@@ -1,18 +1,15 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useEffect, useState } from "react";
+import useCliProviderEnabled from "../hooks/useCliProviderEnabled";
 import { tauriCommands } from "../lib/tauri";
 import type { AppInfo } from "../types/config";
 
 export default function AboutPanel() {
   const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
-  const [cliEnabled, setCliEnabled] = useState(true);
+  const cliEnabled = useCliProviderEnabled();
 
   useEffect(() => {
     tauriCommands.getAppInfo().then(setAppInfo).catch(console.error);
-    tauriCommands
-      .isCliProviderEnabled()
-      .then(setCliEnabled)
-      .catch(() => setCliEnabled(false));
   }, []);
 
   const versionString = appInfo

@@ -4,7 +4,7 @@ import type { AppSettings } from "./AppSettings";
 import type { Provider } from "./Provider";
 
 /**
- * Root configuration object stored in ~/Library/Application Support/llm-actions/config.json
+ * Root configuration object stored in ~/Library/Application Support/clipwise/config.json
  */
 export type AppConfig = {
   providers: Array<Provider>;

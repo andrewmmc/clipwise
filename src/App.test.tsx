@@ -195,6 +195,46 @@ describe("App", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("shows Actions content when active tab is no longer available", async () => {
+    const disabledHistoryConfig = {
+      ...mockConfig,
+      settings: { ...mockConfig.settings, historyEnabled: false },
+    };
+    let currentConfig = mockConfig;
+    mockInvoke.mockImplementation((cmd, args) => {
+      if (cmd === "get_config") {
+        return Promise.resolve(currentConfig);
+      }
+      if (cmd === "get_history") {
+        return Promise.resolve([]);
+      }
+      if (cmd === "save_settings") {
+        expect(args).toEqual({
+          settings: expect.objectContaining({ historyEnabled: false }),
+        });
+        currentConfig = disabledHistoryConfig;
+        return Promise.resolve(undefined);
+      }
+      return Promise.resolve(undefined);
+    });
+
+    render(<App />);
+    await waitFor(() => screen.getByText("Clipwise"));
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /history/i }));
+    await waitFor(() => screen.getByText("No history yet"));
+    await user.click(screen.getByRole("button", { name: /settings/i }));
+    await user.click(screen.getByRole("switch", { name: /enable history/i }));
+
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("button", { name: /history/i }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(screen.getByText("Actions")).toBeInTheDocument();
+  });
+
   it("switching tabs persists active tab state", async () => {
     mockInvoke.mockResolvedValue(mockConfig);
     render(<App />);

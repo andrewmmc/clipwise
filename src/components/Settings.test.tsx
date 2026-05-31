@@ -53,7 +53,7 @@ describe("SettingsPanel", () => {
     );
   });
 
-  it("syncs the toggle when config changes via key-based remount", () => {
+  it("syncs the toggle when config changes", () => {
     const updatedConfig = {
       ...mockConfig,
       settings: {
@@ -63,21 +63,10 @@ describe("SettingsPanel", () => {
     };
 
     const { rerender } = render(
-      <SettingsPanel
-        key={JSON.stringify(mockConfig.settings)}
-        config={mockConfig}
-        onRefresh={onRefresh}
-      />,
+      <SettingsPanel config={mockConfig} onRefresh={onRefresh} />,
     );
 
-    // Rerender with new key to trigger remount (as App.tsx does)
-    rerender(
-      <SettingsPanel
-        key={JSON.stringify(updatedConfig.settings)}
-        config={updatedConfig}
-        onRefresh={onRefresh}
-      />,
-    );
+    rerender(<SettingsPanel config={updatedConfig} onRefresh={onRefresh} />);
 
     const toggles = screen.getAllByRole("switch");
     expect(toggles[0]).toHaveAttribute("aria-checked", "false");

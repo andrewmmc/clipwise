@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { cx } from "./lib/classNames";
+import { getErrorMessage } from "./lib/errors";
 import { tauriCommands } from "./lib/tauri";
 import type { AppConfig } from "./types/config";
 import AboutPanel from "./components/About";
@@ -19,14 +21,14 @@ export default function App() {
     tauriCommands
       .getConfig()
       .then(setConfig)
-      .catch((e) => setError(e instanceof Error ? e.message : String(e)));
+      .catch((e) => setError(getErrorMessage(e)));
   };
 
   useEffect(() => {
     tauriCommands
       .getConfig()
       .then(setConfig)
-      .catch((e) => setError(e instanceof Error ? e.message : String(e)));
+      .catch((e) => setError(getErrorMessage(e)));
   }, []);
 
   if (error) {
@@ -65,10 +67,9 @@ export default function App() {
     { id: "settings", label: "Settings" },
     { id: "about", label: "About" },
   ];
-
-  if (activeTab === "history" && !config.settings.historyEnabled) {
-    setActiveTab("actions");
-  }
+  const visibleActiveTab = tabs.some((tab) => tab.id === activeTab)
+    ? activeTab
+    : "actions";
 
   return (
     <div className="app-shell">
@@ -94,15 +95,15 @@ export default function App() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={[
+              className={cx(
                 "relative px-3 py-2.5 text-[13px] font-medium transition-colors cursor-pointer",
-                activeTab === tab.id
+                visibleActiveTab === tab.id
                   ? "text-text-primary"
                   : "text-text-tertiary hover:text-text-secondary",
-              ].join(" ")}
+              )}
             >
               {tab.label}
-              {activeTab === tab.id && (
+              {visibleActiveTab === tab.id && (
                 <span className="absolute inset-x-3 -bottom-px h-0.5 rounded-full bg-accent" />
               )}
             </button>
@@ -110,21 +111,17 @@ export default function App() {
         </nav>
 
         <main className="flex-1 overflow-y-auto p-5">
-          {activeTab === "actions" && (
+          {visibleActiveTab === "actions" && (
             <ActionList config={config} onRefresh={refresh} />
           )}
-          {activeTab === "providers" && (
+          {visibleActiveTab === "providers" && (
             <ProviderList config={config} onRefresh={refresh} />
           )}
-          {activeTab === "settings" && (
-            <SettingsPanel
-              key={JSON.stringify(config.settings)}
-              config={config}
-              onRefresh={refresh}
-            />
+          {visibleActiveTab === "settings" && (
+            <SettingsPanel config={config} onRefresh={refresh} />
           )}
-          {activeTab === "history" && <HistoryList />}
-          {activeTab === "about" && <AboutPanel />}
+          {visibleActiveTab === "history" && <HistoryList />}
+          {visibleActiveTab === "about" && <AboutPanel />}
         </main>
       </div>
     </div>

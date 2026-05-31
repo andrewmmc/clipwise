@@ -1,6 +1,7 @@
 use thiserror::Error;
 
 use crate::retry::is_transient_error;
+use serde::ser::SerializeStruct;
 
 #[derive(Debug, Error)]
 pub enum AppError {
@@ -31,13 +32,30 @@ pub enum AppError {
 }
 
 impl AppError {
+    pub fn code(&self) -> &'static str {
+        match self {
+            AppError::Config(_) => "config",
+            AppError::Io(_) => "io",
+            AppError::Json(_) => "json",
+            AppError::Http(_) => "http",
+            AppError::RateLimited => "rate_limited",
+            AppError::NetworkError => "network",
+            AppError::AuthError => "auth",
+            AppError::Llm(_) => "llm",
+            AppError::InvalidResponse => "invalid_response",
+            AppError::ProviderNotFound(_) => "provider_not_found",
+            AppError::ActionNotFound(_) => "action_not_found",
+            AppError::Service(_) => "service",
+        }
+    }
+
     /// Create an HTTP error from a status code and body.
     /// Attempts to classify the error into more specific categories.
     pub fn from_http_status(status: u16, body: &str) -> Self {
         match status {
             401 | 403 => AppError::AuthError,
             429 => AppError::RateLimited,
-            code if is_transient_error(code) => AppError::NetworkError,
+            code if is_transient_error(code) => AppError::Llm(format!("HTTP {}: {}", status, body)),
             _ => AppError::Llm(format!("HTTP {}: {}", status, body)),
         }
     }
@@ -47,7 +65,7 @@ impl AppError {
         matches!(
             self,
             AppError::RateLimited | AppError::NetworkError | AppError::Http(_)
-        )
+        ) || matches!(self, AppError::Llm(message) if message.starts_with("HTTP 5"))
     }
 }
 
@@ -56,7 +74,10 @@ impl serde::Serialize for AppError {
     where
         S: serde::ser::Serializer,
     {
-        serializer.serialize_str(self.to_string().as_ref())
+        let mut state = serializer.serialize_struct("AppError", 2)?;
+        state.serialize_field("code", self.code())?;
+        state.serialize_field("message", &self.to_string())?;
+        state.end()
     }
 }
 
@@ -85,23 +106,10 @@ mod tests {
     }
 
     #[test]
-    fn test_from_http_status_classifies_network_errors() {
-        assert!(matches!(
-            AppError::from_http_status(500, ""),
-            AppError::NetworkError
-        ));
-        assert!(matches!(
-            AppError::from_http_status(502, ""),
-            AppError::NetworkError
-        ));
-        assert!(matches!(
-            AppError::from_http_status(503, ""),
-            AppError::NetworkError
-        ));
-        assert!(matches!(
-            AppError::from_http_status(504, ""),
-            AppError::NetworkError
-        ));
+    fn test_from_http_status_preserves_server_error_body() {
+        let error = AppError::from_http_status(500, "Internal Server Error");
+        assert!(matches!(error, AppError::Llm(_)));
+        assert!(error.to_string().contains("Internal Server Error"));
     }
 
     #[test]
@@ -118,6 +126,17 @@ mod tests {
     fn test_is_retryable_returns_true_for_transient_errors() {
         assert!(AppError::RateLimited.is_retryable());
         assert!(AppError::NetworkError.is_retryable());
+        assert!(AppError::from_http_status(500, "server error").is_retryable());
+    }
+
+    #[test]
+    fn test_app_error_serializes_code_and_message() {
+        let value = serde_json::to_value(AppError::AuthError).unwrap();
+        assert_eq!(value["code"], "auth");
+        assert_eq!(
+            value["message"],
+            "Authentication error: invalid API key or credentials."
+        );
     }
 
     #[test]

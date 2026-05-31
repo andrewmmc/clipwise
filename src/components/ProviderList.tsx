@@ -1,9 +1,12 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import useCliProviderEnabled from "../hooks/useCliProviderEnabled";
 import { tauriCommands } from "../lib/tauri";
+import { PROVIDER_TYPE_LABELS } from "../lib/providers";
 import type { AppConfig, Provider } from "../types/config";
 import useTransientMessage from "../hooks/useTransientMessage";
 import EmptyState from "./EmptyState";
+import ErrorBox from "./ErrorBox";
 import ProviderForm from "./ProviderForm";
 import SuccessBox from "./SuccessBox";
 import { Plus, Pencil, Trash2, Server, Shield } from "lucide-react";
@@ -13,24 +16,12 @@ interface Props {
   onRefresh: () => void;
 }
 
-const typeLabel: Record<string, string> = {
-  openai: "OpenAI-compatible",
-  anthropic: "Anthropic",
-  cli: "CLI",
-  apple: "Apple Intelligence (On-Device)",
-};
-
 export default function ProviderList({ config, onRefresh }: Props) {
   const [editing, setEditing] = useState<Provider | null>(null);
   const [creating, setCreating] = useState(false);
-  const [cliEnabled, setCliEnabled] = useState(true);
-
-  useEffect(() => {
-    tauriCommands
-      .isCliProviderEnabled()
-      .then(setCliEnabled)
-      .catch(() => setCliEnabled(false));
-  }, []);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const cliEnabled = useCliProviderEnabled();
   const {
     message: successMessage,
     showMessage: showSuccessMessage,
@@ -40,13 +31,15 @@ export default function ProviderList({ config, onRefresh }: Props) {
   const handleDelete = async (id: string) => {
     const usedBy = config.actions.filter((a) => a.providerId === id);
     if (usedBy.length > 0) {
-      alert(
+      setDeleteError(
         `Cannot delete: ${usedBy.length} action(s) use this provider. Remove them first.`,
       );
+      setPendingDeleteId(null);
       return;
     }
-    if (!confirm("Delete this provider?")) return;
     await tauriCommands.deleteProvider(id);
+    setPendingDeleteId(null);
+    setDeleteError(null);
     onRefresh();
   };
 
@@ -105,6 +98,7 @@ export default function ProviderList({ config, onRefresh }: Props) {
       </div>
 
       {successMessage && <SuccessBox message={successMessage} />}
+      {deleteError && <ErrorBox message={deleteError} />}
 
       <div className="feedback-box feedback-info flex gap-2 text-[12px]">
         <Shield size={14} className="mt-0.5 shrink-0" />
@@ -149,7 +143,7 @@ export default function ProviderList({ config, onRefresh }: Props) {
                     {provider.name}
                   </p>
                   <p className="mt-0.5 text-[12px] text-text-secondary">
-                    {typeLabel[provider.type] ?? provider.type}
+                    {PROVIDER_TYPE_LABELS[provider.type]}
                     {provider.defaultModel && ` · ${provider.defaultModel}`}
                     {provider.command && ` · ${provider.command}`}
                   </p>
@@ -161,23 +155,50 @@ export default function ProviderList({ config, onRefresh }: Props) {
                 </div>
                 {!isApple && (
                   <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => {
-                        clearSuccessMessage();
-                        setEditing(provider);
-                      }}
-                      className="btn-icon"
-                      title="Edit"
-                    >
-                      <Pencil size={14} />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(provider.id)}
-                      className="btn-icon btn-icon-danger"
-                      title="Delete"
-                    >
-                      <Trash2 size={14} />
-                    </button>
+                    {pendingDeleteId === provider.id ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(provider.id)}
+                          className="btn btn-danger px-2 py-1 text-[12px]"
+                        >
+                          Delete
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPendingDeleteId(null)}
+                          className="btn btn-ghost px-2 py-1 text-[12px]"
+                        >
+                          Cancel
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            clearSuccessMessage();
+                            setDeleteError(null);
+                            setEditing(provider);
+                          }}
+                          className="btn-icon"
+                          title="Edit"
+                        >
+                          <Pencil size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDeleteError(null);
+                            setPendingDeleteId(provider.id);
+                          }}
+                          className="btn-icon btn-icon-danger"
+                          title="Delete"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </>
+                    )}
                   </div>
                 )}
               </div>

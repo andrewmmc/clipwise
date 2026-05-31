@@ -1,5 +1,6 @@
 use crate::error::AppError;
 use crate::models::AppConfig;
+use crate::paths::app_data_dir;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use tracing::info;
@@ -18,10 +19,7 @@ impl ConfigState {
 /// Returns the path to the config file:
 /// ~/Library/Application Support/clipwise/config.json
 pub fn config_path() -> Result<PathBuf, AppError> {
-    let base = dirs::data_local_dir()
-        .or_else(|| dirs::home_dir().map(|h| h.join(".local").join("share")))
-        .ok_or_else(|| AppError::Config("Cannot locate app support directory".into()))?;
-    Ok(base.join("clipwise").join("config.json"))
+    Ok(app_data_dir()?.join("config.json"))
 }
 
 /// Load config from an explicit path (used by tests).

@@ -29,8 +29,6 @@ describe("ProviderList", () => {
       }
       return undefined;
     });
-    vi.spyOn(window, "confirm").mockReturnValue(true);
-    vi.spyOn(window, "alert").mockImplementation(() => {});
   });
 
   afterEach(() => {
@@ -209,27 +207,29 @@ describe("ProviderList", () => {
 
   // ── Delete provider ───────────────────────────────────────────────────────
 
-  it("shows alert and blocks deletion when actions use the provider", async () => {
+  it("shows inline error and blocks deletion when actions use the provider", async () => {
     // mockConfig has action a1 using provider p1
     const user = userEvent.setup();
     render(<ProviderList config={mockConfig} onRefresh={onRefresh} />);
     await user.click(screen.getByTitle("Delete"));
-    expect(window.alert).toHaveBeenCalledWith(
-      expect.stringContaining("action(s) use this provider"),
-    );
+    await user.click(screen.getByRole("button", { name: /^delete$/i }));
+    expect(
+      screen.getByText(/action\(s\) use this provider/),
+    ).toBeInTheDocument();
     expect(mockInvoke).not.toHaveBeenCalledWith(
       "delete_provider",
       expect.anything(),
     );
   });
 
-  it("confirmed deletion calls deleteProvider and onRefresh when no actions use provider", async () => {
+  it("inline confirmed deletion calls deleteProvider and onRefresh when no actions use provider", async () => {
     mockInvoke.mockResolvedValue(undefined);
     const config = { ...mockConfig, actions: [] }; // no actions referencing the provider
     const user = userEvent.setup();
     render(<ProviderList config={config} onRefresh={onRefresh} />);
 
     await user.click(screen.getByTitle("Delete"));
+    await user.click(screen.getByRole("button", { name: /^delete$/i }));
     await waitFor(() =>
       expect(mockInvoke).toHaveBeenCalledWith("delete_provider", { id: "p1" }),
     );
@@ -237,12 +237,12 @@ describe("ProviderList", () => {
   });
 
   it("cancelled deletion does not call deleteProvider", async () => {
-    vi.spyOn(window, "confirm").mockReturnValue(false);
     const config = { ...mockConfig, actions: [] };
     const user = userEvent.setup();
     render(<ProviderList config={config} onRefresh={onRefresh} />);
 
     await user.click(screen.getByTitle("Delete"));
+    await user.click(screen.getByRole("button", { name: /^cancel$/i }));
     expect(mockInvoke).not.toHaveBeenCalledWith("delete_provider", {
       id: "p1",
     });

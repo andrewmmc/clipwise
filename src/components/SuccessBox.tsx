@@ -1,3 +1,5 @@
+import { cx } from "../lib/classNames";
+
 interface Props {
   message: string;
   className?: string;
@@ -5,11 +7,7 @@ interface Props {
 
 export default function SuccessBox({ message, className }: Props) {
   return (
-    <div
-      className={["feedback-box feedback-success", className]
-        .filter(Boolean)
-        .join(" ")}
-    >
+    <div className={cx("feedback-box feedback-success", className)}>
       {message}
     </div>
   );

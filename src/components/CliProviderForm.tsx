@@ -1,4 +1,5 @@
 import { Plus, Trash2 } from "lucide-react";
+import { buildCommandPreview } from "../lib/cliPreview";
 import ErrorBox from "./ErrorBox";
 import SuccessBox from "./SuccessBox";
 
@@ -20,23 +21,6 @@ const CLI_INPUT_PROPS = {
   autoCorrect: "off" as const,
   spellCheck: false,
 };
-
-/** Quote a token for shell preview if it contains whitespace or shell metacharacters. */
-function shellQuote(token: string): string {
-  if (token === "") return "''";
-  if (/^[A-Za-z0-9_\-./:=@%+,]+$/.test(token)) return token;
-  return `'${token.replace(/'/g, `'\\''`)}'`;
-}
-
-function buildCommandPreview(command: string, args: string[]): string {
-  const trimmedCommand = command.trim();
-  const cleanArgs = args.map((a) => a.trim()).filter((a) => a.length > 0);
-  const parts: string[] = [];
-  if (trimmedCommand) parts.push(trimmedCommand);
-  parts.push(...cleanArgs.map(shellQuote));
-  parts.push(shellQuote("<your prompt>"));
-  return parts.join(" ");
-}
 
 export default function CliProviderForm({
   command,

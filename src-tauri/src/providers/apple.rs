@@ -1,5 +1,5 @@
-use crate::commands::validate_cmd::normalize_response_str;
 use crate::error::AppError;
+use crate::llm_response::normalize_response_str;
 use crate::models::SYSTEM_PROMPT;
 use serde_json::Value;
 use std::env;

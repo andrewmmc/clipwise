@@ -1,4 +1,8 @@
 import { Plus, Trash2 } from "lucide-react";
+import {
+  API_PROVIDER_DEFAULT_ENDPOINTS,
+  API_PROVIDER_DEFAULT_MODELS,
+} from "../lib/providers";
 import type { ProviderType } from "../types/config";
 
 interface Props {
@@ -15,14 +19,6 @@ interface Props {
   onHeaderValueChange: (index: number, value: string) => void;
   onRemoveHeader: (index: number) => void;
 }
-
-const DEFAULT_ENDPOINTS: Record<
-  Exclude<ProviderType, "cli" | "apple">,
-  string
-> = {
-  openai: "https://api.openai.com/v1/chat/completions",
-  anthropic: "https://api.anthropic.com/v1/messages",
-};
 
 export default function ApiProviderForm({
   type,
@@ -54,7 +50,7 @@ export default function ApiProviderForm({
           type="text"
           value={endpoint}
           onChange={(e) => onEndpointChange(e.target.value)}
-          placeholder={DEFAULT_ENDPOINTS[type]}
+          placeholder={API_PROVIDER_DEFAULT_ENDPOINTS[type]}
           className="input"
         />
         <p className="helper-text">
@@ -79,9 +75,7 @@ export default function ApiProviderForm({
           type="text"
           value={defaultModel}
           onChange={(e) => onDefaultModelChange(e.target.value)}
-          placeholder={
-            type === "anthropic" ? "claude-sonnet-4-20250514" : "gpt-4o"
-          }
+          placeholder={API_PROVIDER_DEFAULT_MODELS[type]}
           className="input"
         />
       </div>

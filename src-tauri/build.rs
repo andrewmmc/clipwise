@@ -116,24 +116,28 @@ fn read_package_json_version() -> Option<String> {
 
 fn main() {
     // Get version: env var > git tag > package.json > Cargo.toml (CARGO_PKG_VERSION at compile time)
-    let version = std::env::var("LLM_ACTIONS_VERSION").ok().or_else(|| {
-        Command::new("git")
-            .args(["describe", "--tags", "--abbrev=0"])
-            .output()
-            .ok()
-            .and_then(|output| {
-                if output.status.success() {
-                    String::from_utf8(output.stdout)
-                        .ok()
-                        .map(|s| s.trim().trim_start_matches('v').to_string())
-                } else {
-                    None
-                }
-            })
-    }).or_else(read_package_json_version);
+    let version = std::env::var("CLIPWISE_VERSION")
+        .ok()
+        .or_else(|| std::env::var("LLM_ACTIONS_VERSION").ok())
+        .or_else(|| {
+            Command::new("git")
+                .args(["describe", "--tags", "--abbrev=0"])
+                .output()
+                .ok()
+                .and_then(|output| {
+                    if output.status.success() {
+                        String::from_utf8(output.stdout)
+                            .ok()
+                            .map(|s| s.trim().trim_start_matches('v').to_string())
+                    } else {
+                        None
+                    }
+                })
+        })
+        .or_else(read_package_json_version);
 
     if let Some(v) = version {
-        println!("cargo:rustc-env=LLM_ACTIONS_VERSION={v}");
+        println!("cargo:rustc-env=CLIPWISE_VERSION={v}");
     }
 
     println!("cargo:rerun-if-changed=../package.json");
@@ -154,11 +158,12 @@ fn main() {
         });
 
     if let Some(hash) = commit_hash {
-        println!("cargo:rustc-env=LLM_ACTIONS_COMMIT_HASH={hash}");
+        println!("cargo:rustc-env=CLIPWISE_COMMIT_HASH={hash}");
     }
 
     // Rerun if git HEAD changes
     println!("cargo:rerun-if-changed=.git/HEAD");
+    println!("cargo:rerun-if-env-changed=CLIPWISE_VERSION");
     println!("cargo:rerun-if-env-changed=LLM_ACTIONS_VERSION");
 
     #[cfg(target_os = "macos")]

@@ -135,7 +135,7 @@ impl Default for AppSettings {
     }
 }
 
-/// Root configuration object stored in ~/Library/Application Support/llm-actions/config.json
+/// Root configuration object stored in ~/Library/Application Support/clipwise/config.json
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[cfg_attr(feature = "ts", ts(export))]

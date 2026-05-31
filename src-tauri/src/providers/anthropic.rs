@@ -1,10 +1,13 @@
-use crate::commands::validate_cmd::normalize_response_str;
 use crate::error::AppError;
+use crate::llm_response::normalize_response_str;
 use crate::models::{Provider, SYSTEM_PROMPT};
-use crate::retry::with_http_retry;
+use crate::providers::http::{model_or_default, provider_api_key, send_json_with_retry};
 use reqwest::Client;
 use serde_json::json;
-use tracing::{debug, info, warn};
+use tracing::info;
+
+const DEFAULT_ENDPOINT: &str = "https://api.anthropic.com/v1/messages";
+const DEFAULT_MODEL: &str = "claude-sonnet-4-20250514";
 
 pub async fn call_anthropic(
     provider: &Provider,
@@ -22,17 +25,9 @@ pub async fn call_anthropic_with_client(
     max_tokens: u32,
     client: &Client,
 ) -> Result<serde_json::Value, AppError> {
-    let endpoint = provider
-        .endpoint
-        .as_deref()
-        .unwrap_or("https://api.anthropic.com/v1/messages");
-    let api_key = provider
-        .api_key
-        .as_deref()
-        .ok_or_else(|| AppError::Config("Anthropic provider missing apiKey".into()))?;
-    let model_name = model
-        .or(provider.default_model.as_deref())
-        .unwrap_or("claude-sonnet-4-20250514");
+    let endpoint = provider.endpoint.as_deref().unwrap_or(DEFAULT_ENDPOINT);
+    let api_key = provider_api_key(provider, "Anthropic")?;
+    let model_name = model_or_default(model, provider, DEFAULT_MODEL);
 
     info!(
         provider_id = %provider.id,
@@ -53,35 +48,21 @@ pub async fn call_anthropic_with_client(
         ]
     });
 
-    // Make HTTP request with retry logic for transient errors
-    let body_text = with_http_retry(|| async {
-        let mut req = client
-            .post(endpoint)
-            .header("x-api-key", api_key)
-            .header("anthropic-version", "2023-06-01")
-            .header("Content-Type", "application/json");
-
-        for (key, val) in &provider.headers {
-            if let Some(v) = val.as_str() {
-                req = req.header(key.as_str(), v);
-            }
-        }
-
-        let resp = req.json(&body).send().await.map_err(AppError::Http)?;
-        let status = resp.status();
-
-        if !status.is_success() {
-            warn!(provider_id = %provider.id, status = status.as_u16(), "Anthropic request failed");
-            let error_body = resp.text().await.unwrap_or_default();
-            return Err(AppError::from_http_status(status.as_u16(), &error_body));
-        }
-
-        debug!(provider_id = %provider.id, status = status.as_u16(), "Anthropic request succeeded");
-        resp.text().await.map_err(AppError::Http)
-    })
+    let body_text = send_json_with_retry(
+        client,
+        provider,
+        "Anthropic",
+        endpoint,
+        &body,
+        |client, endpoint| {
+            client
+                .post(endpoint)
+                .header("x-api-key", api_key)
+                .header("anthropic-version", "2023-06-01")
+                .header("Content-Type", "application/json")
+        },
+    )
     .await?;
-
-    debug!(provider_id = %provider.id, response_bytes = body_text.len(), "Received Anthropic response body");
 
     let json: serde_json::Value = serde_json::from_str(&body_text)
         .map_err(|_| AppError::Llm(format!("Failed to parse response as JSON: {}", body_text)))?;
@@ -246,7 +227,8 @@ mod tests {
             &no_proxy_client(),
         )
         .await;
-        assert!(matches!(result, Err(AppError::NetworkError)));
+        assert!(matches!(result, Err(AppError::Llm(_))));
+        assert!(result.unwrap_err().to_string().contains("Server Error"));
     }
 
     #[tokio::test]

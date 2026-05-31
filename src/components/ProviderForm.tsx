@@ -1,4 +1,7 @@
 import { useEffect, useState } from "react";
+import useCliProviderEnabled from "../hooks/useCliProviderEnabled";
+import { getErrorMessage } from "../lib/errors";
+import { PROVIDER_OPTION_LABELS } from "../lib/providers";
 import { tauriCommands } from "../lib/tauri";
 import type {
   AppleModelAvailability,
@@ -71,7 +74,7 @@ export default function ProviderForm({
   );
   const [saving, setSaving] = useState(false);
   const [testingCommand, setTestingCommand] = useState(false);
-  const [cliEnabled, setCliEnabled] = useState(true);
+  const cliEnabled = useCliProviderEnabled();
   const [error, setError] = useState<string | null>(null);
   const [commandTestError, setCommandTestError] = useState<string | null>(null);
   const [appleAvailability, setAppleAvailability] =
@@ -108,19 +111,6 @@ export default function ProviderForm({
             available: false,
             reason: "unknown",
           });
-        }
-      });
-
-    void tauriCommands
-      .isCliProviderEnabled()
-      .then((enabled) => {
-        if (!cancelled) {
-          setCliEnabled(enabled);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setCliEnabled(false);
         }
       });
 
@@ -181,7 +171,7 @@ export default function ProviderForm({
         args: type === "cli" ? args.filter(Boolean) : [],
       });
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(getErrorMessage(e));
     } finally {
       setSaving(false);
     }
@@ -200,7 +190,7 @@ export default function ProviderForm({
       const result = await tauriCommands.testCliCommand(command.trim());
       showCommandTestSuccess(result);
     } catch (e) {
-      setCommandTestError(e instanceof Error ? e.message : String(e));
+      setCommandTestError(getErrorMessage(e));
     } finally {
       setTestingCommand(false);
     }
@@ -250,12 +240,14 @@ export default function ProviderForm({
                 className="input select"
               >
                 <option value="apple" disabled={appleOptionDisabled}>
-                  Apple Intelligence (On-Device)
+                  {PROVIDER_OPTION_LABELS.apple}
                 </option>
-                <option value="anthropic">Anthropic</option>
-                <option value="openai">OpenAI-compatible</option>
+                <option value="anthropic">
+                  {PROVIDER_OPTION_LABELS.anthropic}
+                </option>
+                <option value="openai">{PROVIDER_OPTION_LABELS.openai}</option>
                 {cliEnabled && (
-                  <option value="cli">CLI (claude/codex/copilot)</option>
+                  <option value="cli">{PROVIDER_OPTION_LABELS.cli}</option>
                 )}
               </select>
               <ChevronDown

@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import useTransientMessage from "../hooks/useTransientMessage";
+import { cx } from "../lib/classNames";
+import { getErrorMessage } from "../lib/errors";
 import { tauriCommands } from "../lib/tauri";
 import type { HistoryEntry } from "../types/bindings/HistoryEntry";
 import {
@@ -38,7 +40,7 @@ export default function HistoryList() {
       const entries = await tauriCommands.getHistory();
       setHistory(entries);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(getErrorMessage(e));
     } finally {
       setLoading(false);
     }
@@ -65,7 +67,7 @@ export default function HistoryList() {
       await navigator.clipboard.writeText(text);
       showMessage(`Copied ${label} to clipboard.`);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(getErrorMessage(e));
     }
   };
 
@@ -82,7 +84,7 @@ export default function HistoryList() {
         );
       })
       .catch((e) => {
-        setError(e instanceof Error ? e.message : String(e));
+        setError(getErrorMessage(e));
       })
       .finally(() => {
         setStarringIds((prev) => {
@@ -111,7 +113,7 @@ export default function HistoryList() {
         setHistory((prev) => prev.filter((e) => e.starred));
       })
       .catch((e) => {
-        setError(e instanceof Error ? e.message : String(e));
+        setError(getErrorMessage(e));
       })
       .finally(() => {
         setClearing(false);
@@ -136,7 +138,7 @@ export default function HistoryList() {
         }
       })
       .catch((e) => {
-        setError(e instanceof Error ? e.message : String(e));
+        setError(getErrorMessage(e));
       })
       .finally(() => {
         setDeletingIds((prev) => {
@@ -192,7 +194,10 @@ export default function HistoryList() {
             <button
               type="button"
               onClick={() => setShowStarredOnly((prev) => !prev)}
-              className={`btn ${showStarredOnly ? "btn-primary" : "btn-ghost"}`}
+              className={cx(
+                "btn",
+                showStarredOnly ? "btn-primary" : "btn-ghost",
+              )}
               title={showStarredOnly ? "Show all entries" : "Show starred only"}
             >
               <Star
@@ -295,7 +300,10 @@ export default function HistoryList() {
                         handleToggleStar(entry.id);
                       }}
                       disabled={starringIds.has(entry.id)}
-                      className={`btn-icon ${entry.starred ? "text-warning" : "btn-icon-muted"}`}
+                      className={cx(
+                        "btn-icon",
+                        entry.starred ? "text-warning" : "btn-icon-muted",
+                      )}
                       title={entry.starred ? "Unstar entry" : "Star entry"}
                     >
                       <Star
@@ -364,12 +372,12 @@ export default function HistoryList() {
                         </button>
                       </div>
                       <pre
-                        className={[
+                        className={cx(
                           "whitespace-pre-wrap break-words rounded-md border p-2 text-[12px] font-mono",
                           entry.success
                             ? "border-border bg-surface-tertiary text-text-secondary"
                             : "feedback-error",
-                        ].join(" ")}
+                        )}
                       >
                         {entry.outputText}
                       </pre>

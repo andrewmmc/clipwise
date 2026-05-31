@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { cx } from "../lib/classNames";
+import { getErrorMessage } from "../lib/errors";
 import { tauriCommands } from "../lib/tauri";
 import type { Action, AppConfig } from "../types/config";
 import {
@@ -60,7 +62,7 @@ export default function ActionForm({
         model: model.trim() || undefined,
       });
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(getErrorMessage(e));
     } finally {
       setSaving(false);
     }
@@ -75,7 +77,7 @@ export default function ActionForm({
       const result = await tauriCommands.testAction(initial.id, input);
       setTestResult(result);
     } catch (e) {
-      const message = e instanceof Error ? e.message : String(e);
+      const message = getErrorMessage(e);
       setTestResult(`Error: ${message}`);
     } finally {
       setTesting(false);
@@ -154,12 +156,12 @@ export default function ActionForm({
               Selected text appended to this prompt.
             </p>
             <span
-              className={[
+              className={cx(
                 "text-[11px]",
                 userPrompt.length > MAX_USER_PROMPT_LENGTH - 200
                   ? "text-error"
                   : "text-text-tertiary",
-              ].join(" ")}
+              )}
             >
               {userPrompt.length}/{MAX_USER_PROMPT_LENGTH}
             </span>
@@ -235,12 +237,12 @@ export default function ActionForm({
           </div>
           {testResult !== null && (
             <div
-              className={[
+              className={cx(
                 "feedback-box text-[12px]",
                 testResult.startsWith("Error:")
                   ? "feedback-error"
                   : "feedback-success",
-              ].join(" ")}
+              )}
             >
               {testResult || "(empty result)"}
             </div>

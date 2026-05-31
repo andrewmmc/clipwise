@@ -1,5 +1,5 @@
-use crate::commands::validate_cmd::normalize_response_str;
 use crate::error::AppError;
+use crate::llm_response::normalize_response_str;
 use crate::models::{Provider, SYSTEM_PROMPT};
 use std::env;
 use std::path::{Path, PathBuf};
@@ -151,18 +151,6 @@ fn is_executable_file(path: &Path) -> bool {
     }
 }
 
-/// Finds the first {...} block in a string (handles models that add extra text).
-#[cfg(test)]
-fn extract_json(s: &str) -> Option<&str> {
-    let start = s.find('{')?;
-    let end = s.rfind('}')?;
-    if end >= start {
-        Some(&s[start..=end])
-    } else {
-        None
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -180,57 +168,6 @@ mod tests {
             command: command.map(Into::into),
             args: args.iter().map(|s| s.to_string()).collect(),
         }
-    }
-
-    // ── extract_json ──────────────────────────────────────────────────────────
-
-    #[test]
-    fn test_extract_json_plain_object() {
-        let s = r#"{"result": "hello"}"#;
-        assert_eq!(extract_json(s), Some(r#"{"result": "hello"}"#));
-    }
-
-    #[test]
-    fn test_extract_json_with_text_before() {
-        let s = r#"Here is the output: {"result": "world"}"#;
-        assert_eq!(extract_json(s), Some(r#"{"result": "world"}"#));
-    }
-
-    #[test]
-    fn test_extract_json_with_text_after() {
-        // rfind('}') finds the one at the end of the JSON object
-        let s = r#"{"result": "world"} done."#;
-        assert!(extract_json(s).is_some());
-        let extracted = extract_json(s).unwrap();
-        // Must start with '{' and end with '}'
-        assert!(extracted.starts_with('{'));
-        assert!(extracted.ends_with('}'));
-    }
-
-    #[test]
-    fn test_extract_json_no_braces_returns_none() {
-        assert_eq!(extract_json("no json here"), None);
-    }
-
-    #[test]
-    fn test_extract_json_empty_string_returns_none() {
-        assert_eq!(extract_json(""), None);
-    }
-
-    #[test]
-    fn test_extract_json_only_opening_brace_returns_none() {
-        // No closing brace → rfind('}') is None → None
-        assert_eq!(extract_json("{ unclosed brace"), None);
-    }
-
-    #[test]
-    fn test_extract_json_nested_object() {
-        let s = r#"{"result": "ok", "meta": {"x": 1}}"#;
-        let extracted = extract_json(s).unwrap();
-        assert!(extracted.starts_with('{'));
-        assert!(extracted.ends_with('}'));
-        // Should be parseable as JSON
-        assert!(serde_json::from_str::<serde_json::Value>(extracted).is_ok());
     }
 
     // ── call_cli ──────────────────────────────────────────────────────────────

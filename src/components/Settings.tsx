@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import { getErrorMessage } from "../lib/errors";
 import { tauriCommands } from "../lib/tauri";
 import type { AppConfig, AppSettings } from "../types/config";
 import ErrorBox from "./ErrorBox";
@@ -9,11 +10,20 @@ interface Props {
 }
 
 export default function SettingsPanel({ config, onRefresh }: Props) {
-  // Local state for settings - synced via key prop in parent
-  const [settings, setSettings] = useState<AppSettings>({
-    ...config.settings,
+  const [settingsState, setSettingsState] = useState({
+    source: config.settings,
+    settings: { ...config.settings },
   });
   const [error, setError] = useState<string | null>(null);
+
+  if (settingsState.source !== config.settings) {
+    setSettingsState({
+      source: config.settings,
+      settings: { ...config.settings },
+    });
+  }
+
+  const settings = settingsState.settings;
 
   const saveSettings = useCallback(
     async (nextSettings: AppSettings) => {
@@ -22,7 +32,7 @@ export default function SettingsPanel({ config, onRefresh }: Props) {
         await tauriCommands.saveSettings(nextSettings);
         onRefresh();
       } catch (e) {
-        setError(e instanceof Error ? e.message : String(e));
+        setError(getErrorMessage(e));
       }
     },
     [onRefresh],
@@ -30,11 +40,11 @@ export default function SettingsPanel({ config, onRefresh }: Props) {
 
   const updateSettings = useCallback(
     (nextSettings: Partial<AppSettings>) => {
-      setSettings((current) => {
-        const updated = { ...current, ...nextSettings };
+      setSettingsState((current) => {
+        const updated = { ...current.settings, ...nextSettings };
         // Auto-save immediately for toggles
         saveSettings(updated);
-        return updated;
+        return { ...current, settings: updated };
       });
     },
     [saveSettings],

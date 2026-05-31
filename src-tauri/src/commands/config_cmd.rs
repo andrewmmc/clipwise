@@ -72,17 +72,34 @@ pub(crate) fn ensure_provider_deletable(config: &AppConfig, id: &str) -> Result<
         ));
     }
 
+    if config.actions.iter().any(|action| action.provider_id == id) {
+        return Err(AppError::Config(
+            "Cannot delete provider while actions use it. Remove or reassign those actions first."
+                .into(),
+        ));
+    }
+
     Ok(())
 }
 
-pub(crate) fn insert_action(config: &mut AppConfig, action: Action) -> Action {
+fn ensure_action_provider_exists(config: &AppConfig, action: &Action) -> Result<(), AppError> {
+    if config.providers.iter().any(|p| p.id == action.provider_id) {
+        return Ok(());
+    }
+
+    Err(AppError::ProviderNotFound(action.provider_id.clone()))
+}
+
+pub(crate) fn insert_action(config: &mut AppConfig, action: Action) -> Result<Action, AppError> {
+    ensure_action_provider_exists(config, &action)?;
     let mut action = action;
     action.id = Uuid::new_v4().to_string();
     config.actions.push(action.clone());
-    action
+    Ok(action)
 }
 
 pub(crate) fn replace_action(config: &mut AppConfig, action: Action) -> Result<(), AppError> {
+    ensure_action_provider_exists(config, &action)?;
     let pos = config
         .actions
         .iter()
@@ -96,14 +113,31 @@ pub(crate) fn remove_action(config: &mut AppConfig, id: &str) {
     config.actions.retain(|a| a.id != id);
 }
 
-pub(crate) fn apply_action_reorder(config: &mut AppConfig, ids: &[String]) {
+pub(crate) fn apply_action_reorder(config: &mut AppConfig, ids: &[String]) -> Result<(), AppError> {
+    if ids.len() != config.actions.len() {
+        return Err(AppError::Config(
+            "Action reorder must include every action exactly once".into(),
+        ));
+    }
+
     let mut reordered = Vec::new();
     for id in ids {
-        if let Some(action) = config.actions.iter().find(|a| &a.id == id).cloned() {
-            reordered.push(action);
+        if reordered.iter().any(|action: &Action| &action.id == id) {
+            return Err(AppError::Config(format!(
+                "Action reorder contains duplicate id: {id}"
+            )));
         }
+
+        let action = config
+            .actions
+            .iter()
+            .find(|a| &a.id == id)
+            .cloned()
+            .ok_or_else(|| AppError::ActionNotFound(id.clone()))?;
+        reordered.push(action);
     }
     config.actions = reordered;
+    Ok(())
 }
 
 // ── Tauri commands ────────────────────────────────────────────────────────────
@@ -127,16 +161,20 @@ pub fn save_settings(
     state: State<ConfigState>,
     _app: AppHandle,
 ) -> Result<(), AppError> {
-    let mut config = state.lock()?;
-    let history_being_disabled = config.settings.history_enabled && !settings.history_enabled;
-    config.settings = settings;
-    save_config(&config)?;
+    let (updated_config, history_being_disabled) = {
+        let mut config = state.lock()?;
+        let history_being_disabled = config.settings.history_enabled && !settings.history_enabled;
+        config.settings = settings;
+        (config.clone(), history_being_disabled)
+    };
+
+    save_config(&updated_config)?;
     if history_being_disabled {
         let _ = history::clear_history();
     }
     info!(
-        max_tokens = config.settings.max_tokens,
-        show_notification_on_complete = config.settings.show_notification_on_complete,
+        max_tokens = updated_config.settings.max_tokens,
+        show_notification_on_complete = updated_config.settings.show_notification_on_complete,
         "Saved app settings"
     );
     // Settings changes don't affect tray menu, no refresh needed
@@ -150,9 +188,12 @@ pub fn add_provider(
     state: State<ConfigState>,
     _app: AppHandle,
 ) -> Result<Provider, AppError> {
-    let mut config = state.lock()?;
-    let result = insert_provider(&mut config, provider)?;
-    save_config(&config)?;
+    let (result, updated_config) = {
+        let mut config = state.lock()?;
+        let result = insert_provider(&mut config, provider)?;
+        (result, config.clone())
+    };
+    save_config(&updated_config)?;
     info!(
         provider_id = %result.id,
         provider_name = %result.name,
@@ -173,9 +214,12 @@ pub fn update_provider(
     let provider_id = provider.id.clone();
     let provider_name = provider.name.clone();
     let provider_type = provider.provider_type.clone();
-    let mut config = state.lock()?;
-    replace_provider(&mut config, provider)?;
-    save_config(&config)?;
+    let updated_config = {
+        let mut config = state.lock()?;
+        replace_provider(&mut config, provider)?;
+        config.clone()
+    };
+    save_config(&updated_config)?;
     info!(
         provider_id = %provider_id,
         provider_name = %provider_name,
@@ -193,10 +237,13 @@ pub fn delete_provider(
     state: State<ConfigState>,
     _app: AppHandle,
 ) -> Result<(), AppError> {
-    let mut config = state.lock()?;
-    ensure_provider_deletable(&config, &id)?;
-    remove_provider(&mut config, &id);
-    save_config(&config)?;
+    let updated_config = {
+        let mut config = state.lock()?;
+        ensure_provider_deletable(&config, &id)?;
+        remove_provider(&mut config, &id);
+        config.clone()
+    };
+    save_config(&updated_config)?;
     info!(provider_id = %id, "Deleted provider");
     // Provider changes don't affect tray menu, no refresh needed
     Ok(())
@@ -220,10 +267,10 @@ pub fn add_action(
 ) -> Result<Action, AppError> {
     let (result, updated_config) = {
         let mut config = state.lock()?;
-        let result = insert_action(&mut config, action);
-        save_config(&config)?;
+        let result = insert_action(&mut config, action)?;
         (result, config.clone())
     };
+    save_config(&updated_config)?;
 
     crate::app::refresh_tray_menu(&app, &updated_config)
         .map_err(|e| AppError::Service(e.to_string()))?;
@@ -249,9 +296,9 @@ pub fn update_action(
     let updated_config = {
         let mut config = state.lock()?;
         replace_action(&mut config, action)?;
-        save_config(&config)?;
         config.clone()
     };
+    save_config(&updated_config)?;
 
     crate::app::refresh_tray_menu(&app, &updated_config)
         .map_err(|e| AppError::Service(e.to_string()))?;
@@ -274,9 +321,9 @@ pub fn delete_action(
     let updated_config = {
         let mut config = state.lock()?;
         remove_action(&mut config, &id);
-        save_config(&config)?;
         config.clone()
     };
+    save_config(&updated_config)?;
 
     crate::app::refresh_tray_menu(&app, &updated_config)
         .map_err(|e| AppError::Service(e.to_string()))?;
@@ -293,10 +340,10 @@ pub fn reorder_actions(
 ) -> Result<(), AppError> {
     let updated_config = {
         let mut config = state.lock()?;
-        apply_action_reorder(&mut config, &ids);
-        save_config(&config)?;
+        apply_action_reorder(&mut config, &ids)?;
         config.clone()
     };
+    save_config(&updated_config)?;
 
     crate::app::refresh_tray_menu(&app, &updated_config)
         .map_err(|e| AppError::Service(e.to_string()))?;
@@ -471,12 +518,28 @@ mod tests {
         assert!(result.is_ok());
     }
 
+    #[test]
+    fn test_ensure_provider_deletable_rejects_provider_used_by_action() {
+        let config = AppConfig {
+            providers: vec![stub_provider("p1")],
+            actions: vec![stub_action("a1", "p1")],
+            ..AppConfig::default()
+        };
+
+        let result = ensure_provider_deletable(&config, "p1");
+
+        assert!(matches!(result, Err(AppError::Config(_))));
+    }
+
     // ── insert_action ─────────────────────────────────────────────────────────
 
     #[test]
     fn test_insert_action_replaces_id_with_uuid() {
-        let mut config = AppConfig::default();
-        let result = insert_action(&mut config, stub_action("old-id", "p1"));
+        let mut config = AppConfig {
+            providers: vec![stub_provider("p1")],
+            ..AppConfig::default()
+        };
+        let result = insert_action(&mut config, stub_action("old-id", "p1")).unwrap();
         assert_eq!(result.id.len(), 36);
         assert_ne!(result.id, "old-id");
         assert_eq!(config.actions.len(), 1);
@@ -484,11 +547,21 @@ mod tests {
 
     #[test]
     fn test_insert_action_preserves_prompt() {
-        let mut config = AppConfig::default();
+        let mut config = AppConfig {
+            providers: vec![stub_provider("p1")],
+            ..AppConfig::default()
+        };
         let mut a = stub_action("x", "p1");
         a.user_prompt = "Custom prompt".into();
-        let result = insert_action(&mut config, a);
+        let result = insert_action(&mut config, a).unwrap();
         assert_eq!(result.user_prompt, "Custom prompt");
+    }
+
+    #[test]
+    fn test_insert_action_rejects_missing_provider() {
+        let mut config = AppConfig::default();
+        let result = insert_action(&mut config, stub_action("a1", "missing"));
+        assert!(matches!(result, Err(AppError::ProviderNotFound(_))));
     }
 
     // ── replace_action ────────────────────────────────────────────────────────
@@ -496,6 +569,7 @@ mod tests {
     #[test]
     fn test_replace_action_updates_correct_entry() {
         let mut config = AppConfig {
+            providers: vec![stub_provider("p1")],
             actions: vec![stub_action("a1", "p1"), stub_action("a2", "p1")],
             ..AppConfig::default()
         };
@@ -507,8 +581,18 @@ mod tests {
     }
 
     #[test]
-    fn test_replace_action_returns_error_for_missing_id() {
+    fn test_replace_action_validates_provider_before_action_id() {
         let mut config = AppConfig::default();
+        let result = replace_action(&mut config, stub_action("ghost", "p1"));
+        assert!(matches!(result, Err(AppError::ProviderNotFound(_))));
+    }
+
+    #[test]
+    fn test_replace_action_rejects_missing_action_after_provider_validation() {
+        let mut config = AppConfig {
+            providers: vec![stub_provider("p1")],
+            ..AppConfig::default()
+        };
         let result = replace_action(&mut config, stub_action("ghost", "p1"));
         assert!(matches!(result, Err(AppError::ActionNotFound(_))));
     }
@@ -548,36 +632,36 @@ mod tests {
             ],
             ..AppConfig::default()
         };
-        apply_action_reorder(&mut config, &["a3".into(), "a1".into(), "a2".into()]);
+        apply_action_reorder(&mut config, &["a3".into(), "a1".into(), "a2".into()]).unwrap();
         assert_eq!(config.actions[0].id, "a3");
         assert_eq!(config.actions[1].id, "a1");
         assert_eq!(config.actions[2].id, "a2");
     }
 
     #[test]
-    fn test_apply_action_reorder_skips_unknown_ids() {
+    fn test_apply_action_reorder_rejects_unknown_ids() {
         let mut config = AppConfig {
             actions: vec![stub_action("a1", "p1"), stub_action("a2", "p1")],
             ..AppConfig::default()
         };
-        apply_action_reorder(&mut config, &["a2".into(), "unknown".into(), "a1".into()]);
+        let result = apply_action_reorder(&mut config, &["a2".into(), "unknown".into()]);
+        assert!(matches!(result, Err(AppError::ActionNotFound(_))));
         assert_eq!(config.actions.len(), 2);
-        assert_eq!(config.actions[0].id, "a2");
-        assert_eq!(config.actions[1].id, "a1");
     }
 
     #[test]
-    fn test_apply_action_reorder_with_empty_ids_clears_actions() {
+    fn test_apply_action_reorder_rejects_empty_ids_when_actions_exist() {
         let mut config = AppConfig {
             actions: vec![stub_action("a1", "p1")],
             ..AppConfig::default()
         };
-        apply_action_reorder(&mut config, &[]);
-        assert!(config.actions.is_empty());
+        let result = apply_action_reorder(&mut config, &[]);
+        assert!(matches!(result, Err(AppError::Config(_))));
+        assert_eq!(config.actions.len(), 1);
     }
 
     #[test]
-    fn test_apply_action_reorder_partial_ids_keeps_only_matched() {
+    fn test_apply_action_reorder_rejects_partial_ids() {
         let mut config = AppConfig {
             actions: vec![
                 stub_action("a1", "p1"),
@@ -586,10 +670,18 @@ mod tests {
             ],
             ..AppConfig::default()
         };
-        // Only provide two of the three IDs
-        apply_action_reorder(&mut config, &["a3".into(), "a1".into()]);
-        assert_eq!(config.actions.len(), 2);
-        assert_eq!(config.actions[0].id, "a3");
-        assert_eq!(config.actions[1].id, "a1");
+        let result = apply_action_reorder(&mut config, &["a3".into(), "a1".into()]);
+        assert!(matches!(result, Err(AppError::Config(_))));
+        assert_eq!(config.actions.len(), 3);
+    }
+
+    #[test]
+    fn test_apply_action_reorder_rejects_duplicate_ids() {
+        let mut config = AppConfig {
+            actions: vec![stub_action("a1", "p1"), stub_action("a2", "p1")],
+            ..AppConfig::default()
+        };
+        let result = apply_action_reorder(&mut config, &["a1".into(), "a1".into()]);
+        assert!(matches!(result, Err(AppError::Config(_))));
     }
 }

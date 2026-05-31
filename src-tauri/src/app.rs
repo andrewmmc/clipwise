@@ -1,6 +1,5 @@
 use crate::commands::{app_info_cmd::*, apple_cmd::*, config_cmd::*, history_cmd::*, llm_cmd::*};
 use crate::config::{load_config, save_config, ConfigState};
-use crate::history;
 use crate::models::{AppConfig, Provider, ProviderType, APPLE_PROVIDER_ID};
 use std::sync::mpsc;
 use std::sync::Mutex;
@@ -42,7 +41,11 @@ async fn attach_apple_provider_async<R: Runtime>(app: AppHandle<R>) {
         let config_state = app.state::<ConfigState>();
         config_state
             .lock()
-            .map(|c| c.providers.iter().any(|p| p.provider_type == ProviderType::Apple))
+            .map(|c| {
+                c.providers
+                    .iter()
+                    .any(|p| p.provider_type == ProviderType::Apple)
+            })
             .unwrap_or(true)
     };
 
@@ -79,7 +82,11 @@ async fn attach_apple_provider_async<R: Runtime>(app: AppHandle<R>) {
         };
 
         // Double-check after acquiring lock
-        if config.providers.iter().any(|p| p.provider_type == ProviderType::Apple) {
+        if config
+            .providers
+            .iter()
+            .any(|p| p.provider_type == ProviderType::Apple)
+        {
             return;
         }
 
@@ -305,10 +312,32 @@ fn run_tray_action<R: Runtime>(app: AppHandle<R>, action_id: String) {
             }
         };
 
-        let (action_name, provider_name, show_notification_on_complete) = {
+        let (action_context, show_notification_on_complete) = {
             let config_state = app.state::<ConfigState>();
-            let config = match config_state.lock() {
-                Ok(c) => c,
+            let context = match crate::action_service::ActionContext::from_state(
+                &action_id,
+                &config_state,
+            ) {
+                Ok(context) => context,
+                Err(err) => {
+                    error!(action_id = %action_id, error = %err, "Failed to prepare tray action");
+                    let body = if matches!(err, crate::error::AppError::ActionNotFound(_)) {
+                        "That action could not be found.".to_string()
+                    } else {
+                        err.to_string()
+                    };
+                    let _ = app
+                        .notification()
+                        .builder()
+                        .title("Clipwise")
+                        .body(body)
+                        .show();
+                    return;
+                }
+            };
+
+            let show_notification_on_complete = match config_state.lock() {
+                Ok(config) => config.settings.show_notification_on_complete,
                 Err(e) => {
                     error!(action_id = %action_id, error = %e, "Failed to access config for tray action");
                     let _ = app
@@ -320,27 +349,11 @@ fn run_tray_action<R: Runtime>(app: AppHandle<R>, action_id: String) {
                     return;
                 }
             };
-            let action = match config.actions.iter().find(|a| a.id == action_id) {
-                Some(action) => action.clone(),
-                None => {
-                    warn!(action_id = %action_id, "Tray action could not be found");
-                    let _ = app
-                        .notification()
-                        .builder()
-                        .title("Clipwise")
-                        .body("That action could not be found.")
-                        .show();
-                    return;
-                }
-            };
-            let provider = config.providers.iter().find(|p| p.id == action.provider_id);
-            let provider_name = provider.map(|p| p.name.clone()).unwrap_or_default();
-            (
-                action.name,
-                provider_name,
-                config.settings.show_notification_on_complete,
-            )
+
+            (context, show_notification_on_complete)
         };
+        let action_name = action_context.action.name.clone();
+        let provider_name = action_context.provider.name.clone();
 
         let action_id_for_logs = action_id.clone();
         let clipboard_text_for_history = clipboard_text.clone();
@@ -370,11 +383,8 @@ fn run_tray_action<R: Runtime>(app: AppHandle<R>, action_id: String) {
             }
         }
 
-        let result = {
-            let config_state = app.state::<ConfigState>();
-            crate::commands::llm_cmd::run_action_inner(action_id, clipboard_text, &config_state)
-                .await
-        };
+        let result =
+            crate::action_service::run_action_with_context(&action_context, &clipboard_text).await;
 
         if let Some(tray) = app.tray_by_id(TRAY_ID) {
             if let Ok(img) =
@@ -386,33 +396,14 @@ fn run_tray_action<R: Runtime>(app: AppHandle<R>, action_id: String) {
             }
         }
 
+        crate::action_service::record_action_history(
+            &action_context,
+            clipboard_text_for_history,
+            &result,
+        );
+
         match result {
             Ok(text) => {
-                let history_enabled = {
-                    let config_state = app.state::<ConfigState>();
-                    config_state
-                        .lock()
-                        .map(|c| c.settings.history_enabled)
-                        .unwrap_or(false)
-                };
-
-                if history_enabled {
-                    let _ = history::add_entry(
-                        action_name.clone(),
-                        provider_name.clone(),
-                        clipboard_text_for_history.clone(),
-                        text.clone(),
-                        true,
-                    )
-                    .map_err(|e| {
-                        error!(
-                            error = %e,
-                            action_id = %action_id_for_logs,
-                            "Failed to log history entry"
-                        )
-                    });
-                }
-
                 if let Err(err) = write_clipboard_text(&app, text.clone()) {
                     error!(action_id = %action_id_for_logs, error = %err, "Failed to write clipboard for tray action");
                     let _ = app
@@ -444,31 +435,6 @@ fn run_tray_action<R: Runtime>(app: AppHandle<R>, action_id: String) {
                 }
             }
             Err(err) => {
-                let history_enabled = {
-                    let config_state = app.state::<ConfigState>();
-                    config_state
-                        .lock()
-                        .map(|c| c.settings.history_enabled)
-                        .unwrap_or(false)
-                };
-
-                if history_enabled {
-                    let _ = history::add_entry(
-                        action_name.clone(),
-                        provider_name,
-                        clipboard_text_for_history,
-                        err.to_string(),
-                        false,
-                    )
-                    .map_err(|e| {
-                        error!(
-                            error = %e,
-                            action_id = %action_id_for_logs,
-                            "Failed to log history entry"
-                        )
-                    });
-                }
-
                 error!(action_id = %action_id_for_logs, error = %err, "Tray action failed");
                 let _ = app
                     .notification()

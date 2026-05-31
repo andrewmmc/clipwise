@@ -27,7 +27,8 @@
     "bump:minor": "./scripts/bump-version.sh minor",
     "bump:major": "./scripts/bump-version.sh major",
     "prepare": "lefthook install",
-    "gen-types": "cd src-tauri && TS_RS_EXPORT_DIR=../src/types/bindings cargo test --features ts export_bindings"
+    "gen-types": "cd src-tauri && TS_RS_EXPORT_DIR=../src/types/bindings cargo test --features ts export_bindings",
+    "gen-types:check": "npm run gen-types && git diff --exit-code src/types/bindings"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.11.0",
