@@ -23,7 +23,7 @@ pub fn load_history_from(path: &Path) -> Result<Vec<HistoryEntry>, AppError> {
         return Ok(Vec::new());
     }
 
-    let data = std::fs::read_to_string(&path)?;
+    let data = std::fs::read_to_string(path)?;
     let history: Vec<HistoryEntry> = serde_json::from_str(&data)?;
     info!(
         path = %path.display(),
@@ -38,7 +38,7 @@ pub fn save_history_to(history: &[HistoryEntry], path: &Path) -> Result<(), AppE
         std::fs::create_dir_all(parent)?;
     }
     let data = serde_json::to_string_pretty(history)?;
-    std::fs::write(&path, data)?;
+    std::fs::write(path, data)?;
     info!(
         path = %path.display(),
         entry_count = history.len(),
