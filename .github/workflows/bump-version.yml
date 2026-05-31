@@ -1,0 +1,69 @@
+name: Bump Version
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Semver bump to apply when version is empty
+        required: true
+        type: choice
+        default: patch
+        options:
+          - patch
+          - minor
+          - major
+      version:
+        description: Exact version to set, e.g. 1.2.3. Overrides bump when provided.
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  bump-version:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Configure git author
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Validate ref
+        run: |
+          if [ "$GITHUB_REF_TYPE" != "branch" ]; then
+            echo "Bump Version must run from a branch, not $GITHUB_REF_TYPE." >&2
+            exit 1
+          fi
+
+      - name: Bump version
+        env:
+          BUMP_INPUT: ${{ inputs.bump }}
+          VERSION_INPUT: ${{ inputs.version }}
+        run: |
+          if [ -n "$VERSION_INPUT" ]; then
+            ./scripts/bump-version.sh "$VERSION_INPUT"
+          else
+            ./scripts/bump-version.sh "$BUMP_INPUT"
+          fi
+
+      - name: Push commit and tag
+        run: |
+          tag="$(git describe --tags --exact-match HEAD)"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+          git push origin "$tag"
