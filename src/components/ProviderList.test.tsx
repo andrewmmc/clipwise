@@ -2,10 +2,13 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor, cleanup } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { invoke } from "@tauri-apps/api/core";
+import { openUrl } from "@tauri-apps/plugin-opener";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
+vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: vi.fn() }));
 
 const mockInvoke = vi.mocked(invoke);
+const mockOpenUrl = vi.mocked(openUrl);
 
 const { default: ProviderList } = await import("./ProviderList");
 import { mockConfig, emptyConfig, mockProvider } from "../test/fixtures";
@@ -117,6 +120,46 @@ describe("ProviderList", () => {
     ).toBeInTheDocument();
   });
 
+  it("hides CLI copy when CLI providers are disabled", async () => {
+    mockInvoke.mockImplementation(async (command) => {
+      if (command === "is_cli_provider_enabled") {
+        return false;
+      }
+      return undefined;
+    });
+
+    render(<ProviderList config={mockConfig} onRefresh={onRefresh} />);
+
+    await waitFor(() =>
+      expect(
+        screen.getByText("Configure LLM API providers."),
+      ).toBeInTheDocument(),
+    );
+  });
+
+  it("hides CLI copy when CLI status check fails", async () => {
+    mockInvoke.mockRejectedValue(new Error("disabled"));
+
+    render(<ProviderList config={mockConfig} onRefresh={onRefresh} />);
+
+    await waitFor(() =>
+      expect(
+        screen.getByText("Configure LLM API providers."),
+      ).toBeInTheDocument(),
+    );
+  });
+
+  it("opens the privacy policy link", async () => {
+    const user = userEvent.setup();
+    render(<ProviderList config={mockConfig} onRefresh={onRefresh} />);
+
+    await user.click(screen.getByRole("button", { name: "Privacy Policy" }));
+
+    expect(mockOpenUrl).toHaveBeenCalledWith(
+      "https://clipwise.mmc.dev/privacy",
+    );
+  });
+
   // ── Create provider ───────────────────────────────────────────────────────
 
   it("clicking Add Provider shows the ProviderForm", async () => {
@@ -124,6 +167,19 @@ describe("ProviderList", () => {
     render(<ProviderList config={mockConfig} onRefresh={onRefresh} />);
     await user.click(screen.getByRole("button", { name: /add provider/i }));
     expect(screen.getByText("New Provider")).toBeInTheDocument();
+  });
+
+  it("cancels create and edit forms", async () => {
+    const user = userEvent.setup();
+    render(<ProviderList config={mockConfig} onRefresh={onRefresh} />);
+
+    await user.click(screen.getByRole("button", { name: /add provider/i }));
+    await user.click(screen.getByRole("button", { name: /cancel/i }));
+    expect(screen.getByText("Anthropic Claude")).toBeInTheDocument();
+
+    await user.click(screen.getByTitle("Edit"));
+    await user.click(screen.getByRole("button", { name: /cancel/i }));
+    expect(screen.getByText("Anthropic Claude")).toBeInTheDocument();
   });
 
   it("submitting ProviderForm calls addProvider and onRefresh", async () => {

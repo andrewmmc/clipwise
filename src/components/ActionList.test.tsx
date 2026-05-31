@@ -81,6 +81,20 @@ describe("ActionList", () => {
     expect(screen.getByText("New Action")).toBeInTheDocument();
   });
 
+  it("shows provider hint instead of creating when no providers exist", async () => {
+    const user = userEvent.setup();
+    render(<ActionList config={emptyConfig} onRefresh={onRefresh} />);
+
+    await user.click(screen.getByRole("button", { name: /add action/i }));
+
+    expect(
+      screen.getByText(
+        "Please add a provider first before creating an action.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("New Action")).not.toBeInTheDocument();
+  });
+
   it("submitting ActionForm calls addAction and onRefresh", async () => {
     mockInvoke.mockResolvedValue({ ...mockAction, id: "new-id" });
     const user = userEvent.setup();
@@ -134,5 +148,37 @@ describe("ActionList", () => {
     await user.click(screen.getByTitle("Edit"));
     expect(screen.getByText("Edit Action")).toBeInTheDocument();
     expect(screen.getByDisplayValue("Refine wording")).toBeInTheDocument();
+  });
+
+  it("cancels create and edit forms", async () => {
+    const user = userEvent.setup();
+    render(<ActionList config={mockConfig} onRefresh={onRefresh} />);
+
+    await user.click(screen.getByRole("button", { name: /add action/i }));
+    await user.click(screen.getByRole("button", { name: /cancel/i }));
+    expect(screen.getByText("Refine wording")).toBeInTheDocument();
+
+    await user.click(screen.getByTitle("Edit"));
+    await user.click(screen.getByRole("button", { name: /cancel/i }));
+    expect(screen.getByText("Refine wording")).toBeInTheDocument();
+  });
+
+  it("submitting edit form calls updateAction and onRefresh", async () => {
+    mockInvoke.mockResolvedValue(undefined);
+    const user = userEvent.setup();
+    render(<ActionList config={mockConfig} onRefresh={onRefresh} />);
+
+    await user.click(screen.getByTitle("Edit"));
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+    await waitFor(() =>
+      expect(mockInvoke).toHaveBeenCalledWith(
+        "update_action",
+        expect.objectContaining({
+          action: expect.objectContaining({ id: "a1" }),
+        }),
+      ),
+    );
+    await waitFor(() => expect(onRefresh).toHaveBeenCalled());
   });
 });

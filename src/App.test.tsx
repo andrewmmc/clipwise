@@ -134,6 +134,67 @@ describe("App", () => {
     );
   });
 
+  it("clicking History tab shows history panel", async () => {
+    mockInvoke.mockImplementation((cmd) => {
+      if (cmd === "get_config") {
+        return Promise.resolve(mockConfig);
+      }
+      if (cmd === "get_history") {
+        return Promise.resolve([]);
+      }
+      return Promise.resolve(undefined);
+    });
+    render(<App />);
+    await waitFor(() => screen.getByText("Clipwise"));
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /history/i }));
+
+    await waitFor(() =>
+      expect(screen.getByText("No history yet")).toBeInTheDocument(),
+    );
+  });
+
+  it("clicking About tab shows about panel", async () => {
+    mockInvoke.mockImplementation((cmd) => {
+      if (cmd === "get_config") {
+        return Promise.resolve(mockConfig);
+      }
+      if (cmd === "get_app_info") {
+        return Promise.resolve({ version: "1.2.3", commit_hash: null });
+      }
+      if (cmd === "is_cli_provider_enabled") {
+        return Promise.resolve(true);
+      }
+      return Promise.resolve(undefined);
+    });
+    render(<App />);
+    await waitFor(() => screen.getByText("Clipwise"));
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /about/i }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByText(/macOS text transformation via LLM APIs/),
+      ).toBeInTheDocument(),
+    );
+  });
+
+  it("omits history tab when history is disabled", async () => {
+    mockInvoke.mockResolvedValue({
+      ...mockConfig,
+      settings: { ...mockConfig.settings, historyEnabled: false },
+    });
+
+    render(<App />);
+
+    await waitFor(() => screen.getByText("Clipwise"));
+    expect(
+      screen.queryByRole("button", { name: /history/i }),
+    ).not.toBeInTheDocument();
+  });
+
   it("switching tabs persists active tab state", async () => {
     mockInvoke.mockResolvedValue(mockConfig);
     render(<App />);

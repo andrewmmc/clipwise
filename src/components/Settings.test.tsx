@@ -104,6 +104,18 @@ describe("SettingsPanel", () => {
     );
   });
 
+  it("shows non-Error save failures", async () => {
+    mockInvoke.mockRejectedValue("write error");
+    const user = userEvent.setup();
+    render(<SettingsPanel config={mockConfig} onRefresh={onRefresh} />);
+
+    await user.click(screen.getAllByRole("switch")[0]);
+
+    await waitFor(() =>
+      expect(screen.getByText("write error")).toBeInTheDocument(),
+    );
+  });
+
   it("auto-saves when toggling history setting", async () => {
     mockInvoke.mockResolvedValue(undefined);
     const user = userEvent.setup();
@@ -117,6 +129,20 @@ describe("SettingsPanel", () => {
           showNotificationOnComplete: true,
           historyEnabled: false,
         }),
+      }),
+    );
+  });
+
+  it("auto-saves when changing max tokens", async () => {
+    mockInvoke.mockResolvedValue(undefined);
+    const user = userEvent.setup();
+    render(<SettingsPanel config={mockConfig} onRefresh={onRefresh} />);
+
+    await user.selectOptions(screen.getByRole("combobox"), "8192");
+
+    await waitFor(() =>
+      expect(mockInvoke).toHaveBeenCalledWith("save_settings", {
+        settings: expect.objectContaining({ maxTokens: 8192 }),
       }),
     );
   });

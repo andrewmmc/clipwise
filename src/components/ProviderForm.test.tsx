@@ -117,6 +117,54 @@ describe("ProviderForm", () => {
     ).toBeInTheDocument();
   });
 
+  it("shows not enabled and not ready Apple availability messages", async () => {
+    mockInvoke.mockImplementation(async (command) => {
+      if (command === "check_apple_model_availability") {
+        return { available: false, reason: "not_enabled" };
+      }
+      if (command === "is_cli_provider_enabled") {
+        return true;
+      }
+      return undefined;
+    });
+
+    render(<ProviderForm onSave={onSave} onCancel={onCancel} />);
+
+    expect(
+      await screen.findByText(/not enabled in system settings/i),
+    ).toBeInTheDocument();
+
+    cleanup();
+    mockInvoke.mockImplementation(async (command) => {
+      if (command === "check_apple_model_availability") {
+        return { available: false, reason: "not_ready" };
+      }
+      if (command === "is_cli_provider_enabled") {
+        return true;
+      }
+      return undefined;
+    });
+
+    render(<ProviderForm onSave={onSave} onCancel={onCancel} />);
+
+    expect(
+      await screen.findByText(/still preparing its on-device model/i),
+    ).toBeInTheDocument();
+  });
+
+  it("falls back when Apple and CLI checks fail", async () => {
+    mockInvoke.mockRejectedValue(new Error("unavailable"));
+
+    render(<ProviderForm onSave={onSave} onCancel={onCancel} />);
+
+    expect(
+      await screen.findByText(/currently unavailable on this mac/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("option", { name: "CLI (claude/codex/copilot)" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("disables Apple Intelligence when another Apple provider already exists", async () => {
     render(
       <ProviderForm
@@ -275,6 +323,56 @@ describe("ProviderForm", () => {
     expect(screen.getByText("Command looks good: /bin/sh")).toBeInTheDocument();
   });
 
+  it("shows an inline error when testing a CLI command fails", async () => {
+    mockInvoke.mockImplementation(async (command) => {
+      if (command === "test_cli_command") {
+        throw new Error("command failed");
+      }
+      if (command === "check_apple_model_availability") {
+        return { available: true, reason: null };
+      }
+      if (command === "is_cli_provider_enabled") {
+        return true;
+      }
+      return undefined;
+    });
+    const user = userEvent.setup();
+    render(<ProviderForm onSave={onSave} onCancel={onCancel} />);
+
+    await user.selectOptions(screen.getByDisplayValue("Anthropic"), "cli");
+    await user.type(screen.getByPlaceholderText("e.g. claude"), "bad-cli");
+    await user.click(screen.getByRole("button", { name: /^test$/i }));
+
+    await waitFor(() =>
+      expect(screen.getByText("command failed")).toBeInTheDocument(),
+    );
+  });
+
+  it("shows non-Error CLI test failures", async () => {
+    mockInvoke.mockImplementation(async (command) => {
+      if (command === "test_cli_command") {
+        throw "command failed";
+      }
+      if (command === "check_apple_model_availability") {
+        return { available: true, reason: null };
+      }
+      if (command === "is_cli_provider_enabled") {
+        return true;
+      }
+      return undefined;
+    });
+    const user = userEvent.setup();
+    render(<ProviderForm onSave={onSave} onCancel={onCancel} />);
+
+    await user.selectOptions(screen.getByDisplayValue("Anthropic"), "cli");
+    await user.type(screen.getByPlaceholderText("e.g. claude"), "bad-cli");
+    await user.click(screen.getByRole("button", { name: /^test$/i }));
+
+    await waitFor(() =>
+      expect(screen.getByText("command failed")).toBeInTheDocument(),
+    );
+  });
+
   // ── Successful submission ─────────────────────────────────────────────────
 
   it("calls onSave with correct API provider data", async () => {
@@ -326,6 +424,49 @@ describe("ProviderForm", () => {
     );
   });
 
+  it("calls onSave with correct Apple provider data", async () => {
+    onSave.mockResolvedValue(undefined);
+    const user = userEvent.setup();
+    render(<ProviderForm onSave={onSave} onCancel={onCancel} />);
+
+    await user.type(
+      screen.getByPlaceholderText("e.g. Anthropic Claude"),
+      "Apple Local",
+    );
+    await user.selectOptions(screen.getByDisplayValue("Anthropic"), "apple");
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+    await waitFor(() =>
+      expect(onSave).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: "Apple Local",
+          type: "apple",
+          endpoint: undefined,
+          apiKey: undefined,
+          headers: {},
+          args: [],
+        }),
+      ),
+    );
+  });
+
+  it("shows onSave errors", async () => {
+    onSave.mockRejectedValue(new Error("save failed"));
+    const user = userEvent.setup();
+    render(<ProviderForm onSave={onSave} onCancel={onCancel} />);
+
+    await user.type(
+      screen.getByPlaceholderText("e.g. Anthropic Claude"),
+      "Test Provider",
+    );
+    await user.type(screen.getByPlaceholderText("sk-..."), "sk-ant-key");
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+    await waitFor(() =>
+      expect(screen.getByText("save failed")).toBeInTheDocument(),
+    );
+  });
+
   it("prevents saving a duplicate Apple provider", async () => {
     const user = userEvent.setup();
     render(
@@ -359,6 +500,38 @@ describe("ProviderForm", () => {
       ).length,
     ).toBeGreaterThan(0);
     expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it("shows Apple unavailable message for an existing Apple provider", async () => {
+    mockInvoke.mockImplementation(async (command) => {
+      if (command === "check_apple_model_availability") {
+        return { available: false, reason: "not_supported" };
+      }
+      if (command === "is_cli_provider_enabled") {
+        return true;
+      }
+      return undefined;
+    });
+
+    render(
+      <ProviderForm
+        initial={{
+          id: "apple-intelligence",
+          name: "Apple Intelligence",
+          type: "apple",
+          headers: {},
+          args: [],
+        }}
+        onSave={onSave}
+        onCancel={onCancel}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(
+        screen.getAllByText("Apple Intelligence is not supported on this Mac."),
+      ).toHaveLength(2),
+    );
   });
 
   it("shows an inline error when testing an empty CLI command", async () => {
@@ -577,6 +750,39 @@ describe("ProviderForm", () => {
     );
   });
 
+  it("default model is included when filled", async () => {
+    onSave.mockResolvedValue(undefined);
+    const user = userEvent.setup();
+    render(<ProviderForm onSave={onSave} onCancel={onCancel} />);
+
+    await user.type(screen.getByPlaceholderText("e.g. Anthropic Claude"), "P");
+    await user.type(screen.getByPlaceholderText("sk-..."), "k");
+    await user.type(
+      screen.getByPlaceholderText("claude-sonnet-4-20250514"),
+      "claude-opus",
+    );
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+    await waitFor(() =>
+      expect(onSave).toHaveBeenCalledWith(
+        expect.objectContaining({ defaultModel: "claude-opus" }),
+      ),
+    );
+  });
+
+  it("removes custom headers", async () => {
+    const user = userEvent.setup();
+    render(<ProviderForm onSave={onSave} onCancel={onCancel} />);
+
+    await user.click(screen.getByRole("button", { name: /add header/i }));
+    expect(screen.getByPlaceholderText("Header name")).toBeInTheDocument();
+    await user.click(document.querySelector(".btn-icon-danger")!);
+
+    expect(
+      screen.queryByPlaceholderText("Header name"),
+    ).not.toBeInTheDocument();
+  });
+
   it("multiple headers with special characters are preserved", async () => {
     onSave.mockResolvedValue(undefined);
     const user = userEvent.setup();
@@ -609,6 +815,28 @@ describe("ProviderForm", () => {
         }),
       ),
     );
+  });
+
+  it("updates the second custom header", async () => {
+    const user = userEvent.setup();
+    const providerWithHeaders = {
+      ...mockProvider,
+      headers: { One: "1", Two: "2" },
+    };
+
+    render(
+      <ProviderForm
+        initial={providerWithHeaders}
+        onSave={onSave}
+        onCancel={onCancel}
+      />,
+    );
+
+    const values = screen.getAllByPlaceholderText("Value");
+    await user.clear(values[1]);
+    await user.type(values[1], "updated");
+
+    expect(screen.getByDisplayValue("updated")).toBeInTheDocument();
   });
 
   // ── Validation edge cases ────────────────────────────────────────────────────
@@ -673,6 +901,23 @@ describe("ProviderForm", () => {
         }),
       ),
     );
+  });
+
+  it("malformed https endpoint shows error", async () => {
+    const user = userEvent.setup();
+    render(<ProviderForm onSave={onSave} onCancel={onCancel} />);
+
+    await user.type(
+      screen.getByPlaceholderText("e.g. Anthropic Claude"),
+      "My Provider",
+    );
+    await user.type(screen.getByPlaceholderText(/https:\/\//i), "https://");
+    await user.type(screen.getByPlaceholderText("sk-..."), "sk-key");
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+    expect(
+      screen.getByText("Endpoint URL must be a valid https:// URL."),
+    ).toBeInTheDocument();
   });
 
   it("whitespace-only name is treated as empty", async () => {
@@ -769,6 +1014,26 @@ describe("ProviderForm", () => {
     expect(screen.getByDisplayValue("Anthropic")).toBeInTheDocument(); // Type default
   });
 
+  it("reset button restores CLI provider without args", async () => {
+    const user = userEvent.setup();
+    const cliProviderNoArgs = { ...mockCliProvider, args: undefined };
+
+    render(
+      <ProviderForm
+        initial={cliProviderNoArgs}
+        onSave={onSave}
+        onCancel={onCancel}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /add arg/i }));
+    await user.click(screen.getByRole("button", { name: /reset/i }));
+
+    expect(
+      screen.getByText("No arguments. Common: --print -m sonnet"),
+    ).toBeInTheDocument();
+  });
+
   // ── Args edge cases ──────────────────────────────────────────────────────────
 
   it("empty args are filtered out on submit", async () => {
@@ -794,6 +1059,45 @@ describe("ProviderForm", () => {
         }),
       ),
     );
+  });
+
+  it("updates and removes CLI args", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <ProviderForm
+        initial={mockCliProvider}
+        onSave={onSave}
+        onCancel={onCancel}
+      />,
+    );
+
+    const argInput = screen.getByDisplayValue("--print");
+    await user.clear(argInput);
+    await user.type(argInput, "--json");
+    expect(screen.getByDisplayValue("--json")).toBeInTheDocument();
+
+    await user.click(document.querySelector(".btn-icon-danger")!);
+    expect(
+      screen.getByText("No arguments. Common: --print -m sonnet"),
+    ).toBeInTheDocument();
+  });
+
+  it("updates the second CLI arg", async () => {
+    const user = userEvent.setup();
+    render(
+      <ProviderForm
+        initial={{ ...mockCliProvider, args: ["--print", "--model"] }}
+        onSave={onSave}
+        onCancel={onCancel}
+      />,
+    );
+
+    const argInputs = screen.getAllByPlaceholderText("e.g. --print");
+    await user.clear(argInputs[1]);
+    await user.type(argInputs[1], "sonnet");
+
+    expect(screen.getByDisplayValue("sonnet")).toBeInTheDocument();
   });
 
   it("all empty args results in empty array", async () => {
