@@ -1,18 +1,23 @@
 import { useEffect, useState } from "react";
 import useCliProviderEnabled from "../hooks/useCliProviderEnabled";
+import useProviderFormState, {
+  getInitialProviderFormState,
+} from "../hooks/useProviderFormState";
+import { getAppleAvailabilityMessage } from "../lib/appleAvailability";
 import { getErrorMessage } from "../lib/errors";
 import { PROVIDER_OPTION_LABELS } from "../lib/providers";
 import { tauriCommands } from "../lib/tauri";
-import type {
-  AppleModelAvailability,
-  Provider,
-  ProviderType,
-} from "../types/config";
+import { isApiProviderType, validateProviderForm } from "../lib/validation";
+import type { AppleModelAvailability, Provider } from "../types/config";
 import { ArrowLeft, ChevronDown, RotateCcw, Save } from "lucide-react";
 import ApiProviderForm from "./ApiProviderForm";
 import CliProviderForm from "./CliProviderForm";
 import ErrorBox from "./ErrorBox";
 import useTransientMessage from "../hooks/useTransientMessage";
+import {
+  AppleProviderSection,
+  ProviderTypeOption,
+} from "./ProviderFormSections";
 
 interface Props {
   initial?: Provider;
@@ -21,57 +26,13 @@ interface Props {
   onCancel: () => void;
 }
 
-const DEFAULT_CLI_ARGS = ["-p"];
-
-function getAppleAvailabilityMessage(
-  availability: AppleModelAvailability | null,
-): string | null {
-  if (!availability || availability.available) return null;
-
-  switch (availability.reason) {
-    case "not_enabled":
-      return "Apple Intelligence is available on this Mac but not enabled in system settings.";
-    case "not_ready":
-      return "Apple Intelligence is still preparing its on-device model on this Mac.";
-    case "not_supported":
-      return "Apple Intelligence is not supported on this Mac.";
-    default:
-      return "Apple Intelligence is currently unavailable on this Mac.";
-  }
-}
-
-function validateEndpoint(endpoint: string) {
-  const trimmed = endpoint.trim();
-  if (!trimmed) return null;
-  if (!trimmed.startsWith("https://")) {
-    return "Endpoint URL must be a valid https:// URL.";
-  }
-  try {
-    new URL(trimmed);
-    return null;
-  } catch {
-    return "Endpoint URL must be a valid https:// URL.";
-  }
-}
-
 export default function ProviderForm({
   initial,
   existingProviders = [],
   onSave,
   onCancel,
 }: Props) {
-  const [name, setName] = useState(initial?.name ?? "");
-  const [type, setType] = useState<ProviderType>(initial?.type ?? "anthropic");
-  const [endpoint, setEndpoint] = useState(initial?.endpoint ?? "");
-  const [apiKey, setApiKey] = useState(initial?.apiKey ?? "");
-  const [defaultModel, setDefaultModel] = useState(initial?.defaultModel ?? "");
-  const [command, setCommand] = useState(initial?.command ?? "");
-  const [args, setArgs] = useState<string[]>(
-    initial?.type === "cli" ? (initial.args ?? []) : [],
-  );
-  const [headers, setHeaders] = useState<[string, string][]>(
-    Object.entries(initial?.headers ?? {}),
-  );
+  const [form, dispatch] = useProviderFormState(initial);
   const [saving, setSaving] = useState(false);
   const [testingCommand, setTestingCommand] = useState(false);
   const cliEnabled = useCliProviderEnabled();
@@ -120,7 +81,9 @@ export default function ProviderForm({
   }, []);
 
   const appleUnavailableMessage =
-    type === "apple" ? getAppleAvailabilityMessage(appleAvailability) : null;
+    form.type === "apple"
+      ? getAppleAvailabilityMessage(appleAvailability)
+      : null;
   const appleProviderExists = existingProviders.some(
     (provider) => provider.type === "apple" && provider.id !== initial?.id,
   );
@@ -132,43 +95,36 @@ export default function ProviderForm({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) {
-      setError("Provider name is required.");
-      return;
-    }
-    if (type !== "cli" && type !== "apple" && !apiKey.trim()) {
-      setError("API key is required for API providers.");
-      return;
-    }
-    if (type !== "cli" && type !== "apple") {
-      const endpointError = validateEndpoint(endpoint);
-      if (endpointError) {
-        setError(endpointError);
-        return;
-      }
-    }
-    if (type === "cli" && !command.trim()) {
-      setError("Command is required for CLI providers.");
-      return;
-    }
-    if (type === "apple" && appleProviderExists) {
-      setError("Only one Apple Intelligence provider can be configured.");
+    const validationError = validateProviderForm(
+      {
+        name: form.name,
+        type: form.type,
+        endpoint: form.endpoint,
+        apiKey: form.apiKey,
+        command: form.command,
+      },
+      appleProviderExists,
+    );
+    if (validationError) {
+      setError(validationError);
       return;
     }
     setSaving(true);
     setError(null);
     try {
-      const isApi = type !== "cli" && type !== "apple";
-      const headersObj = Object.fromEntries(headers.filter(([k]) => k.trim()));
+      const isApi = isApiProviderType(form.type);
+      const headersObj = Object.fromEntries(
+        form.headers.filter(([k]) => k.trim()),
+      );
       await onSave({
-        name: name.trim(),
-        type,
-        endpoint: isApi ? endpoint.trim() || undefined : undefined,
-        apiKey: isApi ? apiKey.trim() || undefined : undefined,
+        name: form.name.trim(),
+        type: form.type,
+        endpoint: isApi ? form.endpoint.trim() || undefined : undefined,
+        apiKey: isApi ? form.apiKey.trim() || undefined : undefined,
         headers: isApi ? headersObj : {},
-        defaultModel: defaultModel.trim() || undefined,
-        command: type === "cli" ? command.trim() : undefined,
-        args: type === "cli" ? args.filter(Boolean) : [],
+        defaultModel: form.defaultModel.trim() || undefined,
+        command: form.type === "cli" ? form.command.trim() : undefined,
+        args: form.type === "cli" ? form.args.filter(Boolean) : [],
       });
     } catch (e) {
       setError(getErrorMessage(e));
@@ -178,7 +134,7 @@ export default function ProviderForm({
   };
 
   const handleTestCommand = async () => {
-    if (!command.trim()) {
+    if (!form.command.trim()) {
       clearCommandTestSuccess();
       setCommandTestError("Enter a command before testing.");
       return;
@@ -187,7 +143,7 @@ export default function ProviderForm({
     setCommandTestError(null);
     clearCommandTestSuccess();
     try {
-      const result = await tauriCommands.testCliCommand(command.trim());
+      const result = await tauriCommands.testCliCommand(form.command.trim());
       showCommandTestSuccess(result);
     } catch (e) {
       setCommandTestError(getErrorMessage(e));
@@ -215,9 +171,13 @@ export default function ProviderForm({
             <label className="label label-required">Name</label>
             <input
               type="text"
-              value={name}
+              value={form.name}
               onChange={(e) => {
-                setName(e.target.value);
+                dispatch({
+                  type: "field",
+                  field: "name",
+                  value: e.target.value,
+                });
                 clearFormFeedback();
               }}
               placeholder="e.g. Anthropic Claude"
@@ -228,26 +188,37 @@ export default function ProviderForm({
             <label className="label label-required">Type</label>
             <div className="relative">
               <select
-                value={type}
+                value={form.type}
                 onChange={(e) => {
-                  const nextType = e.target.value as ProviderType;
-                  setType(nextType);
+                  const nextType = e.target.value as Provider["type"];
                   clearAllFeedback();
-                  if (nextType === "cli" && !initial && args.length === 0) {
-                    setArgs(DEFAULT_CLI_ARGS);
-                  }
+                  dispatch({
+                    type: "setType",
+                    value: nextType,
+                    defaultArgs:
+                      nextType === "cli" && !initial && form.args.length === 0,
+                  });
                 }}
                 className="input select"
               >
-                <option value="apple" disabled={appleOptionDisabled}>
-                  {PROVIDER_OPTION_LABELS.apple}
-                </option>
-                <option value="anthropic">
-                  {PROVIDER_OPTION_LABELS.anthropic}
-                </option>
-                <option value="openai">{PROVIDER_OPTION_LABELS.openai}</option>
+                <ProviderTypeOption
+                  type="apple"
+                  label={PROVIDER_OPTION_LABELS.apple}
+                  disabled={appleOptionDisabled}
+                />
+                <ProviderTypeOption
+                  type="anthropic"
+                  label={PROVIDER_OPTION_LABELS.anthropic}
+                />
+                <ProviderTypeOption
+                  type="openai"
+                  label={PROVIDER_OPTION_LABELS.openai}
+                />
                 {cliEnabled && (
-                  <option value="cli">{PROVIDER_OPTION_LABELS.cli}</option>
+                  <ProviderTypeOption
+                    type="cli"
+                    label={PROVIDER_OPTION_LABELS.cli}
+                  />
                 )}
               </select>
               <ChevronDown
@@ -264,91 +235,68 @@ export default function ProviderForm({
           </div>
         </div>
 
-        {type === "apple" ? (
-          <div className="space-y-1">
-            <p className="text-[12px] text-text-secondary">
-              Uses Apple&apos;s on-device Foundation Model. No API key or
-              configuration needed. Runs privately on your Mac.
-            </p>
-            {(appleDuplicateMessage || appleUnavailableMessage) && (
-              <p className="text-[12px] text-amber-600">
-                {appleDuplicateMessage ?? appleUnavailableMessage}
-              </p>
-            )}
-          </div>
-        ) : type !== "cli" ? (
+        {form.type === "apple" ? (
+          <AppleProviderSection
+            duplicateMessage={appleDuplicateMessage}
+            unavailableMessage={appleUnavailableMessage}
+          />
+        ) : isApiProviderType(form.type) ? (
           <ApiProviderForm
-            type={type}
-            endpoint={endpoint}
-            apiKey={apiKey}
-            defaultModel={defaultModel}
-            headers={headers}
+            type={form.type}
+            endpoint={form.endpoint}
+            apiKey={form.apiKey}
+            defaultModel={form.defaultModel}
+            headers={form.headers}
             onEndpointChange={(value) => {
-              setEndpoint(value);
+              dispatch({ type: "field", field: "endpoint", value });
               clearFormFeedback();
             }}
             onApiKeyChange={(value) => {
-              setApiKey(value);
+              dispatch({ type: "field", field: "apiKey", value });
               clearFormFeedback();
             }}
             onDefaultModelChange={(value) => {
-              setDefaultModel(value);
+              dispatch({ type: "field", field: "defaultModel", value });
               clearFormFeedback();
             }}
             onAddHeader={() => {
-              setHeaders((current) => [...current, ["", ""]]);
+              dispatch({ type: "addHeader" });
               clearFormFeedback();
             }}
             onHeaderKeyChange={(index, value) => {
-              setHeaders((current) =>
-                current.map((item, itemIndex) =>
-                  itemIndex === index ? [value, item[1]] : item,
-                ),
-              );
+              dispatch({ type: "setHeaderKey", index, value });
               clearFormFeedback();
             }}
             onHeaderValueChange={(index, value) => {
-              setHeaders((current) =>
-                current.map((item, itemIndex) =>
-                  itemIndex === index ? [item[0], value] : item,
-                ),
-              );
+              dispatch({ type: "setHeaderValue", index, value });
               clearFormFeedback();
             }}
             onRemoveHeader={(index) => {
-              setHeaders((current) =>
-                current.filter((_, itemIndex) => itemIndex !== index),
-              );
+              dispatch({ type: "removeHeader", index });
               clearFormFeedback();
             }}
           />
         ) : (
           <CliProviderForm
-            command={command}
-            args={args}
+            command={form.command}
+            args={form.args}
             testingCommand={testingCommand}
             commandTestError={commandTestError}
             commandTestSuccess={commandTestSuccess}
             onCommandChange={(value) => {
-              setCommand(value);
+              dispatch({ type: "field", field: "command", value });
               clearAllFeedback();
             }}
             onAddArg={() => {
-              setArgs((current) => [...current, ""]);
+              dispatch({ type: "addArg" });
               clearAllFeedback();
             }}
             onArgChange={(index, value) => {
-              setArgs((current) =>
-                current.map((item, itemIndex) =>
-                  itemIndex === index ? value : item,
-                ),
-              );
+              dispatch({ type: "setArg", index, value });
               clearAllFeedback();
             }}
             onRemoveArg={(index) => {
-              setArgs((current) =>
-                current.filter((_, itemIndex) => itemIndex !== index),
-              );
+              dispatch({ type: "removeArg", index });
               clearAllFeedback();
             }}
             onTestCommand={handleTestCommand}
@@ -362,14 +310,10 @@ export default function ProviderForm({
           <button
             type="button"
             onClick={() => {
-              setName(initial?.name ?? "");
-              setType(initial?.type ?? "anthropic");
-              setEndpoint(initial?.endpoint ?? "");
-              setApiKey(initial?.apiKey ?? "");
-              setDefaultModel(initial?.defaultModel ?? "");
-              setCommand(initial?.command ?? "");
-              setArgs(initial?.type === "cli" ? (initial.args ?? []) : []);
-              setHeaders(Object.entries(initial?.headers ?? {}));
+              dispatch({
+                type: "reset",
+                value: getInitialProviderFormState(initial),
+              });
               clearAllFeedback();
             }}
             disabled={saving || testingCommand}

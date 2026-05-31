@@ -1,4 +1,5 @@
 use crate::error::AppError;
+use crate::json_store::{load_json_or_default, save_pretty_json};
 use crate::models::AppConfig;
 use crate::paths::app_data_dir;
 use std::path::{Path, PathBuf};
@@ -26,11 +27,8 @@ pub fn config_path() -> Result<PathBuf, AppError> {
 pub fn load_config_from(path: &Path) -> Result<AppConfig, AppError> {
     if !path.exists() {
         info!(path = %path.display(), "Config file missing; using defaults");
-        return Ok(AppConfig::default());
     }
-
-    let data = std::fs::read_to_string(path)?;
-    let config: AppConfig = serde_json::from_str(&data)?;
+    let config: AppConfig = load_json_or_default(path)?;
     info!(
         path = %path.display(),
         provider_count = config.providers.len(),
@@ -42,11 +40,7 @@ pub fn load_config_from(path: &Path) -> Result<AppConfig, AppError> {
 
 /// Save config to an explicit path (used by tests).
 pub fn save_config_to(config: &AppConfig, path: &Path) -> Result<(), AppError> {
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
-    let data = serde_json::to_string_pretty(config)?;
-    std::fs::write(path, data)?;
+    save_pretty_json(config, path)?;
     info!(
         path = %path.display(),
         provider_count = config.providers.len(),
@@ -78,7 +72,7 @@ mod tests {
                 provider_type: ProviderType::Anthropic,
                 endpoint: None,
                 api_key: Some("sk-test".into()),
-                headers: serde_json::Map::new(),
+                headers: ProviderHeaders::new(),
                 default_model: Some("claude-sonnet-4-20250514".into()),
                 command: None,
                 args: vec![],

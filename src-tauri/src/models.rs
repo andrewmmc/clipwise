@@ -1,4 +1,7 @@
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
+
+pub type ProviderHeaders = BTreeMap<String, String>;
 
 /// A configured LLM provider (API or CLI).
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -20,14 +23,9 @@ pub struct Provider {
     #[cfg_attr(feature = "ts", ts(optional))]
     pub api_key: Option<String>,
     /// For API providers: extra headers
-    #[serde(
-        default,
-        skip_serializing_if = "serde_json::Map::is_empty",
-        deserialize_with = "deserialize_string_headers"
-    )]
-    // ts-rs cannot parse `deserialize_with`; the type is overridden explicitly below.
+    #[serde(default, skip_serializing_if = "ProviderHeaders::is_empty")]
     #[cfg_attr(feature = "ts", ts(type = "Record<string, string> | undefined"))]
-    pub headers: serde_json::Map<String, serde_json::Value>,
+    pub headers: ProviderHeaders,
     /// Default model name for this provider
     #[serde(skip_serializing_if = "Option::is_none")]
     #[cfg_attr(feature = "ts", ts(optional))]
@@ -166,28 +164,6 @@ pub struct LlmResult {
     pub result: String,
 }
 
-fn deserialize_string_headers<'de, D>(
-    deserializer: D,
-) -> Result<serde_json::Map<String, serde_json::Value>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let headers = serde_json::Value::deserialize(deserializer)?;
-    let headers = headers
-        .as_object()
-        .ok_or_else(|| serde::de::Error::custom("headers must be an object"))?;
-
-    let mut validated_headers = serde_json::Map::new();
-    for (key, value) in headers {
-        let value = value
-            .as_str()
-            .ok_or_else(|| serde::de::Error::custom(format!("header `{key}` must be a string")))?;
-        validated_headers.insert(key.clone(), serde_json::Value::String(value.to_owned()));
-    }
-
-    Ok(validated_headers)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -199,7 +175,7 @@ mod tests {
             provider_type: ProviderType::Anthropic,
             endpoint: Some("https://api.anthropic.com/v1/messages".into()),
             api_key: Some("sk-ant-test".into()),
-            headers: serde_json::Map::new(),
+            headers: ProviderHeaders::new(),
             default_model: Some("claude-sonnet-4-20250514".into()),
             command: None,
             args: vec![],
@@ -213,7 +189,7 @@ mod tests {
             provider_type: ProviderType::Cli,
             endpoint: None,
             api_key: None,
-            headers: serde_json::Map::new(),
+            headers: ProviderHeaders::new(),
             default_model: None,
             command: Some("claude".into()),
             args: vec!["--print".into()],
@@ -310,10 +286,7 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(
-            provider.headers.get("x-test"),
-            Some(&serde_json::Value::String("value".into()))
-        );
+        assert_eq!(provider.headers.get("x-test"), Some(&"value".to_string()));
     }
 
     #[test]

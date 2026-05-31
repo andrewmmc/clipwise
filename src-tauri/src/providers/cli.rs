@@ -154,7 +154,7 @@ fn is_executable_file(path: &Path) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::ProviderType;
+    use crate::models::{ProviderHeaders, ProviderType};
 
     fn make_cli_provider(command: Option<&str>, args: Vec<&str>) -> Provider {
         Provider {
@@ -163,7 +163,7 @@ mod tests {
             provider_type: ProviderType::Cli,
             endpoint: None,
             api_key: None,
-            headers: serde_json::Map::new(),
+            headers: ProviderHeaders::new(),
             default_model: None,
             command: command.map(Into::into),
             args: args.iter().map(|s| s.to_string()).collect(),

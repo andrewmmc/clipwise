@@ -1,4 +1,5 @@
 use crate::error::AppError;
+use crate::llm_response::normalize_response_str;
 use crate::models::Provider;
 use crate::retry::with_http_retry;
 use reqwest::{Client, RequestBuilder};
@@ -27,12 +28,10 @@ pub(crate) fn model_or_default<'a>(
 
 pub(crate) fn apply_custom_headers(
     mut request: RequestBuilder,
-    headers: &serde_json::Map<String, Value>,
+    headers: &crate::models::ProviderHeaders,
 ) -> RequestBuilder {
     for (key, value) in headers {
-        if let Some(value) = value.as_str() {
-            request = request.header(key.as_str(), value);
-        }
+        request = request.header(key.as_str(), value);
     }
 
     request
@@ -81,4 +80,29 @@ pub(crate) async fn send_json_with_retry(
     );
 
     Ok(body_text)
+}
+
+pub(crate) async fn send_json_and_normalize(
+    client: &Client,
+    provider: &Provider,
+    provider_name: &'static str,
+    endpoint: &str,
+    body: &Value,
+    build_request: impl Fn(&Client, &str) -> RequestBuilder,
+    extract_content: impl FnOnce(&Value) -> Result<&str, AppError>,
+) -> Result<Value, AppError> {
+    let body_text = send_json_with_retry(
+        client,
+        provider,
+        provider_name,
+        endpoint,
+        body,
+        build_request,
+    )
+    .await?;
+
+    let json: Value = serde_json::from_str(&body_text)
+        .map_err(|_| AppError::Llm(format!("Failed to parse response as JSON: {}", body_text)))?;
+    let content = extract_content(&json)?;
+    normalize_response_str(content)
 }

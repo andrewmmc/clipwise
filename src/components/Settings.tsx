@@ -1,5 +1,5 @@
-import { useCallback, useState } from "react";
-import { getErrorMessage } from "../lib/errors";
+import { useState } from "react";
+import useAsyncAction from "../hooks/useAsyncAction";
 import { tauriCommands } from "../lib/tauri";
 import type { AppConfig, AppSettings } from "../types/config";
 import ErrorBox from "./ErrorBox";
@@ -14,41 +14,26 @@ export default function SettingsPanel({ config, onRefresh }: Props) {
     source: config.settings,
     settings: { ...config.settings },
   });
-  const [error, setError] = useState<string | null>(null);
+  const { error, run } = useAsyncAction();
+  const settings =
+    settingsState.source === config.settings
+      ? settingsState.settings
+      : config.settings;
 
-  if (settingsState.source !== config.settings) {
-    setSettingsState({
-      source: config.settings,
-      settings: { ...config.settings },
-    });
-  }
-
-  const settings = settingsState.settings;
-
-  const saveSettings = useCallback(
-    async (nextSettings: AppSettings) => {
-      setError(null);
+  const updateSettings = (nextSettings: Partial<AppSettings>) => {
+    const updated = { ...settings, ...nextSettings };
+    setSettingsState({ source: config.settings, settings: updated });
+    void (async () => {
       try {
-        await tauriCommands.saveSettings(nextSettings);
-        onRefresh();
-      } catch (e) {
-        setError(getErrorMessage(e));
+        await run(async () => {
+          await tauriCommands.saveSettings(updated);
+          onRefresh();
+        });
+      } catch {
+        // useAsyncAction captures the displayed error.
       }
-    },
-    [onRefresh],
-  );
-
-  const updateSettings = useCallback(
-    (nextSettings: Partial<AppSettings>) => {
-      setSettingsState((current) => {
-        const updated = { ...current.settings, ...nextSettings };
-        // Auto-save immediately for toggles
-        saveSettings(updated);
-        return { ...current, settings: updated };
-      });
-    },
-    [saveSettings],
-  );
+    })();
+  };
 
   return (
     <div className="space-y-4">

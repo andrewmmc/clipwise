@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import useCliProviderEnabled from "../hooks/useCliProviderEnabled";
+import useAsyncAction from "../hooks/useAsyncAction";
 import { tauriCommands } from "../lib/tauri";
 import { PROVIDER_TYPE_LABELS } from "../lib/providers";
 import type { AppConfig, Provider } from "../types/config";
@@ -21,6 +22,11 @@ export default function ProviderList({ config, onRefresh }: Props) {
   const [creating, setCreating] = useState(false);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const {
+    error: mutationError,
+    run: runMutation,
+    clearError,
+  } = useAsyncAction();
   const cliEnabled = useCliProviderEnabled();
   const {
     message: successMessage,
@@ -37,10 +43,16 @@ export default function ProviderList({ config, onRefresh }: Props) {
       setPendingDeleteId(null);
       return;
     }
-    await tauriCommands.deleteProvider(id);
-    setPendingDeleteId(null);
-    setDeleteError(null);
-    onRefresh();
+    try {
+      await runMutation(async () => {
+        await tauriCommands.deleteProvider(id);
+        setPendingDeleteId(null);
+        setDeleteError(null);
+        onRefresh();
+      });
+    } catch {
+      // useAsyncAction captures the displayed error.
+    }
   };
 
   if (creating) {
@@ -48,10 +60,12 @@ export default function ProviderList({ config, onRefresh }: Props) {
       <ProviderForm
         existingProviders={config.providers}
         onSave={async (data) => {
-          await tauriCommands.addProvider(data);
-          onRefresh();
-          showSuccessMessage("Provider saved successfully.");
-          setCreating(false);
+          await runMutation(async () => {
+            await tauriCommands.addProvider(data);
+            onRefresh();
+            showSuccessMessage("Provider saved successfully.");
+            setCreating(false);
+          });
         }}
         onCancel={() => setCreating(false)}
       />
@@ -64,10 +78,12 @@ export default function ProviderList({ config, onRefresh }: Props) {
         initial={editing}
         existingProviders={config.providers}
         onSave={async (data) => {
-          await tauriCommands.updateProvider({ ...data, id: editing.id });
-          onRefresh();
-          showSuccessMessage("Provider saved successfully.");
-          setEditing(null);
+          await runMutation(async () => {
+            await tauriCommands.updateProvider({ ...data, id: editing.id });
+            onRefresh();
+            showSuccessMessage("Provider saved successfully.");
+            setEditing(null);
+          });
         }}
         onCancel={() => setEditing(null)}
       />
@@ -88,6 +104,7 @@ export default function ProviderList({ config, onRefresh }: Props) {
         <button
           onClick={() => {
             clearSuccessMessage();
+            clearError();
             setCreating(true);
           }}
           className="btn btn-primary"
@@ -99,6 +116,7 @@ export default function ProviderList({ config, onRefresh }: Props) {
 
       {successMessage && <SuccessBox message={successMessage} />}
       {deleteError && <ErrorBox message={deleteError} />}
+      {mutationError && <ErrorBox message={mutationError} />}
 
       <div className="feedback-box feedback-info flex gap-2 text-[12px]">
         <Shield size={14} className="mt-0.5 shrink-0" />
@@ -178,6 +196,7 @@ export default function ProviderList({ config, onRefresh }: Props) {
                           type="button"
                           onClick={() => {
                             clearSuccessMessage();
+                            clearError();
                             setDeleteError(null);
                             setEditing(provider);
                           }}

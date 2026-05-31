@@ -1,7 +1,6 @@
 use crate::error::AppError;
-use crate::llm_response::normalize_response_str;
 use crate::models::{Provider, SYSTEM_PROMPT};
-use crate::providers::http::{model_or_default, provider_api_key, send_json_with_retry};
+use crate::providers::http::{model_or_default, provider_api_key, send_json_and_normalize};
 use reqwest::Client;
 use serde_json::json;
 use tracing::info;
@@ -48,7 +47,7 @@ pub async fn call_openai_with_client(
         ]
     });
 
-    let body_text = send_json_with_retry(
+    send_json_and_normalize(
         client,
         provider,
         "OpenAI",
@@ -60,24 +59,19 @@ pub async fn call_openai_with_client(
                 .header("Authorization", format!("Bearer {}", api_key))
                 .header("Content-Type", "application/json")
         },
+        |json| {
+            json["choices"][0]["message"]["content"]
+                .as_str()
+                .ok_or(AppError::InvalidResponse)
+        },
     )
-    .await?;
-
-    let json: serde_json::Value = serde_json::from_str(&body_text)
-        .map_err(|_| AppError::Llm(format!("Failed to parse response as JSON: {}", body_text)))?;
-
-    // Extract content from choices[0].message.content
-    let content = json["choices"][0]["message"]["content"]
-        .as_str()
-        .ok_or(AppError::InvalidResponse)?;
-
-    normalize_response_str(content)
+    .await
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::ProviderType;
+    use crate::models::{ProviderHeaders, ProviderType};
     use tokio::task::JoinError;
     use wiremock::matchers::{body_string_contains, header, method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -110,7 +104,7 @@ mod tests {
             provider_type: ProviderType::OpenAI,
             endpoint: Some(format!("{}/v1/chat/completions", server_uri)),
             api_key: Some("test-key".into()),
-            headers: serde_json::Map::new(),
+            headers: ProviderHeaders::new(),
             default_model: None,
             command: None,
             args: vec![],
@@ -416,10 +410,9 @@ mod tests {
             .await;
 
         let mut provider = make_provider(&server.uri());
-        provider.headers.insert(
-            "x-custom-header".into(),
-            serde_json::Value::String("my-value".into()),
-        );
+        provider
+            .headers
+            .insert("x-custom-header".into(), "my-value".into());
         let result =
             call_openai_with_client(&provider, "test", None, 1024, &no_proxy_client()).await;
         assert!(

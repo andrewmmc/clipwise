@@ -2,6 +2,7 @@ import { useState } from "react";
 import { cx } from "../lib/classNames";
 import { getErrorMessage } from "../lib/errors";
 import { tauriCommands } from "../lib/tauri";
+import { MAX_USER_PROMPT_LENGTH, validateActionForm } from "../lib/validation";
 import type { Action, AppConfig } from "../types/config";
 import {
   ArrowLeft,
@@ -19,7 +20,6 @@ interface Props {
   onCancel: () => void;
 }
 
-const MAX_USER_PROMPT_LENGTH = 2000;
 const DEFAULT_TEST_INPUT = "The quick brown fox jumps over the lazy dog.";
 
 export default function ActionForm({
@@ -42,14 +42,12 @@ export default function ActionForm({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !userPrompt.trim() || !providerId) {
-      setError("Name, provider, and prompt are required.");
-      return;
-    }
-    if (userPrompt.length > MAX_USER_PROMPT_LENGTH) {
-      setError(
-        `User prompt must be ${MAX_USER_PROMPT_LENGTH} characters or fewer.`,
-      );
+    const validationError = validateActionForm(
+      { name, providerId, userPrompt },
+      config,
+    );
+    if (validationError) {
+      setError(validationError);
       return;
     }
     setSaving(true);

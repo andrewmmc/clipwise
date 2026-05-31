@@ -1,4 +1,5 @@
 import { useState } from "react";
+import useAsyncAction from "../hooks/useAsyncAction";
 import { tauriCommands } from "../lib/tauri";
 import type { AppConfig, Action } from "../types/config";
 import useTransientMessage from "../hooks/useTransientMessage";
@@ -19,6 +20,11 @@ export default function ActionList({ config, onRefresh }: Props) {
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [showProviderHint, setShowProviderHint] = useState(false);
   const {
+    error: mutationError,
+    run: runMutation,
+    clearError,
+  } = useAsyncAction();
+  const {
     message: successMessage,
     showMessage: showSuccessMessage,
     clearMessage: clearSuccessMessage,
@@ -27,9 +33,15 @@ export default function ActionList({ config, onRefresh }: Props) {
   const hasProviders = config.providers.length > 0;
 
   const handleDelete = async (id: string) => {
-    await tauriCommands.deleteAction(id);
-    setPendingDeleteId(null);
-    onRefresh();
+    try {
+      await runMutation(async () => {
+        await tauriCommands.deleteAction(id);
+        setPendingDeleteId(null);
+        onRefresh();
+      });
+    } catch {
+      // useAsyncAction captures the displayed error.
+    }
   };
 
   const providerName = (id: string) =>
@@ -40,10 +52,12 @@ export default function ActionList({ config, onRefresh }: Props) {
       <ActionForm
         config={config}
         onSave={async (data) => {
-          await tauriCommands.addAction(data);
-          onRefresh();
-          showSuccessMessage("Action saved successfully.");
-          setCreating(false);
+          await runMutation(async () => {
+            await tauriCommands.addAction(data);
+            onRefresh();
+            showSuccessMessage("Action saved successfully.");
+            setCreating(false);
+          });
         }}
         onCancel={() => setCreating(false)}
       />
@@ -56,10 +70,12 @@ export default function ActionList({ config, onRefresh }: Props) {
         config={config}
         initial={editing}
         onSave={async (data) => {
-          await tauriCommands.updateAction({ ...data, id: editing.id });
-          onRefresh();
-          showSuccessMessage("Action saved successfully.");
-          setEditing(null);
+          await runMutation(async () => {
+            await tauriCommands.updateAction({ ...data, id: editing.id });
+            onRefresh();
+            showSuccessMessage("Action saved successfully.");
+            setEditing(null);
+          });
         }}
         onCancel={() => setEditing(null)}
       />
@@ -80,6 +96,7 @@ export default function ActionList({ config, onRefresh }: Props) {
         <button
           onClick={() => {
             clearSuccessMessage();
+            clearError();
             if (hasProviders) {
               setShowProviderHint(false);
               setCreating(true);
@@ -95,6 +112,7 @@ export default function ActionList({ config, onRefresh }: Props) {
       </div>
 
       {successMessage && <SuccessBox message={successMessage} />}
+      {mutationError && <ErrorBox message={mutationError} />}
       {showProviderHint && (
         <ErrorBox message="Please add a provider first before creating an action." />
       )}

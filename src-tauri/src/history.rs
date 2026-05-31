@@ -1,4 +1,5 @@
 use crate::error::AppError;
+use crate::json_store::{load_json_or_default, save_pretty_json};
 use crate::models::HistoryEntry;
 use crate::paths::app_data_dir;
 use std::path::Path;
@@ -20,11 +21,8 @@ pub fn history_path() -> Result<PathBuf, AppError> {
 pub fn load_history_from(path: &Path) -> Result<Vec<HistoryEntry>, AppError> {
     if !path.exists() {
         info!(path = %path.display(), "History file missing; returning empty history");
-        return Ok(Vec::new());
     }
-
-    let data = std::fs::read_to_string(path)?;
-    let history: Vec<HistoryEntry> = serde_json::from_str(&data)?;
+    let history: Vec<HistoryEntry> = load_json_or_default(path)?;
     info!(
         path = %path.display(),
         entry_count = history.len(),
@@ -34,11 +32,7 @@ pub fn load_history_from(path: &Path) -> Result<Vec<HistoryEntry>, AppError> {
 }
 
 pub fn save_history_to(history: &[HistoryEntry], path: &Path) -> Result<(), AppError> {
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
-    let data = serde_json::to_string_pretty(history)?;
-    std::fs::write(path, data)?;
+    save_pretty_json(&history, path)?;
     info!(
         path = %path.display(),
         entry_count = history.len(),

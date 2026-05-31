@@ -272,7 +272,7 @@ pub fn add_action(
     };
     save_config(&updated_config)?;
 
-    crate::app::refresh_tray_menu(&app, &updated_config)
+    crate::tray::refresh_tray_menu(&app, &updated_config)
         .map_err(|e| AppError::Service(e.to_string()))?;
     info!(
         action_id = %result.id,
@@ -300,7 +300,7 @@ pub fn update_action(
     };
     save_config(&updated_config)?;
 
-    crate::app::refresh_tray_menu(&app, &updated_config)
+    crate::tray::refresh_tray_menu(&app, &updated_config)
         .map_err(|e| AppError::Service(e.to_string()))?;
     info!(
         action_id = %action_id,
@@ -325,7 +325,7 @@ pub fn delete_action(
     };
     save_config(&updated_config)?;
 
-    crate::app::refresh_tray_menu(&app, &updated_config)
+    crate::tray::refresh_tray_menu(&app, &updated_config)
         .map_err(|e| AppError::Service(e.to_string()))?;
     info!(action_id = %id, "Deleted action");
     Ok(())
@@ -345,7 +345,7 @@ pub fn reorder_actions(
     };
     save_config(&updated_config)?;
 
-    crate::app::refresh_tray_menu(&app, &updated_config)
+    crate::tray::refresh_tray_menu(&app, &updated_config)
         .map_err(|e| AppError::Service(e.to_string()))?;
     info!(action_count = ids.len(), "Reordered actions");
     Ok(())
@@ -356,7 +356,7 @@ pub fn reorder_actions(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::ProviderType;
+    use crate::models::{ProviderHeaders, ProviderType};
 
     fn stub_provider(id: &str) -> Provider {
         Provider {
@@ -365,7 +365,7 @@ mod tests {
             provider_type: ProviderType::Anthropic,
             endpoint: None,
             api_key: Some("key".into()),
-            headers: serde_json::Map::new(),
+            headers: ProviderHeaders::new(),
             default_model: None,
             command: None,
             args: vec![],
@@ -379,7 +379,7 @@ mod tests {
             provider_type: ProviderType::Apple,
             endpoint: None,
             api_key: None,
-            headers: serde_json::Map::new(),
+            headers: ProviderHeaders::new(),
             default_model: None,
             command: None,
             args: vec![],
