@@ -170,6 +170,19 @@ pub fn clear_history() -> Result<(), AppError> {
     clear_history_at(&history_path()?)
 }
 
+pub fn purge_history_at(path: &Path) -> Result<(), AppError> {
+    if path.exists() {
+        std::fs::remove_file(path)?;
+        info!(path = %path.display(), "Purged history");
+    }
+    Ok(())
+}
+
+/// Permanently delete all history entries, including starred entries.
+pub fn purge_history() -> Result<(), AppError> {
+    purge_history_at(&history_path()?)
+}
+
 pub fn delete_entry_at(path: &Path, id: &str) -> Result<bool, AppError> {
     let mut history = load_history_from(path)?;
     let original_len = history.len();
@@ -408,6 +421,27 @@ mod tests {
 
         assert!(!path.exists());
         assert!(clear_history_at(&path).is_ok());
+    }
+
+    #[test]
+    fn test_purge_history_removes_starred_entries() {
+        let history = vec![make_test_entry_with_starred("id1", "Action1", true)];
+
+        let dir = TempDir::new().unwrap();
+        let path = setup_test_history_file(&dir, history);
+        purge_history_at(&path).unwrap();
+
+        assert!(!path.exists());
+        assert!(load_history_from(&path).unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_purge_history_nonexistent_file_no_error() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("nonexistent.json");
+
+        assert!(!path.exists());
+        assert!(purge_history_at(&path).is_ok());
     }
 
     // ── load_history ───────────────────────────────────────────────────────────

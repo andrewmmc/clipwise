@@ -465,6 +465,33 @@ describe("HistoryList", () => {
     });
   });
 
+  it("refreshes history after star toggle to reflect backend side effects", async () => {
+    const refreshedHistory = [
+      { ...mockHistory[0], starred: true },
+      { ...mockHistory[1], starred: false },
+    ];
+    vi.mocked(tauri.tauriCommands.getHistory)
+      .mockResolvedValueOnce(mockHistory)
+      .mockResolvedValueOnce(refreshedHistory);
+    vi.mocked(tauri.tauriCommands.toggleStarEntry).mockResolvedValue(true);
+
+    render(<HistoryList />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Summarize")).toBeInTheDocument();
+    });
+
+    const starButtons = document.querySelectorAll('button[title="Star entry"]');
+    fireEvent.click(starButtons[0]);
+
+    await waitFor(() => {
+      expect(tauri.tauriCommands.getHistory).toHaveBeenCalledTimes(2);
+      expect(
+        document.querySelectorAll('button[title="Unstar entry"]'),
+      ).toHaveLength(1);
+    });
+  });
+
   it("shows error when star toggle fails", async () => {
     vi.mocked(tauri.tauriCommands.getHistory).mockResolvedValue(mockHistory);
     vi.mocked(tauri.tauriCommands.toggleStarEntry).mockRejectedValue(
@@ -560,7 +587,11 @@ describe("HistoryList", () => {
   });
 
   it("shows empty starred state when starred entries are removed while filtering", async () => {
-    vi.mocked(tauri.tauriCommands.getHistory).mockResolvedValue(mockHistory);
+    vi.mocked(tauri.tauriCommands.getHistory)
+      .mockResolvedValueOnce(mockHistory)
+      .mockResolvedValueOnce(
+        mockHistory.map((entry) => ({ ...entry, starred: false })),
+      );
     vi.mocked(tauri.tauriCommands.toggleStarEntry).mockResolvedValue(false);
 
     render(<HistoryList />);

@@ -4,7 +4,10 @@ use crate::models::Provider;
 use crate::retry::with_http_retry;
 use reqwest::{Client, RequestBuilder};
 use serde_json::Value;
+use std::time::Duration;
 use tracing::{debug, warn};
+
+const REQUEST_TIMEOUT_SECS: u64 = 120;
 
 pub(crate) fn provider_api_key<'a>(
     provider: &'a Provider,
@@ -48,7 +51,12 @@ pub(crate) async fn send_json_with_retry(
     let body_text = with_http_retry(|| async {
         let request = build_request(client, endpoint);
         let request = apply_custom_headers(request, &provider.headers);
-        let response = request.json(body).send().await.map_err(AppError::Http)?;
+        let response = request
+            .timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS))
+            .json(body)
+            .send()
+            .await
+            .map_err(AppError::Http)?;
         let status = response.status();
 
         if !status.is_success() {

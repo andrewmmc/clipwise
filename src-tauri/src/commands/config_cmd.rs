@@ -57,16 +57,23 @@ pub(crate) fn replace_provider(config: &mut AppConfig, provider: Provider) -> Re
     Ok(())
 }
 
-pub(crate) fn remove_provider(config: &mut AppConfig, id: &str) {
+pub(crate) fn remove_provider(config: &mut AppConfig, id: &str) -> Result<(), AppError> {
+    if !config.providers.iter().any(|p| p.id == id) {
+        return Err(AppError::ProviderNotFound(id.to_string()));
+    }
+
     config.providers.retain(|p| p.id != id);
+    Ok(())
 }
 
 pub(crate) fn ensure_provider_deletable(config: &AppConfig, id: &str) -> Result<(), AppError> {
-    if config
+    let provider = config
         .providers
         .iter()
-        .any(|provider| provider.id == id && provider.provider_type == ProviderType::Apple)
-    {
+        .find(|provider| provider.id == id)
+        .ok_or_else(|| AppError::ProviderNotFound(id.to_string()))?;
+
+    if provider.provider_type == ProviderType::Apple {
         return Err(AppError::Config(
             "Apple Intelligence provider cannot be deleted".into(),
         ));
@@ -109,8 +116,13 @@ pub(crate) fn replace_action(config: &mut AppConfig, action: Action) -> Result<(
     Ok(())
 }
 
-pub(crate) fn remove_action(config: &mut AppConfig, id: &str) {
+pub(crate) fn remove_action(config: &mut AppConfig, id: &str) -> Result<(), AppError> {
+    if !config.actions.iter().any(|a| a.id == id) {
+        return Err(AppError::ActionNotFound(id.to_string()));
+    }
+
     config.actions.retain(|a| a.id != id);
+    Ok(())
 }
 
 pub(crate) fn apply_action_reorder(config: &mut AppConfig, ids: &[String]) -> Result<(), AppError> {
@@ -170,7 +182,7 @@ pub fn save_settings(
 
     save_config(&updated_config)?;
     if history_being_disabled {
-        let _ = history::clear_history();
+        let _ = history::purge_history();
     }
     info!(
         max_tokens = updated_config.settings.max_tokens,
@@ -240,7 +252,7 @@ pub fn delete_provider(
     let updated_config = {
         let mut config = state.lock()?;
         ensure_provider_deletable(&config, &id)?;
-        remove_provider(&mut config, &id);
+        remove_provider(&mut config, &id)?;
         config.clone()
     };
     save_config(&updated_config)?;
@@ -320,7 +332,7 @@ pub fn delete_action(
 ) -> Result<(), AppError> {
     let updated_config = {
         let mut config = state.lock()?;
-        remove_action(&mut config, &id);
+        remove_action(&mut config, &id)?;
         config.clone()
     };
     save_config(&updated_config)?;
@@ -479,18 +491,20 @@ mod tests {
             providers: vec![stub_provider("p1"), stub_provider("p2")],
             ..AppConfig::default()
         };
-        remove_provider(&mut config, "p1");
+        remove_provider(&mut config, "p1").unwrap();
         assert_eq!(config.providers.len(), 1);
         assert_eq!(config.providers[0].id, "p2");
     }
 
     #[test]
-    fn test_remove_provider_is_noop_for_unknown_id() {
+    fn test_remove_provider_returns_error_for_unknown_id() {
         let mut config = AppConfig {
             providers: vec![stub_provider("p1")],
             ..AppConfig::default()
         };
-        remove_provider(&mut config, "nonexistent");
+        let result = remove_provider(&mut config, "nonexistent");
+
+        assert!(matches!(result, Err(AppError::ProviderNotFound(_))));
         assert_eq!(config.providers.len(), 1);
     }
 
@@ -529,6 +543,15 @@ mod tests {
         let result = ensure_provider_deletable(&config, "p1");
 
         assert!(matches!(result, Err(AppError::Config(_))));
+    }
+
+    #[test]
+    fn test_ensure_provider_deletable_rejects_missing_provider() {
+        let config = AppConfig::default();
+
+        let result = ensure_provider_deletable(&config, "missing");
+
+        assert!(matches!(result, Err(AppError::ProviderNotFound(_))));
     }
 
     // ── insert_action ─────────────────────────────────────────────────────────
@@ -605,18 +628,20 @@ mod tests {
             actions: vec![stub_action("a1", "p1"), stub_action("a2", "p1")],
             ..AppConfig::default()
         };
-        remove_action(&mut config, "a1");
+        remove_action(&mut config, "a1").unwrap();
         assert_eq!(config.actions.len(), 1);
         assert_eq!(config.actions[0].id, "a2");
     }
 
     #[test]
-    fn test_remove_action_is_noop_for_unknown_id() {
+    fn test_remove_action_returns_error_for_unknown_id() {
         let mut config = AppConfig {
             actions: vec![stub_action("a1", "p1")],
             ..AppConfig::default()
         };
-        remove_action(&mut config, "nonexistent");
+        let result = remove_action(&mut config, "nonexistent");
+
+        assert!(matches!(result, Err(AppError::ActionNotFound(_))));
         assert_eq!(config.actions.len(), 1);
     }
 

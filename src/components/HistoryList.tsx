@@ -75,6 +75,8 @@ export default function HistoryList() {
         setHistory((prev) =>
           prev.map((e) => (e.id === id ? { ...e, starred: newStarred } : e)),
         );
+        const entries = await run(() => tauriCommands.getHistory());
+        setHistory(entries);
       } catch {
         // useAsyncAction captures the displayed error.
       } finally {
