@@ -27,6 +27,9 @@ export const tauriCommands = {
     invoke("delete_provider", { id }),
   testCliCommand: (command: string): Promise<string> =>
     invoke("test_cli_command", { command }),
+  testProvider: (
+    provider: Omit<Provider, "id"> & { id?: string },
+  ): Promise<string> => invoke("test_provider", { provider }),
 
   // Actions
   addAction: (action: Omit<Action, "id">): Promise<Action> =>
@@ -48,6 +51,7 @@ export const tauriCommands = {
   // History
   getHistory: (): Promise<HistoryEntry[]> => invoke("get_history"),
   clearHistory: (): Promise<void> => invoke("clear_history"),
+  purgeHistory: (): Promise<void> => invoke("purge_history"),
   deleteHistoryEntry: (id: string): Promise<boolean> =>
     invoke("delete_history_entry", { id }),
   toggleStarEntry: (id: string): Promise<boolean> =>

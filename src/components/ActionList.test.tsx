@@ -8,7 +8,12 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 const mockInvoke = vi.mocked(invoke);
 
 const { default: ActionList } = await import("./ActionList");
-import { mockConfig, emptyConfig, mockAction } from "../test/fixtures";
+import {
+  mockConfig,
+  emptyConfig,
+  mockAction,
+  mockActionWithModel,
+} from "../test/fixtures";
 
 describe("ActionList", () => {
   const onRefresh = vi.fn();
@@ -113,6 +118,64 @@ describe("ActionList", () => {
     );
     await waitFor(() => expect(onRefresh).toHaveBeenCalled());
     expect(screen.getByText("Action saved successfully.")).toBeInTheDocument();
+  });
+
+  // ── Reorder actions ───────────────────────────────────────────────────────
+
+  it("disables move up on the first action", () => {
+    const config = {
+      ...mockConfig,
+      actions: [mockAction, mockActionWithModel],
+    };
+    render(<ActionList config={config} onRefresh={onRefresh} />);
+    expect(screen.getAllByTitle("Move up")[0]).toBeDisabled();
+  });
+
+  it("disables move down on the last action", () => {
+    const config = {
+      ...mockConfig,
+      actions: [mockAction, mockActionWithModel],
+    };
+    render(<ActionList config={config} onRefresh={onRefresh} />);
+    expect(screen.getAllByTitle("Move down")[1]).toBeDisabled();
+  });
+
+  it("moving an action down calls reorderActions and onRefresh", async () => {
+    mockInvoke.mockResolvedValue(undefined);
+    const config = {
+      ...mockConfig,
+      actions: [mockAction, mockActionWithModel],
+    };
+    const user = userEvent.setup();
+    render(<ActionList config={config} onRefresh={onRefresh} />);
+
+    await user.click(screen.getAllByTitle("Move down")[0]);
+
+    await waitFor(() =>
+      expect(mockInvoke).toHaveBeenCalledWith("reorder_actions", {
+        ids: ["a2", "a1"],
+      }),
+    );
+    await waitFor(() => expect(onRefresh).toHaveBeenCalled());
+  });
+
+  it("moving an action up calls reorderActions and onRefresh", async () => {
+    mockInvoke.mockResolvedValue(undefined);
+    const config = {
+      ...mockConfig,
+      actions: [mockAction, mockActionWithModel],
+    };
+    const user = userEvent.setup();
+    render(<ActionList config={config} onRefresh={onRefresh} />);
+
+    await user.click(screen.getAllByTitle("Move up")[1]);
+
+    await waitFor(() =>
+      expect(mockInvoke).toHaveBeenCalledWith("reorder_actions", {
+        ids: ["a2", "a1"],
+      }),
+    );
+    await waitFor(() => expect(onRefresh).toHaveBeenCalled());
   });
 
   // ── Delete action ─────────────────────────────────────────────────────────

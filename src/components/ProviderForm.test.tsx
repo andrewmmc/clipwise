@@ -302,6 +302,74 @@ describe("ProviderForm", () => {
     expect(onSave).not.toHaveBeenCalled();
   });
 
+  it("tests an API provider connection before saving", async () => {
+    mockInvoke.mockImplementation(async (command) => {
+      if (command === "test_provider") {
+        return "Connection successful. Provider responded: ok";
+      }
+      if (command === "check_apple_model_availability") {
+        return { available: true, reason: null };
+      }
+      if (command === "is_cli_provider_enabled") {
+        return true;
+      }
+      return undefined;
+    });
+    const user = userEvent.setup();
+    render(<ProviderForm onSave={onSave} onCancel={onCancel} />);
+
+    await user.type(
+      screen.getByPlaceholderText("e.g. Anthropic Claude"),
+      "My Provider",
+    );
+    await user.type(screen.getByPlaceholderText("sk-..."), "sk-ant-key");
+    await user.click(screen.getByRole("button", { name: /test connection/i }));
+
+    await waitFor(() =>
+      expect(mockInvoke).toHaveBeenCalledWith(
+        "test_provider",
+        expect.objectContaining({
+          provider: expect.objectContaining({
+            name: "My Provider",
+            type: "anthropic",
+            apiKey: "sk-ant-key",
+          }),
+        }),
+      ),
+    );
+    expect(
+      screen.getByText("Connection successful. Provider responded: ok"),
+    ).toBeInTheDocument();
+  });
+
+  it("shows an inline error when testing an API provider connection fails", async () => {
+    mockInvoke.mockImplementation(async (command) => {
+      if (command === "test_provider") {
+        throw new Error("invalid api key");
+      }
+      if (command === "check_apple_model_availability") {
+        return { available: true, reason: null };
+      }
+      if (command === "is_cli_provider_enabled") {
+        return true;
+      }
+      return undefined;
+    });
+    const user = userEvent.setup();
+    render(<ProviderForm onSave={onSave} onCancel={onCancel} />);
+
+    await user.type(
+      screen.getByPlaceholderText("e.g. Anthropic Claude"),
+      "My Provider",
+    );
+    await user.type(screen.getByPlaceholderText("sk-..."), "bad-key");
+    await user.click(screen.getByRole("button", { name: /test connection/i }));
+
+    await waitFor(() =>
+      expect(screen.getByText("invalid api key")).toBeInTheDocument(),
+    );
+  });
+
   it("tests a CLI command before saving", async () => {
     mockInvoke.mockResolvedValue("Command looks good: /bin/sh");
     const user = userEvent.setup();

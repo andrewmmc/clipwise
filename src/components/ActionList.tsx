@@ -9,7 +9,14 @@ import EmptyState from "./EmptyState";
 import ErrorBox from "./ErrorBox";
 import SectionHeader from "./SectionHeader";
 import SuccessBox from "./SuccessBox";
-import { Plus, Pencil, Trash2, Zap } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronUp,
+  Plus,
+  Pencil,
+  Trash2,
+  Zap,
+} from "lucide-react";
 
 interface Props {
   config: AppConfig;
@@ -20,6 +27,7 @@ export default function ActionList({ config, onRefresh }: Props) {
   const [editing, setEditing] = useState<Action | null>(null);
   const [creating, setCreating] = useState(false);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [reordering, setReordering] = useState(false);
   const [showProviderHint, setShowProviderHint] = useState(false);
   const {
     error: mutationError,
@@ -38,6 +46,29 @@ export default function ActionList({ config, onRefresh }: Props) {
     clearSuccessMessage();
     clearError();
     setShowProviderHint(false);
+  };
+
+  const handleReorder = async (index: number, direction: "up" | "down") => {
+    const targetIndex = direction === "up" ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= config.actions.length) {
+      return;
+    }
+
+    const ids = config.actions.map((action) => action.id);
+    [ids[index], ids[targetIndex]] = [ids[targetIndex], ids[index]];
+
+    setReordering(true);
+    clearListFeedback();
+    try {
+      await runMutation(async () => {
+        await tauriCommands.reorderActions(ids);
+        onRefresh();
+      });
+    } catch {
+      // useAsyncAction captures the displayed error.
+    } finally {
+      setReordering(false);
+    }
   };
 
   const handleDelete = async (id: string) => {
@@ -127,9 +158,29 @@ export default function ActionList({ config, onRefresh }: Props) {
         />
       ) : (
         <div className="space-y-2">
-          {config.actions.map((action) => (
+          {config.actions.map((action, index) => (
             <div key={action.id} className="card p-3">
               <div className="flex items-start justify-between gap-3">
+                <div className="flex shrink-0 flex-col gap-0.5">
+                  <button
+                    type="button"
+                    onClick={() => handleReorder(index, "up")}
+                    disabled={index === 0 || reordering}
+                    className="btn-icon"
+                    title="Move up"
+                  >
+                    <ChevronUp size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleReorder(index, "down")}
+                    disabled={index === config.actions.length - 1 || reordering}
+                    className="btn-icon"
+                    title="Move down"
+                  >
+                    <ChevronDown size={14} />
+                  </button>
+                </div>
                 <div className="min-w-0 flex-1">
                   <p className="text-[13px] font-medium text-text-primary">
                     {action.name}

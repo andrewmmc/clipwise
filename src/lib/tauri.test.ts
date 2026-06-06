@@ -61,6 +61,20 @@ describe("tauriCommands", () => {
     expect(mockInvoke).toHaveBeenCalledWith("delete_provider", { id: "p1" });
   });
 
+  it("testProvider calls invoke with 'test_provider'", async () => {
+    mockInvoke.mockResolvedValue("Connection successful.");
+    const provider = {
+      name: "Test",
+      type: "anthropic" as const,
+      apiKey: "k",
+      headers: {},
+      args: [],
+    };
+    const result = await tauriCommands.testProvider(provider);
+    expect(mockInvoke).toHaveBeenCalledWith("test_provider", { provider });
+    expect(result).toBe("Connection successful.");
+  });
+
   it("testCliCommand calls invoke with 'test_cli_command'", async () => {
     mockInvoke.mockResolvedValue("Command looks good: /bin/sh");
     const result = await tauriCommands.testCliCommand("/bin/sh");
@@ -136,6 +150,12 @@ describe("tauriCommands", () => {
     mockInvoke.mockResolvedValue(undefined);
     await tauriCommands.clearHistory();
     expect(mockInvoke).toHaveBeenCalledWith("clear_history");
+  });
+
+  it("purgeHistory calls invoke with 'purge_history'", async () => {
+    mockInvoke.mockResolvedValue(undefined);
+    await tauriCommands.purgeHistory();
+    expect(mockInvoke).toHaveBeenCalledWith("purge_history");
   });
 
   it("deleteHistoryEntry calls invoke with 'delete_history_entry'", async () => {

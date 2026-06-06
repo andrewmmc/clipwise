@@ -37,9 +37,13 @@ export default function ProviderForm({
   const [form, dispatch] = useProviderFormState(initial);
   const [saving, setSaving] = useState(false);
   const [testingCommand, setTestingCommand] = useState(false);
+  const [testingConnection, setTestingConnection] = useState(false);
   const cliEnabled = useCliProviderEnabled();
   const [error, setError] = useState<string | null>(null);
   const [commandTestError, setCommandTestError] = useState<string | null>(null);
+  const [connectionTestError, setConnectionTestError] = useState<string | null>(
+    null,
+  );
   const [appleAvailability, setAppleAvailability] =
     useState<AppleModelAvailability | null>(null);
   const {
@@ -47,15 +51,25 @@ export default function ProviderForm({
     showMessage: showCommandTestSuccess,
     clearMessage: clearCommandTestSuccess,
   } = useTransientMessage();
+  const {
+    message: connectionTestSuccess,
+    showMessage: showConnectionTestSuccess,
+    clearMessage: clearConnectionTestSuccess,
+  } = useTransientMessage();
 
   const clearFormFeedback = () => setError(null);
   const clearCommandFeedback = () => {
     setCommandTestError(null);
     clearCommandTestSuccess();
   };
+  const clearConnectionFeedback = () => {
+    setConnectionTestError(null);
+    clearConnectionTestSuccess();
+  };
   const clearAllFeedback = () => {
     clearFormFeedback();
     clearCommandFeedback();
+    clearConnectionFeedback();
   };
 
   useEffect(() => {
@@ -132,6 +146,47 @@ export default function ProviderForm({
       setError(getErrorMessage(e));
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleTestConnection = async () => {
+    const validationError = validateProviderForm(
+      {
+        name: form.name,
+        type: form.type,
+        endpoint: form.endpoint,
+        apiKey: form.apiKey,
+        command: form.command,
+      },
+      appleProviderExists,
+    );
+    if (validationError) {
+      clearConnectionTestSuccess();
+      setConnectionTestError(validationError);
+      return;
+    }
+
+    setTestingConnection(true);
+    setConnectionTestError(null);
+    clearConnectionTestSuccess();
+    try {
+      const headersObj = Object.fromEntries(
+        form.headers.filter(([key]) => key.trim()),
+      );
+      const result = await tauriCommands.testProvider({
+        id: initial?.id ?? "",
+        name: form.name.trim(),
+        type: form.type,
+        endpoint: form.endpoint.trim() || undefined,
+        apiKey: form.apiKey.trim() || undefined,
+        headers: headersObj,
+        defaultModel: form.defaultModel.trim() || undefined,
+      });
+      showConnectionTestSuccess(result);
+    } catch (e) {
+      setConnectionTestError(getErrorMessage(e));
+    } finally {
+      setTestingConnection(false);
     }
   };
 
@@ -245,34 +300,38 @@ export default function ProviderForm({
             apiKey={form.apiKey}
             defaultModel={form.defaultModel}
             headers={form.headers}
+            testingConnection={testingConnection}
+            connectionTestError={connectionTestError}
+            connectionTestSuccess={connectionTestSuccess}
             onEndpointChange={(value) => {
               dispatch({ type: "field", field: "endpoint", value });
-              clearFormFeedback();
+              clearAllFeedback();
             }}
             onApiKeyChange={(value) => {
               dispatch({ type: "field", field: "apiKey", value });
-              clearFormFeedback();
+              clearAllFeedback();
             }}
             onDefaultModelChange={(value) => {
               dispatch({ type: "field", field: "defaultModel", value });
-              clearFormFeedback();
+              clearAllFeedback();
             }}
             onAddHeader={() => {
               dispatch({ type: "addHeader" });
-              clearFormFeedback();
+              clearAllFeedback();
             }}
             onHeaderKeyChange={(index, value) => {
               dispatch({ type: "setHeaderKey", index, value });
-              clearFormFeedback();
+              clearAllFeedback();
             }}
             onHeaderValueChange={(index, value) => {
               dispatch({ type: "setHeaderValue", index, value });
-              clearFormFeedback();
+              clearAllFeedback();
             }}
             onRemoveHeader={(index) => {
               dispatch({ type: "removeHeader", index });
-              clearFormFeedback();
+              clearAllFeedback();
             }}
+            onTestConnection={handleTestConnection}
           />
         ) : (
           <CliProviderForm
@@ -303,7 +362,7 @@ export default function ProviderForm({
 
         <FormFooter
           saving={saving}
-          disabled={testingCommand}
+          disabled={testingCommand || testingConnection}
           onCancel={onCancel}
           onReset={() => {
             dispatch({

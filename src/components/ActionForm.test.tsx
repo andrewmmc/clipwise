@@ -444,6 +444,42 @@ describe("ActionForm", () => {
     );
   });
 
+  it("applies a prompt preset to the user prompt", async () => {
+    const user = userEvent.setup();
+    render(
+      <ActionForm config={mockConfig} onSave={onSave} onCancel={onCancel} />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /summarize/i }));
+
+    expect(
+      screen.getByDisplayValue(
+        "Summarize the following text clearly and briefly.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Summarize")).toBeInTheDocument();
+  });
+
+  it("does not overwrite an existing action name when applying a preset", async () => {
+    const user = userEvent.setup();
+    render(
+      <ActionForm config={mockConfig} onSave={onSave} onCancel={onCancel} />,
+    );
+
+    await user.type(
+      screen.getByPlaceholderText("e.g. Refine wording"),
+      "Custom name",
+    );
+    await user.click(screen.getByRole("button", { name: /fix grammar/i }));
+
+    expect(screen.getByDisplayValue("Custom name")).toBeInTheDocument();
+    expect(
+      screen.getByDisplayValue(
+        "Fix grammar, spelling, and punctuation in the following text.",
+      ),
+    ).toBeInTheDocument();
+  });
+
   // ── Cancel ────────────────────────────────────────────────────────────────
 
   it("calls onCancel when Cancel button is clicked", async () => {

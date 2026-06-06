@@ -6,7 +6,15 @@ import { getErrorMessage } from "../lib/errors";
 import { formatHistoryTimestamp } from "../lib/history";
 import { tauriCommands } from "../lib/tauri";
 import type { HistoryEntry } from "../types/bindings/HistoryEntry";
-import { History, Star, Trash2 } from "lucide-react";
+import {
+  CircleCheck,
+  CircleX,
+  History,
+  Search,
+  Star,
+  Trash2,
+} from "lucide-react";
+import ConfirmDeleteActions from "./ConfirmDeleteActions";
 import EmptyState from "./EmptyState";
 import ErrorBox from "./ErrorBox";
 import HistoryEntryCard from "./HistoryEntryCard";
@@ -22,6 +30,12 @@ export default function HistoryList() {
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
   const [starringIds, setStarringIds] = useState<Set<string>>(new Set());
   const [showStarredOnly, setShowStarredOnly] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<
+    "all" | "success" | "failure"
+  >("all");
+  const [purging, setPurging] = useState(false);
+  const [pendingPurgeAll, setPendingPurgeAll] = useState(false);
   const {
     message: successMessage,
     showMessage,
@@ -142,10 +156,53 @@ export default function HistoryList() {
     })();
   };
 
+  const handlePurgeAll = () => {
+    setPurging(true);
+    clearError();
+    clearMessage();
+    void (async () => {
+      try {
+        await run(() => tauriCommands.purgeHistory());
+        showMessage("All history deleted, including starred entries.");
+        setHistory([]);
+        setExpandedIds(new Set());
+        setShowStarredOnly(false);
+        setPendingPurgeAll(false);
+      } catch {
+        // useAsyncAction captures the displayed error.
+      } finally {
+        setPurging(false);
+      }
+    })();
+  };
+
+  const matchesSearch = (entry: HistoryEntry, query: string) => {
+    const normalized = query.trim().toLowerCase();
+    if (!normalized) return true;
+
+    const haystack = [
+      entry.actionName,
+      entry.providerName,
+      entry.inputText,
+      entry.outputText,
+    ]
+      .join(" ")
+      .toLowerCase();
+
+    return haystack.includes(normalized);
+  };
+
   const starredCount = history.filter((e) => e.starred).length;
-  const displayedHistory = showStarredOnly
-    ? history.filter((e) => e.starred)
-    : history;
+  const displayedHistory = history
+    .filter((entry) => !showStarredOnly || entry.starred)
+    .filter((entry) =>
+      statusFilter === "all"
+        ? true
+        : statusFilter === "success"
+          ? entry.success
+          : !entry.success,
+    )
+    .filter((entry) => matchesSearch(entry, searchQuery));
 
   if (loading) {
     return (
@@ -186,19 +243,97 @@ export default function HistoryList() {
               </button>
             )}
             {history.length > 0 && (
-              <button
-                type="button"
-                onClick={handleClearHistory}
-                disabled={clearing}
-                className="btn btn-danger"
-              >
-                <Trash2 size={14} />
-                {clearing ? "Clearing…" : "Clear"}
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={handleClearHistory}
+                  disabled={clearing || purging}
+                  className="btn btn-danger"
+                  title="Clear non-starred entries"
+                >
+                  <Trash2 size={14} />
+                  {clearing ? "Clearing…" : "Clear"}
+                </button>
+                {pendingPurgeAll ? (
+                  <ConfirmDeleteActions
+                    onConfirm={handlePurgeAll}
+                    onCancel={() => setPendingPurgeAll(false)}
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      clearError();
+                      clearMessage();
+                      setPendingPurgeAll(true);
+                    }}
+                    disabled={clearing || purging}
+                    className="btn btn-danger"
+                    title="Delete all history including starred entries"
+                  >
+                    <Trash2 size={14} />
+                    {purging ? "Deleting…" : "Delete All"}
+                  </button>
+                )}
+              </>
             )}
           </div>
         }
       />
+
+      {history.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative min-w-[180px] flex-1">
+            <Search
+              size={14}
+              className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-text-tertiary"
+            />
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search action, provider, input, or output…"
+              className="input input-sm w-full pl-8"
+            />
+          </div>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setStatusFilter("all")}
+              className={cx(
+                "btn btn-ghost px-2 py-1 text-[12px]",
+                statusFilter === "all" && "btn-primary",
+              )}
+            >
+              All
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatusFilter("success")}
+              className={cx(
+                "btn btn-ghost px-2 py-1 text-[12px]",
+                statusFilter === "success" && "btn-primary",
+              )}
+              title="Show successful entries"
+            >
+              <CircleCheck size={12} />
+              Success
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatusFilter("failure")}
+              className={cx(
+                "btn btn-ghost px-2 py-1 text-[12px]",
+                statusFilter === "failure" && "btn-primary",
+              )}
+              title="Show failed entries"
+            >
+              <CircleX size={12} />
+              Failed
+            </button>
+          </div>
+        </div>
+      )}
 
       {error && <ErrorBox message={error} />}
       {successMessage && <SuccessBox message={successMessage} />}
@@ -207,14 +342,22 @@ export default function HistoryList() {
         <EmptyState
           icon={<History size={18} />}
           title={
-            showStarredOnly && history.length > 0
-              ? "No starred entries"
-              : "No history yet"
+            history.length === 0
+              ? "No history yet"
+              : showStarredOnly
+                ? "No starred entries"
+                : searchQuery || statusFilter !== "all"
+                  ? "No matching entries"
+                  : "No history yet"
           }
           description={
-            showStarredOnly && history.length > 0
-              ? "Star entries to keep them safe from clearing."
-              : "Transformations will appear here when you run actions."
+            history.length === 0
+              ? "Transformations will appear here when you run actions."
+              : showStarredOnly
+                ? "Star entries to keep them safe from clearing."
+                : searchQuery || statusFilter !== "all"
+                  ? "Try adjusting your search or filters."
+                  : "Transformations will appear here when you run actions."
           }
         />
       ) : (

@@ -18,6 +18,36 @@ interface Props {
 
 const DEFAULT_TEST_INPUT = "The quick brown fox jumps over the lazy dog.";
 
+const PROMPT_PRESETS = [
+  {
+    label: "Improve writing",
+    name: "Improve writing",
+    userPrompt:
+      "Improve the writing quality, clarity, and flow of the following text.",
+  },
+  {
+    label: "Make concise",
+    name: "Make concise",
+    userPrompt:
+      "Make the following text more concise without losing important meaning.",
+  },
+  {
+    label: "Summarize",
+    name: "Summarize",
+    userPrompt: "Summarize the following text clearly and briefly.",
+  },
+  {
+    label: "Translate to English",
+    name: "Translate to English",
+    userPrompt: "Translate the following text to English.",
+  },
+  {
+    label: "Fix grammar",
+    name: "Fix grammar",
+    userPrompt: "Fix grammar, spelling, and punctuation in the following text.",
+  },
+] as const;
+
 export default function ActionForm({
   config,
   initial,
@@ -129,7 +159,27 @@ export default function ActionForm({
         </div>
 
         <div>
-          <label className="label label-required">User Prompt</label>
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <label className="label label-required mb-0">User Prompt</label>
+            <div className="flex flex-wrap gap-1">
+              {PROMPT_PRESETS.map((preset) => (
+                <button
+                  key={preset.label}
+                  type="button"
+                  onClick={() => {
+                    if (!name.trim()) {
+                      setName(preset.name);
+                    }
+                    setUserPrompt(preset.userPrompt);
+                    setError(null);
+                  }}
+                  className="btn btn-ghost px-2 py-1 text-[11px]"
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+          </div>
           <textarea
             value={userPrompt}
             onChange={(e) => {

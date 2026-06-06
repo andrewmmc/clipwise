@@ -101,6 +101,52 @@ pub(crate) async fn run_action_with_context(
     Ok(result.result)
 }
 
+const PROVIDER_TEST_MAX_TOKENS: u32 = 64;
+const PROVIDER_TEST_MESSAGE: &str = "Reply with exactly: {\"result\": \"ok\"}";
+
+#[cfg_attr(test, allow(dead_code))]
+pub(crate) async fn test_provider_connection(
+    provider: &Provider,
+) -> Result<String, AppError> {
+    let model = provider.default_model.as_deref();
+
+    let provider_result = match provider.provider_type {
+        ProviderType::OpenAI => {
+            openai::call_openai(
+                provider,
+                PROVIDER_TEST_MESSAGE,
+                model,
+                PROVIDER_TEST_MAX_TOKENS,
+            )
+            .await?
+        }
+        ProviderType::Anthropic => {
+            anthropic::call_anthropic(
+                provider,
+                PROVIDER_TEST_MESSAGE,
+                model,
+                PROVIDER_TEST_MAX_TOKENS,
+            )
+            .await?
+        }
+        ProviderType::Cli | ProviderType::Apple => {
+            return Err(AppError::Config(
+                "Only API providers can be tested with this command.".into(),
+            ));
+        }
+    };
+
+    let result: LlmResult = serde_json::from_value(provider_result).map_err(|_| {
+        error!(provider_id = %provider.id, "Provider test returned an invalid response payload");
+        AppError::InvalidResponse
+    })?;
+
+    Ok(format!(
+        "Connection successful. Provider responded: {}",
+        result.result
+    ))
+}
+
 #[cfg_attr(test, allow(dead_code))]
 pub(crate) fn record_action_history(
     context: &ActionContext,

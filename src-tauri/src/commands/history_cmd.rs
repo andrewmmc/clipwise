@@ -14,6 +14,12 @@ pub async fn clear_history() -> Result<(), AppError> {
     history::clear_history()
 }
 
+/// Permanently deletes all history entries, including starred entries.
+#[cfg_attr(not(test), tauri::command)]
+pub async fn purge_history() -> Result<(), AppError> {
+    history::purge_history()
+}
+
 /// Deletes a single history entry by ID. Returns true if the entry was found and deleted.
 #[cfg_attr(not(test), tauri::command)]
 pub async fn delete_history_entry(id: String) -> Result<bool, AppError> {

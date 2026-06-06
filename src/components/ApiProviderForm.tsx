@@ -1,4 +1,6 @@
 import { Plus, Trash2 } from "lucide-react";
+import ErrorBox from "./ErrorBox";
+import SuccessBox from "./SuccessBox";
 import {
   API_PROVIDER_DEFAULT_ENDPOINTS,
   API_PROVIDER_DEFAULT_MODELS,
@@ -11,6 +13,9 @@ interface Props {
   apiKey: string;
   defaultModel: string;
   headers: [string, string][];
+  testingConnection: boolean;
+  connectionTestError: string | null;
+  connectionTestSuccess: string | null;
   onEndpointChange: (value: string) => void;
   onApiKeyChange: (value: string) => void;
   onDefaultModelChange: (value: string) => void;
@@ -18,6 +23,7 @@ interface Props {
   onHeaderKeyChange: (index: number, value: string) => void;
   onHeaderValueChange: (index: number, value: string) => void;
   onRemoveHeader: (index: number) => void;
+  onTestConnection: () => void;
 }
 
 export default function ApiProviderForm({
@@ -26,6 +32,9 @@ export default function ApiProviderForm({
   apiKey,
   defaultModel,
   headers,
+  testingConnection,
+  connectionTestError,
+  connectionTestSuccess,
   onEndpointChange,
   onApiKeyChange,
   onDefaultModelChange,
@@ -33,6 +42,7 @@ export default function ApiProviderForm({
   onHeaderKeyChange,
   onHeaderValueChange,
   onRemoveHeader,
+  onTestConnection,
 }: Props) {
   return (
     <>
@@ -40,6 +50,26 @@ export default function ApiProviderForm({
         Text from your clipboard will be sent to this provider&apos;s API for
         processing. Your API key is stored locally on this device only.
       </p>
+
+      <div className="rounded border border-border bg-surface-tertiary px-3 py-2">
+        <p className="text-[12px] text-text-tertiary">
+          Testing sends a small request to the provider and may incur API usage.
+        </p>
+        <button
+          type="button"
+          onClick={onTestConnection}
+          disabled={testingConnection}
+          className="btn btn-secondary mt-2"
+        >
+          {testingConnection ? "Testing…" : "Test connection"}
+        </button>
+        {connectionTestError && (
+          <ErrorBox message={connectionTestError} className="mt-2" />
+        )}
+        {connectionTestSuccess && (
+          <SuccessBox message={connectionTestSuccess} className="mt-2" />
+        )}
+      </div>
 
       <div>
         <label className="label">
