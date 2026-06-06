@@ -4,14 +4,10 @@ import { getErrorMessage } from "../lib/errors";
 import { tauriCommands } from "../lib/tauri";
 import { MAX_USER_PROMPT_LENGTH, validateActionForm } from "../lib/validation";
 import type { Action, AppConfig } from "../types/config";
-import {
-  ArrowLeft,
-  ChevronDown,
-  FlaskConical,
-  RotateCcw,
-  Save,
-} from "lucide-react";
+import { ChevronDown, FlaskConical } from "lucide-react";
+import EditorHeader from "./EditorHeader";
 import ErrorBox from "./ErrorBox";
+import FormFooter from "./FormFooter";
 
 interface Props {
   config: AppConfig;
@@ -84,14 +80,10 @@ export default function ActionForm({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <button onClick={onCancel} className="btn-icon">
-          <ArrowLeft size={16} />
-        </button>
-        <h2 className="text-[13px] font-semibold text-text-primary">
-          {initial ? "Edit Action" : "New Action"}
-        </h2>
-      </div>
+      <EditorHeader
+        title={initial ? "Edit Action" : "New Action"}
+        onBack={onCancel}
+      />
 
       <form onSubmit={handleSubmit} className="card space-y-4 p-4">
         {error && <ErrorBox message={error} />}
@@ -183,32 +175,17 @@ export default function ActionForm({
           />
         </div>
 
-        <div className="flex justify-end gap-2 pt-2">
-          <button type="button" onClick={onCancel} className="btn btn-ghost">
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setName(initial?.name ?? "");
-              setProviderId(
-                initial?.providerId ?? config.providers[0]?.id ?? "",
-              );
-              setUserPrompt(initial?.userPrompt ?? "");
-              setModel(initial?.model ?? "");
-              setError(null);
-            }}
-            disabled={saving}
-            className="btn btn-secondary"
-          >
-            <RotateCcw size={14} />
-            Reset
-          </button>
-          <button type="submit" disabled={saving} className="btn btn-primary">
-            <Save size={14} />
-            {saving ? "Saving…" : "Save"}
-          </button>
-        </div>
+        <FormFooter
+          saving={saving}
+          onCancel={onCancel}
+          onReset={() => {
+            setName(initial?.name ?? "");
+            setProviderId(initial?.providerId ?? config.providers[0]?.id ?? "");
+            setUserPrompt(initial?.userPrompt ?? "");
+            setModel(initial?.model ?? "");
+            setError(null);
+          }}
+        />
       </form>
 
       {initial && (

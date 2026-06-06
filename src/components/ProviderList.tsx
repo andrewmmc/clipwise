@@ -6,9 +6,11 @@ import { tauriCommands } from "../lib/tauri";
 import { PROVIDER_TYPE_LABELS } from "../lib/providers";
 import type { AppConfig, Provider } from "../types/config";
 import useTransientMessage from "../hooks/useTransientMessage";
+import ConfirmDeleteActions from "./ConfirmDeleteActions";
 import EmptyState from "./EmptyState";
 import ErrorBox from "./ErrorBox";
 import ProviderForm from "./ProviderForm";
+import SectionHeader from "./SectionHeader";
 import SuccessBox from "./SuccessBox";
 import { Plus, Pencil, Trash2, Server, Shield } from "lucide-react";
 
@@ -33,6 +35,12 @@ export default function ProviderList({ config, onRefresh }: Props) {
     showMessage: showSuccessMessage,
     clearMessage: clearSuccessMessage,
   } = useTransientMessage();
+
+  const clearListFeedback = () => {
+    clearSuccessMessage();
+    clearError();
+    setDeleteError(null);
+  };
 
   const handleDelete = async (id: string) => {
     const usedBy = config.actions.filter((a) => a.providerId === id);
@@ -92,27 +100,22 @@ export default function ProviderList({ config, onRefresh }: Props) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-[13px] font-semibold text-text-primary">
-            Providers
-          </h2>
-          <p className="mt-0.5 text-[12px] text-text-tertiary">
-            Configure LLM API{cliEnabled && " or CLI"} providers.
-          </p>
-        </div>
-        <button
-          onClick={() => {
-            clearSuccessMessage();
-            clearError();
-            setCreating(true);
-          }}
-          className="btn btn-primary"
-        >
-          <Plus size={14} />
-          Add Provider
-        </button>
-      </div>
+      <SectionHeader
+        title="Providers"
+        description={`Configure LLM API${cliEnabled ? " or CLI" : ""} providers.`}
+        actions={
+          <button
+            onClick={() => {
+              clearListFeedback();
+              setCreating(true);
+            }}
+            className="btn btn-primary"
+          >
+            <Plus size={14} />
+            Add Provider
+          </button>
+        }
+      />
 
       {successMessage && <SuccessBox message={successMessage} />}
       {deleteError && <ErrorBox message={deleteError} />}
@@ -174,30 +177,16 @@ export default function ProviderList({ config, onRefresh }: Props) {
                 {!isApple && (
                   <div className="flex items-center gap-1">
                     {pendingDeleteId === provider.id ? (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => handleDelete(provider.id)}
-                          className="btn btn-danger px-2 py-1 text-[12px]"
-                        >
-                          Delete
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setPendingDeleteId(null)}
-                          className="btn btn-ghost px-2 py-1 text-[12px]"
-                        >
-                          Cancel
-                        </button>
-                      </>
+                      <ConfirmDeleteActions
+                        onConfirm={() => handleDelete(provider.id)}
+                        onCancel={() => setPendingDeleteId(null)}
+                      />
                     ) : (
                       <>
                         <button
                           type="button"
                           onClick={() => {
-                            clearSuccessMessage();
-                            clearError();
-                            setDeleteError(null);
+                            clearListFeedback();
                             setEditing(provider);
                           }}
                           className="btn-icon"
@@ -208,7 +197,7 @@ export default function ProviderList({ config, onRefresh }: Props) {
                         <button
                           type="button"
                           onClick={() => {
-                            setDeleteError(null);
+                            clearListFeedback();
                             setPendingDeleteId(provider.id);
                           }}
                           className="btn-icon btn-icon-danger"

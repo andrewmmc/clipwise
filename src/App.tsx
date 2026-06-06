@@ -1,8 +1,6 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import useConfig from "./hooks/useConfig";
 import { cx } from "./lib/classNames";
-import { getErrorMessage } from "./lib/errors";
-import { tauriCommands } from "./lib/tauri";
-import type { AppConfig } from "./types/config";
 import AboutPanel from "./components/About";
 import ActionList from "./components/ActionList";
 import ErrorBox from "./components/ErrorBox";
@@ -13,23 +11,8 @@ import SettingsPanel from "./components/Settings";
 type Tab = "actions" | "providers" | "history" | "settings" | "about";
 
 export default function App() {
-  const [config, setConfig] = useState<AppConfig | null>(null);
+  const { config, error, loading, refresh, clearError } = useConfig();
   const [activeTab, setActiveTab] = useState<Tab>("actions");
-  const [error, setError] = useState<string | null>(null);
-
-  const refresh = () => {
-    tauriCommands
-      .getConfig()
-      .then(setConfig)
-      .catch((e) => setError(getErrorMessage(e)));
-  };
-
-  useEffect(() => {
-    tauriCommands
-      .getConfig()
-      .then(setConfig)
-      .catch((e) => setError(getErrorMessage(e)));
-  }, []);
 
   if (error) {
     return (
@@ -38,7 +21,7 @@ export default function App() {
           <ErrorBox title="Failed to load config" message={error} />
           <button
             onClick={() => {
-              setError(null);
+              clearError();
               refresh();
             }}
             className="btn btn-secondary mt-4"
@@ -50,7 +33,7 @@ export default function App() {
     );
   }
 
-  if (!config) {
+  if (loading || !config) {
     return (
       <div className="app-shell flex items-center justify-center">
         <span className="text-[13px] text-text-tertiary">Loading…</span>

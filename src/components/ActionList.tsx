@@ -4,8 +4,10 @@ import { tauriCommands } from "../lib/tauri";
 import type { AppConfig, Action } from "../types/config";
 import useTransientMessage from "../hooks/useTransientMessage";
 import ActionForm from "./ActionForm";
+import ConfirmDeleteActions from "./ConfirmDeleteActions";
 import EmptyState from "./EmptyState";
 import ErrorBox from "./ErrorBox";
+import SectionHeader from "./SectionHeader";
 import SuccessBox from "./SuccessBox";
 import { Plus, Pencil, Trash2, Zap } from "lucide-react";
 
@@ -31,6 +33,12 @@ export default function ActionList({ config, onRefresh }: Props) {
   } = useTransientMessage();
 
   const hasProviders = config.providers.length > 0;
+
+  const clearListFeedback = () => {
+    clearSuccessMessage();
+    clearError();
+    setShowProviderHint(false);
+  };
 
   const handleDelete = async (id: string) => {
     try {
@@ -84,32 +92,26 @@ export default function ActionList({ config, onRefresh }: Props) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-[13px] font-semibold text-text-primary">
-            Actions
-          </h2>
-          <p className="mt-0.5 text-[12px] text-text-tertiary">
-            Transform clipboard text via menu bar.
-          </p>
-        </div>
-        <button
-          onClick={() => {
-            clearSuccessMessage();
-            clearError();
-            if (hasProviders) {
-              setShowProviderHint(false);
-              setCreating(true);
-            } else {
-              setShowProviderHint(true);
-            }
-          }}
-          className="btn btn-primary"
-        >
-          <Plus size={14} />
-          Add Action
-        </button>
-      </div>
+      <SectionHeader
+        title="Actions"
+        description="Transform clipboard text via menu bar."
+        actions={
+          <button
+            onClick={() => {
+              clearListFeedback();
+              if (hasProviders) {
+                setCreating(true);
+              } else {
+                setShowProviderHint(true);
+              }
+            }}
+            className="btn btn-primary"
+          >
+            <Plus size={14} />
+            Add Action
+          </button>
+        }
+      />
 
       {successMessage && <SuccessBox message={successMessage} />}
       {mutationError && <ErrorBox message={mutationError} />}
@@ -142,28 +144,16 @@ export default function ActionList({ config, onRefresh }: Props) {
                 </div>
                 <div className="flex items-center gap-1">
                   {pendingDeleteId === action.id ? (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(action.id)}
-                        className="btn btn-danger px-2 py-1 text-[12px]"
-                      >
-                        Delete
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setPendingDeleteId(null)}
-                        className="btn btn-ghost px-2 py-1 text-[12px]"
-                      >
-                        Cancel
-                      </button>
-                    </>
+                    <ConfirmDeleteActions
+                      onConfirm={() => handleDelete(action.id)}
+                      onCancel={() => setPendingDeleteId(null)}
+                    />
                   ) : (
                     <>
                       <button
                         type="button"
                         onClick={() => {
-                          clearSuccessMessage();
+                          clearListFeedback();
                           setEditing(action);
                         }}
                         className="btn-icon"
@@ -173,7 +163,10 @@ export default function ActionList({ config, onRefresh }: Props) {
                       </button>
                       <button
                         type="button"
-                        onClick={() => setPendingDeleteId(action.id)}
+                        onClick={() => {
+                          clearListFeedback();
+                          setPendingDeleteId(action.id);
+                        }}
                         className="btn-icon btn-icon-danger"
                         title="Delete"
                       >

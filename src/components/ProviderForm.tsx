@@ -9,10 +9,12 @@ import { PROVIDER_OPTION_LABELS } from "../lib/providers";
 import { tauriCommands } from "../lib/tauri";
 import { isApiProviderType, validateProviderForm } from "../lib/validation";
 import type { AppleModelAvailability, Provider } from "../types/config";
-import { ArrowLeft, ChevronDown, RotateCcw, Save } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import ApiProviderForm from "./ApiProviderForm";
 import CliProviderForm from "./CliProviderForm";
+import EditorHeader from "./EditorHeader";
 import ErrorBox from "./ErrorBox";
+import FormFooter from "./FormFooter";
 import useTransientMessage from "../hooks/useTransientMessage";
 import {
   AppleProviderSection,
@@ -154,14 +156,10 @@ export default function ProviderForm({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <button onClick={onCancel} className="btn-icon">
-          <ArrowLeft size={16} />
-        </button>
-        <h2 className="text-[13px] font-semibold text-text-primary">
-          {initial ? "Edit Provider" : "New Provider"}
-        </h2>
-      </div>
+      <EditorHeader
+        title={initial ? "Edit Provider" : "New Provider"}
+        onBack={onCancel}
+      />
 
       <form onSubmit={handleSubmit} className="card space-y-4 p-4">
         {error && <ErrorBox message={error} />}
@@ -303,34 +301,18 @@ export default function ProviderForm({
           />
         )}
 
-        <div className="flex justify-end gap-2 pt-2">
-          <button type="button" onClick={onCancel} className="btn btn-ghost">
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              dispatch({
-                type: "reset",
-                value: getInitialProviderFormState(initial),
-              });
-              clearAllFeedback();
-            }}
-            disabled={saving || testingCommand}
-            className="btn btn-secondary"
-          >
-            <RotateCcw size={14} />
-            Reset
-          </button>
-          <button
-            type="submit"
-            disabled={saving || testingCommand}
-            className="btn btn-primary"
-          >
-            <Save size={14} />
-            {saving ? "Saving…" : "Save"}
-          </button>
-        </div>
+        <FormFooter
+          saving={saving}
+          disabled={testingCommand}
+          onCancel={onCancel}
+          onReset={() => {
+            dispatch({
+              type: "reset",
+              value: getInitialProviderFormState(initial),
+            });
+            clearAllFeedback();
+          }}
+        />
       </form>
     </div>
   );

@@ -10,6 +10,7 @@ import { History, Star, Trash2 } from "lucide-react";
 import EmptyState from "./EmptyState";
 import ErrorBox from "./ErrorBox";
 import HistoryEntryCard from "./HistoryEntryCard";
+import SectionHeader from "./SectionHeader";
 import SuccessBox from "./SuccessBox";
 
 export default function HistoryList() {
@@ -156,48 +157,48 @@ export default function HistoryList() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-[13px] font-semibold text-text-primary">
-            History
-          </h2>
-          <p className="mt-0.5 text-[12px] text-text-tertiary">
-            {history.length === 0
-              ? "No transformations recorded."
-              : `${history.length} transformation${history.length === 1 ? "" : "s"}`}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {starredCount > 0 && (
-            <button
-              type="button"
-              onClick={() => setShowStarredOnly((prev) => !prev)}
-              className={cx(
-                "btn",
-                showStarredOnly ? "btn-primary" : "btn-ghost",
-              )}
-              title={showStarredOnly ? "Show all entries" : "Show starred only"}
-            >
-              <Star
-                size={14}
-                className={showStarredOnly ? "fill-current" : ""}
-              />
-              {starredCount}
-            </button>
-          )}
-          {history.length > 0 && (
-            <button
-              type="button"
-              onClick={handleClearHistory}
-              disabled={clearing}
-              className="btn btn-danger"
-            >
-              <Trash2 size={14} />
-              {clearing ? "Clearing…" : "Clear"}
-            </button>
-          )}
-        </div>
-      </div>
+      <SectionHeader
+        title="History"
+        description={
+          history.length === 0
+            ? "No transformations recorded."
+            : `${history.length} transformation${history.length === 1 ? "" : "s"}`
+        }
+        actions={
+          <div className="flex items-center gap-2">
+            {starredCount > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowStarredOnly((prev) => !prev)}
+                className={cx(
+                  "btn",
+                  showStarredOnly ? "btn-primary" : "btn-ghost",
+                )}
+                title={
+                  showStarredOnly ? "Show all entries" : "Show starred only"
+                }
+              >
+                <Star
+                  size={14}
+                  className={showStarredOnly ? "fill-current" : ""}
+                />
+                {starredCount}
+              </button>
+            )}
+            {history.length > 0 && (
+              <button
+                type="button"
+                onClick={handleClearHistory}
+                disabled={clearing}
+                className="btn btn-danger"
+              >
+                <Trash2 size={14} />
+                {clearing ? "Clearing…" : "Clear"}
+              </button>
+            )}
+          </div>
+        }
+      />
 
       {error && <ErrorBox message={error} />}
       {successMessage && <SuccessBox message={successMessage} />}
