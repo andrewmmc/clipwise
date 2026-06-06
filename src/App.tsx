@@ -5,16 +5,17 @@ import { tauriCommands } from "./lib/tauri";
 import type { AppConfig } from "./types/config";
 import AboutPanel from "./components/About";
 import ActionList from "./components/ActionList";
+import ActionRunner from "./components/ActionRunner";
 import ErrorBox from "./components/ErrorBox";
 import HistoryList from "./components/HistoryList";
 import ProviderList from "./components/ProviderList";
 import SettingsPanel from "./components/Settings";
 
-type Tab = "actions" | "providers" | "history" | "settings" | "about";
+type Tab = "run" | "actions" | "providers" | "history" | "settings" | "about";
 
 export default function App() {
   const [config, setConfig] = useState<AppConfig | null>(null);
-  const [activeTab, setActiveTab] = useState<Tab>("actions");
+  const [activeTab, setActiveTab] = useState<Tab>("run");
   const [error, setError] = useState<string | null>(null);
 
   const refresh = () => {
@@ -59,6 +60,7 @@ export default function App() {
   }
 
   const tabs: { id: Tab; label: string }[] = [
+    { id: "run", label: "Run" },
     { id: "actions", label: "Actions" },
     { id: "providers", label: "Providers" },
     ...(config.settings.historyEnabled
@@ -69,7 +71,7 @@ export default function App() {
   ];
   const visibleActiveTab = tabs.some((tab) => tab.id === activeTab)
     ? activeTab
-    : "actions";
+    : "run";
 
   return (
     <div className="app-shell">
@@ -111,6 +113,12 @@ export default function App() {
         </nav>
 
         <main className="flex-1 overflow-y-auto p-5">
+          {visibleActiveTab === "run" && (
+            <ActionRunner
+              config={config}
+              onNavigateToActions={() => setActiveTab("actions")}
+            />
+          )}
           {visibleActiveTab === "actions" && (
             <ActionList config={config} onRefresh={refresh} />
           )}

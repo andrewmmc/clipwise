@@ -28,33 +28,37 @@ describe("App", () => {
     await waitFor(() =>
       expect(screen.getByText("Clipwise")).toBeInTheDocument(),
     );
+    expect(screen.getByRole("button", { name: /^Run$/i })).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /actions/i }),
+      screen.getByRole("button", { name: /^Actions$/i }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /providers/i }),
+      screen.getByRole("button", { name: /^Providers$/i }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /settings/i }),
+      screen.getByRole("button", { name: /^Settings$/i }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /about/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /^About$/i }),
+    ).toBeInTheDocument();
   });
 
   it("renders with empty config", async () => {
     mockInvoke.mockResolvedValue(emptyConfig);
     render(<App />);
     await waitFor(() => screen.getByText("Clipwise"));
-    expect(screen.getByText("No actions yet")).toBeInTheDocument();
+    expect(screen.getByText("No actions configured")).toBeInTheDocument();
   });
 
   // ── Default tab state ─────────────────────────────────────────────────────────
 
-  it("defaults to the Actions tab", async () => {
+  it("defaults to the Run tab", async () => {
     mockInvoke.mockResolvedValue(mockConfig);
     render(<App />);
     await waitFor(() => screen.getByText("Clipwise"));
-    // The Actions tab heading appears in the content area
-    expect(screen.getAllByText("Actions").length).toBeGreaterThan(0);
+    expect(
+      screen.getByPlaceholderText(/paste or type the text/i),
+    ).toBeInTheDocument();
   });
 
   // ── Error state ───────────────────────────────────────────────────────────────
@@ -112,7 +116,7 @@ describe("App", () => {
     await waitFor(() => screen.getByText("Clipwise"));
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: /providers/i }));
+    await user.click(screen.getByRole("button", { name: /^Providers$/i }));
     await waitFor(() =>
       expect(
         screen.getByText("Configure LLM API or CLI providers."),
@@ -126,7 +130,7 @@ describe("App", () => {
     await waitFor(() => screen.getByText("Clipwise"));
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: /settings/i }));
+    await user.click(screen.getByRole("button", { name: /^Settings$/i }));
     await waitFor(() =>
       expect(
         screen.getByText("Show notification on complete"),
@@ -148,7 +152,7 @@ describe("App", () => {
     await waitFor(() => screen.getByText("Clipwise"));
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: /history/i }));
+    await user.click(screen.getByRole("button", { name: /^History$/i }));
 
     await waitFor(() =>
       expect(screen.getByText("No history yet")).toBeInTheDocument(),
@@ -172,7 +176,7 @@ describe("App", () => {
     await waitFor(() => screen.getByText("Clipwise"));
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: /about/i }));
+    await user.click(screen.getByRole("button", { name: /^About$/i }));
 
     await waitFor(() =>
       expect(
@@ -191,11 +195,11 @@ describe("App", () => {
 
     await waitFor(() => screen.getByText("Clipwise"));
     expect(
-      screen.queryByRole("button", { name: /history/i }),
+      screen.queryByRole("button", { name: /^History$/i }),
     ).not.toBeInTheDocument();
   });
 
-  it("shows Actions content when active tab is no longer available", async () => {
+  it("removes history tab when history is disabled from settings", async () => {
     const disabledHistoryConfig = {
       ...mockConfig,
       settings: { ...mockConfig.settings, historyEnabled: false },
@@ -222,17 +226,17 @@ describe("App", () => {
     await waitFor(() => screen.getByText("Clipwise"));
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: /history/i }));
+    await user.click(screen.getByRole("button", { name: /^History$/i }));
     await waitFor(() => screen.getByText("No history yet"));
-    await user.click(screen.getByRole("button", { name: /settings/i }));
+    await user.click(screen.getByRole("button", { name: /^Settings$/i }));
     await user.click(screen.getByRole("switch", { name: /enable history/i }));
 
     await waitFor(() =>
       expect(
-        screen.queryByRole("button", { name: /history/i }),
+        screen.queryByRole("button", { name: /^History$/i }),
       ).not.toBeInTheDocument(),
     );
-    expect(screen.getByText("Actions")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Run$/i })).toBeInTheDocument();
   });
 
   it("switching tabs persists active tab state", async () => {
@@ -243,19 +247,23 @@ describe("App", () => {
     const user = userEvent.setup();
 
     // Switch to providers
-    await user.click(screen.getByRole("button", { name: /providers/i }));
+    await user.click(screen.getByRole("button", { name: /^Providers$/i }));
     await waitFor(() =>
       expect(
         screen.getByText("Configure LLM API or CLI providers."),
       ).toBeInTheDocument(),
     );
 
-    // Switch back to actions
-    await user.click(screen.getByRole("button", { name: /actions/i }));
-    await waitFor(() => screen.getAllByText("Actions").length > 1);
+    // Switch back to run
+    await user.click(screen.getByRole("button", { name: /^Run$/i }));
+    await waitFor(() =>
+      expect(
+        screen.getByPlaceholderText(/paste or type the text/i),
+      ).toBeInTheDocument(),
+    );
 
     // Switch to settings tab
-    await user.click(screen.getByRole("button", { name: /settings/i }));
+    await user.click(screen.getByRole("button", { name: /^Settings$/i }));
     await waitFor(() =>
       expect(
         screen.getByText("Show notification on complete"),
@@ -277,9 +285,8 @@ describe("App", () => {
     render(<App />);
     await waitFor(() => screen.getByText("Failed to load config"));
 
-    // Tab buttons should not be visible in error state
     expect(
-      screen.queryByRole("button", { name: /actions/i }),
+      screen.queryByRole("button", { name: /^Run$/i }),
     ).not.toBeInTheDocument();
   });
 });
