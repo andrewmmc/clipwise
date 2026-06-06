@@ -53,30 +53,40 @@ pub fn save_history(history: &[HistoryEntry]) -> Result<(), AppError> {
 
 /// Truncate text to a maximum character count, appending "..." if truncated.
 fn truncate_text(text: &str, max_chars: usize) -> String {
-    let chars: Vec<char> = text.chars().collect();
-    if chars.len() <= max_chars {
-        text.to_string()
-    } else {
-        let mut result: String = chars.iter().take(max_chars).collect();
+    let mut chars = text.chars();
+    let truncated: String = chars.by_ref().take(max_chars).collect();
+    if chars.next().is_some() {
+        let mut result = truncated;
         result.push_str("...");
         result
+    } else {
+        text.to_string()
     }
 }
 
-fn trim_history(mut history: Vec<HistoryEntry>) -> Vec<HistoryEntry> {
+fn trim_history(history: Vec<HistoryEntry>) -> Vec<HistoryEntry> {
     if history.len() <= MAX_HISTORY_ENTRIES {
         return history;
     }
 
-    let mut starred_entries: Vec<HistoryEntry> =
-        history.iter().filter(|e| e.starred).cloned().collect();
-    let mut non_starred_entries: Vec<HistoryEntry> =
-        history.iter().filter(|e| !e.starred).cloned().collect();
-    let non_starred_allowed = MAX_HISTORY_ENTRIES.saturating_sub(starred_entries.len());
-    non_starred_entries.truncate(non_starred_allowed);
-    starred_entries.extend(non_starred_entries);
-    history = starred_entries;
+    let starred_count = history.iter().filter(|e| e.starred).count();
+    let non_starred_allowed = MAX_HISTORY_ENTRIES.saturating_sub(starred_count);
+    let mut non_starred_kept = 0;
+
     history
+        .into_iter()
+        .filter(|entry| {
+            if entry.starred {
+                return true;
+            }
+            if non_starred_kept < non_starred_allowed {
+                non_starred_kept += 1;
+                true
+            } else {
+                false
+            }
+        })
+        .collect()
 }
 
 fn add_entry_to_history(
@@ -600,6 +610,31 @@ mod tests {
     }
 
     // ── add_entry trimming preserves starred ───────────────────────────────────
+
+    #[test]
+    fn test_trim_history_preserves_newest_first_order() {
+        let mut history: Vec<HistoryEntry> = (0..105)
+            .map(|i| {
+                make_test_entry_with_starred(
+                    &format!("id-{}", i),
+                    &format!("Action{}", i),
+                    i == 50 || i == 99,
+                )
+            })
+            .collect();
+        history.reverse();
+        history.insert(0, make_test_entry("new-id", "NewAction"));
+
+        history = trim_history(history);
+
+        let ids: Vec<&str> = history.iter().map(|e| e.id.as_str()).collect();
+        assert_eq!(ids.first().copied(), Some("new-id"));
+        assert!(
+            ids.iter().position(|&id| id == "id-99").unwrap()
+                < ids.iter().position(|&id| id == "id-50").unwrap(),
+            "Starred entries should keep their relative chronological order"
+        );
+    }
 
     #[test]
     fn test_add_entry_trimming_preserves_starred() {

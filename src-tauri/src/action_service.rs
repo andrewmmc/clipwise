@@ -14,6 +14,7 @@ pub(crate) struct ActionContext {
     pub provider: Provider,
     pub max_tokens: u32,
     pub history_enabled: bool,
+    pub show_notification_on_complete: bool,
 }
 
 impl ActionContext {
@@ -37,6 +38,7 @@ impl ActionContext {
             provider,
             max_tokens: config.settings.max_tokens,
             history_enabled: config.settings.history_enabled,
+            show_notification_on_complete: config.settings.show_notification_on_complete,
         })
     }
 }
@@ -210,6 +212,39 @@ mod tests {
         let result = ActionContext::from_state("missing-action", &state);
 
         assert!(result.unwrap_err().to_string().contains("missing-action"));
+    }
+
+    #[test]
+    fn test_action_context_captures_notification_preference() {
+        let state = ConfigState(Mutex::new(AppConfig {
+            providers: vec![Provider {
+                id: "p1".into(),
+                name: "Test".into(),
+                provider_type: ProviderType::Anthropic,
+                endpoint: None,
+                api_key: Some("sk-test".into()),
+                headers: ProviderHeaders::new(),
+                default_model: None,
+                command: None,
+                args: vec![],
+            }],
+            actions: vec![Action {
+                id: "a1".into(),
+                name: "Action".into(),
+                provider_id: "p1".into(),
+                user_prompt: "Test".into(),
+                model: None,
+            }],
+            settings: AppSettings {
+                show_notification_on_complete: false,
+                history_enabled: false,
+                ..Default::default()
+            },
+        }));
+
+        let context = ActionContext::from_state("a1", &state).unwrap();
+
+        assert!(!context.show_notification_on_complete);
     }
 
     #[test]

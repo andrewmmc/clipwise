@@ -76,30 +76,9 @@ pub async fn call_anthropic_with_client(
 mod tests {
     use super::*;
     use crate::models::{ProviderHeaders, ProviderType};
-    use tokio::task::JoinError;
+    use crate::providers::test_helpers::{no_proxy_client, start_mock_server_or_skip};
     use wiremock::matchers::{body_string_contains, header, method, path};
-    use wiremock::{Mock, MockServer, ResponseTemplate};
-
-    async fn start_mock_server_or_skip() -> Option<MockServer> {
-        match tokio::spawn(async { MockServer::start().await }).await {
-            Ok(server) => Some(server),
-            Err(err) if should_skip_mock_server_test(&err) => {
-                eprintln!(
-                    "Skipping HTTP integration test because this environment cannot bind a local port"
-                );
-                None
-            }
-            Err(err) => panic!("Mock server startup failed unexpectedly: {err}"),
-        }
-    }
-
-    fn should_skip_mock_server_test(err: &JoinError) -> bool {
-        err.is_panic()
-    }
-
-    fn no_proxy_client() -> Client {
-        Client::builder().no_proxy().build().unwrap()
-    }
+    use wiremock::{Mock, ResponseTemplate};
 
     fn make_provider(server_uri: &str) -> Provider {
         Provider {

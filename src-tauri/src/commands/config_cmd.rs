@@ -155,6 +155,16 @@ pub(crate) fn apply_action_reorder(config: &mut AppConfig, ids: &[String]) -> Re
 // ── Tauri commands ────────────────────────────────────────────────────────────
 
 #[cfg(not(test))]
+fn mutate_config<T>(
+    state: &State<ConfigState>,
+    mutate: impl FnOnce(&mut AppConfig) -> Result<T, AppError>,
+) -> Result<(T, AppConfig), AppError> {
+    let mut config = state.lock()?;
+    let value = mutate(&mut config)?;
+    Ok((value, config.clone()))
+}
+
+#[cfg(not(test))]
 #[tauri::command]
 pub fn get_config(state: State<ConfigState>) -> Result<AppConfig, AppError> {
     let config = state.lock()?.clone();
@@ -200,11 +210,7 @@ pub fn add_provider(
     state: State<ConfigState>,
     _app: AppHandle,
 ) -> Result<Provider, AppError> {
-    let (result, updated_config) = {
-        let mut config = state.lock()?;
-        let result = insert_provider(&mut config, provider)?;
-        (result, config.clone())
-    };
+    let (result, updated_config) = mutate_config(&state, |config| insert_provider(config, provider))?;
     save_config(&updated_config)?;
     info!(
         provider_id = %result.id,
@@ -226,11 +232,7 @@ pub fn update_provider(
     let provider_id = provider.id.clone();
     let provider_name = provider.name.clone();
     let provider_type = provider.provider_type.clone();
-    let updated_config = {
-        let mut config = state.lock()?;
-        replace_provider(&mut config, provider)?;
-        config.clone()
-    };
+    let (_, updated_config) = mutate_config(&state, |config| replace_provider(config, provider))?;
     save_config(&updated_config)?;
     info!(
         provider_id = %provider_id,
@@ -249,12 +251,10 @@ pub fn delete_provider(
     state: State<ConfigState>,
     _app: AppHandle,
 ) -> Result<(), AppError> {
-    let updated_config = {
-        let mut config = state.lock()?;
-        ensure_provider_deletable(&config, &id)?;
-        remove_provider(&mut config, &id)?;
-        config.clone()
-    };
+    let (_, updated_config) = mutate_config(&state, |config| {
+        ensure_provider_deletable(config, &id)?;
+        remove_provider(config, &id)
+    })?;
     save_config(&updated_config)?;
     info!(provider_id = %id, "Deleted provider");
     // Provider changes don't affect tray menu, no refresh needed
@@ -277,11 +277,7 @@ pub fn add_action(
     state: State<ConfigState>,
     app: AppHandle,
 ) -> Result<Action, AppError> {
-    let (result, updated_config) = {
-        let mut config = state.lock()?;
-        let result = insert_action(&mut config, action)?;
-        (result, config.clone())
-    };
+    let (result, updated_config) = mutate_config(&state, |config| insert_action(config, action))?;
     save_config(&updated_config)?;
 
     crate::tray::refresh_tray_menu(&app, &updated_config)
@@ -305,11 +301,7 @@ pub fn update_action(
     let action_id = action.id.clone();
     let action_name = action.name.clone();
     let provider_id = action.provider_id.clone();
-    let updated_config = {
-        let mut config = state.lock()?;
-        replace_action(&mut config, action)?;
-        config.clone()
-    };
+    let (_, updated_config) = mutate_config(&state, |config| replace_action(config, action))?;
     save_config(&updated_config)?;
 
     crate::tray::refresh_tray_menu(&app, &updated_config)
@@ -330,11 +322,7 @@ pub fn delete_action(
     state: State<ConfigState>,
     app: AppHandle,
 ) -> Result<(), AppError> {
-    let updated_config = {
-        let mut config = state.lock()?;
-        remove_action(&mut config, &id)?;
-        config.clone()
-    };
+    let (_, updated_config) = mutate_config(&state, |config| remove_action(config, &id))?;
     save_config(&updated_config)?;
 
     crate::tray::refresh_tray_menu(&app, &updated_config)
@@ -350,11 +338,8 @@ pub fn reorder_actions(
     state: State<ConfigState>,
     app: AppHandle,
 ) -> Result<(), AppError> {
-    let updated_config = {
-        let mut config = state.lock()?;
-        apply_action_reorder(&mut config, &ids)?;
-        config.clone()
-    };
+    let (_, updated_config) =
+        mutate_config(&state, |config| apply_action_reorder(config, &ids))?;
     save_config(&updated_config)?;
 
     crate::tray::refresh_tray_menu(&app, &updated_config)

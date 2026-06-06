@@ -104,12 +104,9 @@ fn run_tray_action<R: Runtime>(app: AppHandle<R>, action_id: String) {
             }
         };
 
-        let (action_context, show_notification_on_complete) = {
+        let action_context = {
             let config_state = app.state::<ConfigState>();
-            let context = match crate::action_service::ActionContext::from_state(
-                &action_id,
-                &config_state,
-            ) {
+            match crate::action_service::ActionContext::from_state(&action_id, &config_state) {
                 Ok(context) => context,
                 Err(err) => {
                     error!(action_id = %action_id, error = %err, "Failed to prepare tray action");
@@ -126,24 +123,9 @@ fn run_tray_action<R: Runtime>(app: AppHandle<R>, action_id: String) {
                         .show();
                     return;
                 }
-            };
-
-            let show_notification_on_complete = match config_state.lock() {
-                Ok(config) => config.settings.show_notification_on_complete,
-                Err(e) => {
-                    error!(action_id = %action_id, error = %e, "Failed to access config for tray action");
-                    let _ = app
-                        .notification()
-                        .builder()
-                        .title("Clipwise")
-                        .body(format!("Failed to access config: {e}"))
-                        .show();
-                    return;
-                }
-            };
-
-            (context, show_notification_on_complete)
+            }
         };
+        let show_notification_on_complete = action_context.show_notification_on_complete;
 
         let action_name = action_context.action.name.clone();
         let provider_name = action_context.provider.name.clone();
