@@ -9,6 +9,7 @@ use crate::models::{Action, AppConfig, Provider, ProviderType};
 #[cfg(feature = "cli-provider")]
 #[cfg(not(test))]
 use crate::providers::cli::validate_cli_command;
+use crate::providers::http::validate_provider_endpoint;
 #[cfg(not(test))]
 use tauri::{AppHandle, State};
 #[cfg(not(test))]
@@ -40,6 +41,7 @@ pub(crate) fn insert_provider(
     provider: Provider,
 ) -> Result<Provider, AppError> {
     ensure_single_apple_provider(config, &provider)?;
+    validate_provider_endpoint(&provider)?;
     let mut provider = provider;
     provider.id = Uuid::new_v4().to_string();
     config.providers.push(provider.clone());
@@ -48,6 +50,7 @@ pub(crate) fn insert_provider(
 
 pub(crate) fn replace_provider(config: &mut AppConfig, provider: Provider) -> Result<(), AppError> {
     ensure_single_apple_provider(config, &provider)?;
+    validate_provider_endpoint(&provider)?;
     let pos = config
         .providers
         .iter()
@@ -210,7 +213,8 @@ pub fn add_provider(
     state: State<ConfigState>,
     _app: AppHandle,
 ) -> Result<Provider, AppError> {
-    let (result, updated_config) = mutate_config(&state, |config| insert_provider(config, provider))?;
+    let (result, updated_config) =
+        mutate_config(&state, |config| insert_provider(config, provider))?;
     save_config(&updated_config)?;
     info!(
         provider_id = %result.id,
@@ -338,8 +342,7 @@ pub fn reorder_actions(
     state: State<ConfigState>,
     app: AppHandle,
 ) -> Result<(), AppError> {
-    let (_, updated_config) =
-        mutate_config(&state, |config| apply_action_reorder(config, &ids))?;
+    let (_, updated_config) = mutate_config(&state, |config| apply_action_reorder(config, &ids))?;
     save_config(&updated_config)?;
 
     crate::tray::refresh_tray_menu(&app, &updated_config)

@@ -9,6 +9,37 @@ use tracing::{debug, warn};
 
 const REQUEST_TIMEOUT_SECS: u64 = 120;
 
+/// Validates a provider endpoint URL before it is used to send credentials.
+///
+/// IPC arguments are untrusted: the frontend `validateEndpoint` check is
+/// trivially bypassed by invoking the Tauri commands directly or by hand-editing
+/// `config.json`. Without this server-side check, the API key would be sent in an
+/// `Authorization`/`x-api-key` header to an arbitrary host (including internal
+/// addresses). We require `https` so credentials are never sent over plaintext or
+/// a non-HTTP scheme.
+pub(crate) fn validate_endpoint(endpoint: &str) -> Result<(), AppError> {
+    let url = reqwest::Url::parse(endpoint)
+        .map_err(|_| AppError::Config("Endpoint must be a valid https:// URL.".into()))?;
+    if url.scheme() != "https" {
+        return Err(AppError::Config(
+            "Endpoint must be a valid https:// URL.".into(),
+        ));
+    }
+    Ok(())
+}
+
+/// Validates a provider's configured endpoint, if any. An absent or empty
+/// endpoint means "use the provider's built-in default", which is always https.
+pub(crate) fn validate_provider_endpoint(provider: &Provider) -> Result<(), AppError> {
+    if let Some(endpoint) = provider.endpoint.as_deref() {
+        let trimmed = endpoint.trim();
+        if !trimmed.is_empty() {
+            validate_endpoint(trimmed)?;
+        }
+    }
+    Ok(())
+}
+
 pub(crate) fn provider_api_key<'a>(
     provider: &'a Provider,
     provider_name: &str,
@@ -113,4 +144,91 @@ pub(crate) async fn send_json_and_normalize(
         .map_err(|_| AppError::Llm(format!("Failed to parse response as JSON: {}", body_text)))?;
     let content = extract_content(&json)?;
     normalize_response_str(content)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::{Provider, ProviderHeaders, ProviderType};
+
+    fn provider_with_endpoint(endpoint: Option<&str>) -> Provider {
+        Provider {
+            id: "p".into(),
+            name: "P".into(),
+            provider_type: ProviderType::OpenAI,
+            endpoint: endpoint.map(str::to_string),
+            api_key: Some("key".into()),
+            headers: ProviderHeaders::new(),
+            default_model: None,
+            command: None,
+            args: vec![],
+        }
+    }
+
+    #[test]
+    fn test_validate_endpoint_accepts_https() {
+        assert!(validate_endpoint("https://api.openai.com/v1/chat/completions").is_ok());
+    }
+
+    #[test]
+    fn test_validate_endpoint_rejects_http() {
+        let err = validate_endpoint("http://api.openai.com/v1/chat/completions").unwrap_err();
+        assert!(matches!(err, AppError::Config(_)));
+    }
+
+    #[test]
+    fn test_validate_endpoint_rejects_non_http_schemes() {
+        assert!(matches!(
+            validate_endpoint("file:///etc/passwd").unwrap_err(),
+            AppError::Config(_)
+        ));
+        assert!(matches!(
+            validate_endpoint("ftp://example.com").unwrap_err(),
+            AppError::Config(_)
+        ));
+    }
+
+    #[test]
+    fn test_validate_endpoint_rejects_garbage() {
+        assert!(matches!(
+            validate_endpoint("not a url").unwrap_err(),
+            AppError::Config(_)
+        ));
+    }
+
+    #[test]
+    fn test_validate_endpoint_rejects_internal_http_address() {
+        // SSRF target over plaintext must be blocked.
+        assert!(matches!(
+            validate_endpoint("http://169.254.169.254/latest/meta-data/").unwrap_err(),
+            AppError::Config(_)
+        ));
+    }
+
+    #[test]
+    fn test_validate_provider_endpoint_allows_none() {
+        assert!(validate_provider_endpoint(&provider_with_endpoint(None)).is_ok());
+    }
+
+    #[test]
+    fn test_validate_provider_endpoint_allows_empty() {
+        assert!(validate_provider_endpoint(&provider_with_endpoint(Some("  "))).is_ok());
+    }
+
+    #[test]
+    fn test_validate_provider_endpoint_rejects_http() {
+        assert!(matches!(
+            validate_provider_endpoint(&provider_with_endpoint(Some("http://evil.example")))
+                .unwrap_err(),
+            AppError::Config(_)
+        ));
+    }
+
+    #[test]
+    fn test_validate_provider_endpoint_accepts_https() {
+        assert!(validate_provider_endpoint(&provider_with_endpoint(Some(
+            "https://proxy.example/v1"
+        )))
+        .is_ok());
+    }
 }

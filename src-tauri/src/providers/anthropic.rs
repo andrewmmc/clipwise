@@ -1,6 +1,8 @@
 use crate::error::AppError;
 use crate::models::{Provider, SYSTEM_PROMPT};
-use crate::providers::http::{model_or_default, provider_api_key, send_json_and_normalize};
+use crate::providers::http::{
+    model_or_default, provider_api_key, send_json_and_normalize, validate_provider_endpoint,
+};
 use reqwest::Client;
 use serde_json::json;
 use tracing::info;
@@ -14,6 +16,7 @@ pub async fn call_anthropic(
     model: Option<&str>,
     max_tokens: u32,
 ) -> Result<serde_json::Value, AppError> {
+    validate_provider_endpoint(provider)?;
     call_anthropic_with_client(provider, user_message, model, max_tokens, &Client::new()).await
 }
 

@@ -105,9 +105,7 @@ const PROVIDER_TEST_MAX_TOKENS: u32 = 64;
 const PROVIDER_TEST_MESSAGE: &str = "Reply with exactly: {\"result\": \"ok\"}";
 
 #[cfg_attr(test, allow(dead_code))]
-pub(crate) async fn test_provider_connection(
-    provider: &Provider,
-) -> Result<String, AppError> {
+pub(crate) async fn test_provider_connection(provider: &Provider) -> Result<String, AppError> {
     let model = provider.default_model.as_deref();
 
     let provider_result = match provider.provider_type {

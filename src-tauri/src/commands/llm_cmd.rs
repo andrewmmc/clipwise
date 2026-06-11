@@ -47,9 +47,7 @@ pub async fn test_provider(provider: Provider) -> Result<String, AppError> {
     match provider.provider_type {
         ProviderType::OpenAI | ProviderType::Anthropic => {}
         _ => {
-            return Err(AppError::Config(
-                "Only API providers can be tested.".into(),
-            ));
+            return Err(AppError::Config("Only API providers can be tested.".into()));
         }
     }
 
