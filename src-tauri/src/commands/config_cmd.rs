@@ -3,7 +3,6 @@ use crate::config::{save_config, ConfigState};
 use crate::error::AppError;
 #[cfg(not(test))]
 use crate::history;
-#[cfg(not(test))]
 use crate::models::AppSettings;
 use crate::models::{Action, AppConfig, Provider, ProviderType};
 #[cfg(feature = "cli-provider")]
@@ -17,6 +16,23 @@ use tracing::{debug, info};
 use uuid::Uuid;
 
 // ── Pure business-logic helpers (pub(crate) so tests can call them) ──────────
+
+/// Inclusive lower bound for `max_tokens`. A request must allow at least one token.
+pub(crate) const MIN_MAX_TOKENS: u32 = 1;
+/// Inclusive upper bound for `max_tokens`. Matches the largest option offered in
+/// the settings UI and guards against oversized/runaway provider requests.
+pub(crate) const MAX_MAX_TOKENS: u32 = 32_768;
+
+/// Validate user-supplied [`AppSettings`] at the Rust boundary before persisting.
+pub(crate) fn validate_settings(settings: &AppSettings) -> Result<(), AppError> {
+    if !(MIN_MAX_TOKENS..=MAX_MAX_TOKENS).contains(&settings.max_tokens) {
+        return Err(AppError::Config(format!(
+            "max_tokens must be between {MIN_MAX_TOKENS} and {MAX_MAX_TOKENS} (got {})",
+            settings.max_tokens
+        )));
+    }
+    Ok(())
+}
 
 fn ensure_single_apple_provider(config: &AppConfig, provider: &Provider) -> Result<(), AppError> {
     if provider.provider_type != ProviderType::Apple {
@@ -186,6 +202,8 @@ pub fn save_settings(
     state: State<ConfigState>,
     _app: AppHandle,
 ) -> Result<(), AppError> {
+    validate_settings(&settings)?;
+
     let (updated_config, history_being_disabled) = {
         let mut config = state.lock()?;
         let history_being_disabled = config.settings.history_enabled && !settings.history_enabled;
@@ -394,6 +412,40 @@ mod tests {
             user_prompt: "Do something".into(),
             model: None,
         }
+    }
+
+    fn settings_with_max_tokens(max_tokens: u32) -> AppSettings {
+        AppSettings {
+            max_tokens,
+            ..AppSettings::default()
+        }
+    }
+
+    // ── validate_settings ─────────────────────────────────────────────────────
+
+    #[test]
+    fn test_validate_settings_accepts_in_range_max_tokens() {
+        assert!(validate_settings(&settings_with_max_tokens(MIN_MAX_TOKENS)).is_ok());
+        assert!(validate_settings(&settings_with_max_tokens(4096)).is_ok());
+        assert!(validate_settings(&settings_with_max_tokens(MAX_MAX_TOKENS)).is_ok());
+    }
+
+    #[test]
+    fn test_validate_settings_rejects_zero_max_tokens() {
+        let result = validate_settings(&settings_with_max_tokens(0));
+        assert!(matches!(result, Err(AppError::Config(_))));
+    }
+
+    #[test]
+    fn test_validate_settings_rejects_oversized_max_tokens() {
+        let result = validate_settings(&settings_with_max_tokens(4_000_000));
+        assert!(matches!(result, Err(AppError::Config(_))));
+    }
+
+    #[test]
+    fn test_validate_settings_rejects_just_above_upper_bound() {
+        let result = validate_settings(&settings_with_max_tokens(MAX_MAX_TOKENS + 1));
+        assert!(matches!(result, Err(AppError::Config(_))));
     }
 
     // ── insert_provider ───────────────────────────────────────────────────────
