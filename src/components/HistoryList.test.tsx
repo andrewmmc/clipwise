@@ -710,6 +710,54 @@ describe("HistoryList", () => {
     });
   });
 
+  it("shows no-matching empty state when the search has no results", async () => {
+    vi.mocked(tauri.tauriCommands.getHistory).mockResolvedValue(mockHistory);
+
+    render(<HistoryList />);
+
+    await waitFor(() => screen.getByText("Summarize"));
+    fireEvent.change(screen.getByPlaceholderText(/search action, provider/i), {
+      target: { value: "no-such-entry-xyz" },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("No matching entries")).toBeInTheDocument();
+      expect(
+        screen.getByText("Try adjusting your search or filters."),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("shows no-matching empty state when the status filter excludes everything", async () => {
+    const successOnlyHistory: HistoryEntry[] = [
+      {
+        id: "1",
+        timestamp: "2024-01-01T12:00:00Z",
+        actionName: "Summarize",
+        providerName: "Anthropic",
+        inputText: "test",
+        outputText: "output",
+        success: true,
+        starred: false,
+      },
+    ];
+    vi.mocked(tauri.tauriCommands.getHistory).mockResolvedValue(
+      successOnlyHistory,
+    );
+
+    render(<HistoryList />);
+
+    await waitFor(() => screen.getByText("Summarize"));
+    fireEvent.click(screen.getByRole("button", { name: /^failed$/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText("No matching entries")).toBeInTheDocument();
+      expect(
+        screen.getByText("Try adjusting your search or filters."),
+      ).toBeInTheDocument();
+    });
+  });
+
   it("does not show star filter when no starred entries", async () => {
     const noStarredHistory: HistoryEntry[] = [
       {
