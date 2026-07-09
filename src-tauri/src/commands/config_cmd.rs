@@ -64,6 +64,24 @@ pub(crate) fn insert_provider(
     Ok(provider)
 }
 
+/// The reserved Apple Intelligence provider's `id`/`type` invariant ("there is
+/// exactly one Apple-typed provider, and it's the well-known one") is relied
+/// on elsewhere (`ensure_single_apple_provider`, `apple_attach.rs`). The
+/// Settings UI never exposes editing this provider, but `update_provider` is
+/// a plain Tauri command with no such restriction, so guard it here too.
+fn ensure_apple_provider_type_is_immutable(
+    existing: &Provider,
+    updated: &Provider,
+) -> Result<(), AppError> {
+    if existing.provider_type == ProviderType::Apple && updated.provider_type != ProviderType::Apple
+    {
+        return Err(AppError::Config(
+            "The built-in Apple Intelligence provider's type cannot be changed.".into(),
+        ));
+    }
+    Ok(())
+}
+
 pub(crate) fn replace_provider(config: &mut AppConfig, provider: Provider) -> Result<(), AppError> {
     ensure_single_apple_provider(config, &provider)?;
     validate_provider_endpoint(&provider)?;
@@ -72,6 +90,7 @@ pub(crate) fn replace_provider(config: &mut AppConfig, provider: Provider) -> Re
         .iter()
         .position(|p| p.id == provider.id)
         .ok_or_else(|| AppError::ProviderNotFound(provider.id.clone()))?;
+    ensure_apple_provider_type_is_immutable(&config.providers[pos], &provider)?;
     config.providers[pos] = provider;
     Ok(())
 }
@@ -554,6 +573,41 @@ mod tests {
         let result = replace_provider(&mut config, updated);
 
         assert!(matches!(result, Err(AppError::Config(_))));
+    }
+
+    #[test]
+    fn test_replace_provider_rejects_changing_apple_provider_type() {
+        let mut config = AppConfig {
+            providers: vec![stub_apple_provider("apple-1")],
+            ..AppConfig::default()
+        };
+        let mut updated = stub_apple_provider("apple-1");
+        updated.provider_type = ProviderType::OpenAI;
+        updated.api_key = Some("key".into());
+
+        let result = replace_provider(&mut config, updated);
+
+        assert!(matches!(result, Err(AppError::Config(_))));
+        assert_eq!(
+            config.providers[0].provider_type,
+            ProviderType::Apple,
+            "the reserved Apple provider's type should be unchanged"
+        );
+    }
+
+    #[test]
+    fn test_replace_provider_allows_updating_non_type_fields_on_apple_provider() {
+        let mut config = AppConfig {
+            providers: vec![stub_apple_provider("apple-1")],
+            ..AppConfig::default()
+        };
+        let mut updated = stub_apple_provider("apple-1");
+        updated.name = "Renamed Apple Provider".into();
+
+        replace_provider(&mut config, updated).unwrap();
+
+        assert_eq!(config.providers[0].name, "Renamed Apple Provider");
+        assert_eq!(config.providers[0].provider_type, ProviderType::Apple);
     }
 
     // ── remove_provider ───────────────────────────────────────────────────────
