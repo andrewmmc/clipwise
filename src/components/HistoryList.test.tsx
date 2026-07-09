@@ -758,6 +758,62 @@ describe("HistoryList", () => {
     });
   });
 
+  it("returns to all entries when the All filter is clicked", async () => {
+    vi.mocked(tauri.tauriCommands.getHistory).mockResolvedValue(mockHistory);
+
+    render(<HistoryList />);
+
+    await waitFor(() => screen.getByText("Summarize"));
+    fireEvent.click(screen.getByRole("button", { name: /^failed$/i }));
+
+    await waitFor(() =>
+      expect(screen.queryByText("Summarize")).not.toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /^all$/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Summarize")).toBeInTheDocument();
+      expect(screen.getByText("Translate")).toBeInTheDocument();
+    });
+  });
+
+  it("cancels the delete-all confirmation", async () => {
+    vi.mocked(tauri.tauriCommands.getHistory).mockResolvedValue(mockHistory);
+
+    render(<HistoryList />);
+
+    await waitFor(() => screen.getByText("Summarize"));
+    fireEvent.click(screen.getByRole("button", { name: /delete all/i }));
+
+    const cancelButton = await screen.findByRole("button", { name: /cancel/i });
+    fireEvent.click(cancelButton);
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: /delete all/i }),
+      ).toBeInTheDocument(),
+    );
+    expect(tauri.tauriCommands.purgeHistory).not.toHaveBeenCalled();
+  });
+
+  it("copies output from a successful entry", async () => {
+    vi.mocked(tauri.tauriCommands.getHistory).mockResolvedValue(mockHistory);
+    const mockWriteText = vi.mocked(navigator.clipboard.writeText);
+
+    render(<HistoryList />);
+
+    await waitFor(() => screen.getByText("Summarize"));
+    fireEvent.click(screen.getByText("Summarize"));
+    await waitFor(() => screen.getByText("Output"));
+    fireEvent.click(screen.getAllByText("Copy")[1]);
+
+    await waitFor(() =>
+      expect(mockWriteText).toHaveBeenCalledWith("Summary text"),
+    );
+    expect(screen.getByText("Copied output to clipboard.")).toBeInTheDocument();
+  });
+
   it("does not show star filter when no starred entries", async () => {
     const noStarredHistory: HistoryEntry[] = [
       {
