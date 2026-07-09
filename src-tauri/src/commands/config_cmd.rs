@@ -173,14 +173,48 @@ pub(crate) fn apply_action_reorder(config: &mut AppConfig, ids: &[String]) -> Re
 
 // ── Tauri commands ────────────────────────────────────────────────────────────
 
+/// Applies `mutate` to `config`, persists the result via `persist`, and
+/// rolls `config` back to its pre-mutation value if persisting fails.
+///
+/// Pulled out of `mutate_config` (which needs a live Tauri `State` and so
+/// can't easily run under plain unit tests) so its rollback behavior can be
+/// tested directly with a fake `persist` closure.
+///
+/// This matters for two reasons:
+/// - If the caller holds a lock across this call, keeping the disk write
+///   inside that same critical section prevents two concurrent mutations
+///   from having their `persist` calls land out of order relative to their
+///   in-memory snapshots, which could otherwise leave the file on disk
+///   behind the in-memory state (a change appears applied, then silently
+///   vanishes after a restart).
+/// - If `persist` fails (disk full, permissions, etc.), rolling back means
+///   the command's `Err` result matches reality instead of leaving an
+///   unpersisted change silently active in memory for the rest of the
+///   session.
+pub(crate) fn mutate_and_persist<T>(
+    config: &mut AppConfig,
+    mutate: impl FnOnce(&mut AppConfig) -> Result<T, AppError>,
+    persist: impl FnOnce(&AppConfig) -> Result<(), AppError>,
+) -> Result<(T, AppConfig), AppError> {
+    let previous = config.clone();
+    let value = mutate(config)?;
+    let snapshot = config.clone();
+
+    if let Err(err) = persist(&snapshot) {
+        *config = previous;
+        return Err(err);
+    }
+
+    Ok((value, snapshot))
+}
+
 #[cfg(not(test))]
 fn mutate_config<T>(
     state: &State<ConfigState>,
     mutate: impl FnOnce(&mut AppConfig) -> Result<T, AppError>,
 ) -> Result<(T, AppConfig), AppError> {
     let mut config = state.lock()?;
-    let value = mutate(&mut config)?;
-    Ok((value, config.clone()))
+    mutate_and_persist(&mut config, mutate, save_config)
 }
 
 #[cfg(not(test))]
@@ -206,12 +240,19 @@ pub fn save_settings(
 
     let (updated_config, history_being_disabled) = {
         let mut config = state.lock()?;
+        let previous = config.clone();
         let history_being_disabled = config.settings.history_enabled && !settings.history_enabled;
         config.settings = settings;
-        (config.clone(), history_being_disabled)
+        let snapshot = config.clone();
+
+        if let Err(err) = save_config(&snapshot) {
+            *config = previous;
+            return Err(err);
+        }
+
+        (snapshot, history_being_disabled)
     };
 
-    save_config(&updated_config)?;
     if history_being_disabled {
         let _ = history::purge_history();
     }
@@ -231,9 +272,7 @@ pub fn add_provider(
     state: State<ConfigState>,
     _app: AppHandle,
 ) -> Result<Provider, AppError> {
-    let (result, updated_config) =
-        mutate_config(&state, |config| insert_provider(config, provider))?;
-    save_config(&updated_config)?;
+    let (result, _) = mutate_config(&state, |config| insert_provider(config, provider))?;
     info!(
         provider_id = %result.id,
         provider_name = %result.name,
@@ -254,8 +293,7 @@ pub fn update_provider(
     let provider_id = provider.id.clone();
     let provider_name = provider.name.clone();
     let provider_type = provider.provider_type.clone();
-    let (_, updated_config) = mutate_config(&state, |config| replace_provider(config, provider))?;
-    save_config(&updated_config)?;
+    mutate_config(&state, |config| replace_provider(config, provider))?;
     info!(
         provider_id = %provider_id,
         provider_name = %provider_name,
@@ -273,11 +311,10 @@ pub fn delete_provider(
     state: State<ConfigState>,
     _app: AppHandle,
 ) -> Result<(), AppError> {
-    let (_, updated_config) = mutate_config(&state, |config| {
+    mutate_config(&state, |config| {
         ensure_provider_deletable(config, &id)?;
         remove_provider(config, &id)
     })?;
-    save_config(&updated_config)?;
     info!(provider_id = %id, "Deleted provider");
     // Provider changes don't affect tray menu, no refresh needed
     Ok(())
@@ -300,7 +337,6 @@ pub fn add_action(
     app: AppHandle,
 ) -> Result<Action, AppError> {
     let (result, updated_config) = mutate_config(&state, |config| insert_action(config, action))?;
-    save_config(&updated_config)?;
 
     crate::tray::refresh_tray_menu(&app, &updated_config)
         .map_err(|e| AppError::Service(e.to_string()))?;
@@ -324,7 +360,6 @@ pub fn update_action(
     let action_name = action.name.clone();
     let provider_id = action.provider_id.clone();
     let (_, updated_config) = mutate_config(&state, |config| replace_action(config, action))?;
-    save_config(&updated_config)?;
 
     crate::tray::refresh_tray_menu(&app, &updated_config)
         .map_err(|e| AppError::Service(e.to_string()))?;
@@ -345,7 +380,6 @@ pub fn delete_action(
     app: AppHandle,
 ) -> Result<(), AppError> {
     let (_, updated_config) = mutate_config(&state, |config| remove_action(config, &id))?;
-    save_config(&updated_config)?;
 
     crate::tray::refresh_tray_menu(&app, &updated_config)
         .map_err(|e| AppError::Service(e.to_string()))?;
@@ -361,7 +395,6 @@ pub fn reorder_actions(
     app: AppHandle,
 ) -> Result<(), AppError> {
     let (_, updated_config) = mutate_config(&state, |config| apply_action_reorder(config, &ids))?;
-    save_config(&updated_config)?;
 
     crate::tray::refresh_tray_menu(&app, &updated_config)
         .map_err(|e| AppError::Service(e.to_string()))?;
@@ -748,5 +781,76 @@ mod tests {
         };
         let result = apply_action_reorder(&mut config, &["a1".into(), "a1".into()]);
         assert!(matches!(result, Err(AppError::Config(_))));
+    }
+
+    // -- mutate_and_persist ------------------------------------------------------
+
+    #[test]
+    fn test_mutate_and_persist_returns_mutated_value_and_snapshot() {
+        let mut config = AppConfig::default();
+        let (result, snapshot) = mutate_and_persist(
+            &mut config,
+            |cfg| insert_provider(cfg, stub_provider("ignored")),
+            |_| Ok(()),
+        )
+        .unwrap();
+
+        assert_eq!(snapshot.providers.len(), 1);
+        assert_eq!(result.id, snapshot.providers[0].id);
+        assert_eq!(config.providers.len(), 1, "mutation should apply in place");
+    }
+
+    #[test]
+    fn test_mutate_and_persist_rolls_back_when_persist_fails() {
+        let mut config = AppConfig::default();
+        let result = mutate_and_persist(
+            &mut config,
+            |cfg| insert_provider(cfg, stub_provider("ignored")),
+            |_| Err(AppError::Io(std::io::Error::other("disk full"))),
+        );
+
+        assert!(matches!(result, Err(AppError::Io(_))));
+        assert!(
+            config.providers.is_empty(),
+            "failed persist should roll the in-memory config back to its previous value"
+        );
+    }
+
+    #[test]
+    fn test_mutate_and_persist_does_not_call_persist_when_mutate_fails() {
+        let mut config = AppConfig::default();
+        let mut persist_calls = 0;
+        let result = mutate_and_persist(
+            &mut config,
+            |cfg| remove_provider(cfg, "missing"),
+            |_| {
+                persist_calls += 1;
+                Ok(())
+            },
+        );
+
+        assert!(matches!(result, Err(AppError::ProviderNotFound(_))));
+        assert_eq!(persist_calls, 0);
+    }
+
+    #[test]
+    fn test_mutate_and_persist_preserves_prior_state_beyond_the_failed_change() {
+        let mut config = AppConfig {
+            providers: vec![stub_provider("p1")],
+            ..AppConfig::default()
+        };
+        let result = mutate_and_persist(
+            &mut config,
+            |cfg| insert_provider(cfg, stub_provider("p2")),
+            |_| Err(AppError::Io(std::io::Error::other("disk full"))),
+        );
+
+        assert!(result.is_err());
+        assert_eq!(
+            config.providers.len(),
+            1,
+            "pre-existing provider p1 should remain"
+        );
+        assert_eq!(config.providers[0].id, "p1");
     }
 }
