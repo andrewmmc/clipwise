@@ -493,6 +493,29 @@ describe("HistoryList", () => {
     });
   });
 
+  it("keeps the optimistic star update and shows no error when the post-toggle refresh fails", async () => {
+    vi.mocked(tauri.tauriCommands.getHistory)
+      .mockResolvedValueOnce(mockHistory)
+      .mockRejectedValueOnce(new Error("refresh failed"));
+    vi.mocked(tauri.tauriCommands.toggleStarEntry).mockResolvedValue(true);
+
+    render(<HistoryList />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Summarize")).toBeInTheDocument();
+    });
+
+    const starButtons = document.querySelectorAll('button[title="Star entry"]');
+    fireEvent.click(starButtons[0]);
+
+    await waitFor(() => {
+      expect(
+        document.querySelectorAll('button[title="Unstar entry"]'),
+      ).toHaveLength(2);
+    });
+    expect(screen.queryByText("refresh failed")).not.toBeInTheDocument();
+  });
+
   it("shows error when star toggle fails", async () => {
     vi.mocked(tauri.tauriCommands.getHistory).mockResolvedValue(mockHistory);
     vi.mocked(tauri.tauriCommands.toggleStarEntry).mockRejectedValue(

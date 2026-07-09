@@ -90,8 +90,19 @@ export default function HistoryList() {
         setHistory((prev) =>
           prev.map((e) => (e.id === id ? { ...e, starred: newStarred } : e)),
         );
-        const entries = await run(() => tauriCommands.getHistory());
-        setHistory(entries);
+        try {
+          // Refetch to pick up backend side effects the optimistic update
+          // above can't know about (e.g. toggling star on the 21st entry
+          // auto-unstars the oldest starred entry to enforce the starred
+          // limit). Not wrapped in `run()`: a failure here shouldn't show
+          // an error for a toggle that actually succeeded, since the
+          // optimistic update already reflects the primary change.
+          const entries = await tauriCommands.getHistory();
+          setHistory(entries);
+        } catch {
+          // Keep the optimistic update; the next manual refresh will pick
+          // up any side effects we missed.
+        }
       } catch {
         // useAsyncAction captures the displayed error.
       } finally {
