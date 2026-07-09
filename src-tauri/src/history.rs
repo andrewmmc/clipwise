@@ -4,6 +4,7 @@ use crate::models::HistoryEntry;
 use crate::paths::app_data_dir;
 use std::path::Path;
 use std::path::PathBuf;
+use std::sync::{LazyLock, Mutex, MutexGuard};
 use tracing::info;
 use uuid::Uuid;
 
@@ -11,6 +12,25 @@ const MAX_HISTORY_ENTRIES: usize = 100;
 const MAX_STARRED_ENTRIES: usize = 20;
 const INPUT_TRUNCATE_CHARS: usize = 500;
 const OUTPUT_TRUNCATE_CHARS: usize = 2000;
+
+/// Serializes read-modify-write access to the real history file.
+///
+/// Each mutation below independently loads history.json, applies a change,
+/// and writes the whole file back. Without a lock, two mutations racing
+/// (e.g. a tray action finishing while the Settings UI clears or stars an
+/// entry) can interleave their reads and writes, so whichever save happens
+/// last silently overwrites the other's change. This lock only guards
+/// in-process ordering of the public, path-less helpers below, which are the
+/// only ones production code calls against the shared history file; the
+/// `_at` helpers used by tests operate on independent temp paths and don't
+/// need it.
+static HISTORY_FILE_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
+
+fn lock_history_file() -> MutexGuard<'static, ()> {
+    HISTORY_FILE_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
 
 /// Returns the path to the history file:
 /// ~/Library/Application Support/clipwise/history.json
@@ -142,6 +162,7 @@ pub fn add_entry(
     output_text: String,
     success: bool,
 ) -> Result<(), AppError> {
+    let _guard = lock_history_file();
     add_entry_to_path(
         &history_path()?,
         action_name,
@@ -177,6 +198,7 @@ pub fn clear_history_at(path: &Path) -> Result<(), AppError> {
 
 /// Clear non-starred history entries. Starred entries are preserved.
 pub fn clear_history() -> Result<(), AppError> {
+    let _guard = lock_history_file();
     clear_history_at(&history_path()?)
 }
 
@@ -190,6 +212,7 @@ pub fn purge_history_at(path: &Path) -> Result<(), AppError> {
 
 /// Permanently delete all history entries, including starred entries.
 pub fn purge_history() -> Result<(), AppError> {
+    let _guard = lock_history_file();
     purge_history_at(&history_path()?)
 }
 
@@ -210,6 +233,7 @@ pub fn delete_entry_at(path: &Path, id: &str) -> Result<bool, AppError> {
 
 /// Delete a single history entry by ID.
 pub fn delete_entry(id: &str) -> Result<bool, AppError> {
+    let _guard = lock_history_file();
     delete_entry_at(&history_path()?, id)
 }
 
@@ -254,6 +278,7 @@ pub fn toggle_star_at(path: &Path, id: &str) -> Result<bool, AppError> {
 /// Enforces MAX_STARRED_ENTRIES: if starring would exceed the limit, the oldest
 /// starred entry is unstarred first.
 pub fn toggle_star(id: &str) -> Result<bool, AppError> {
+    let _guard = lock_history_file();
     toggle_star_at(&history_path()?, id)
 }
 
@@ -658,6 +683,40 @@ mod tests {
         assert!(
             history.iter().any(|e| e.id == "new-id"),
             "New entry should be present"
+        );
+    }
+
+    // ── History file lock ───────────────────────────────────────────────────────
+
+    #[test]
+    fn test_lock_history_file_serializes_concurrent_access() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::thread;
+        use std::time::Duration;
+
+        static CONCURRENT: AtomicUsize = AtomicUsize::new(0);
+        static MAX_CONCURRENT: AtomicUsize = AtomicUsize::new(0);
+
+        let handles: Vec<_> = (0..8)
+            .map(|_| {
+                thread::spawn(|| {
+                    let _guard = lock_history_file();
+                    let current = CONCURRENT.fetch_add(1, Ordering::SeqCst) + 1;
+                    MAX_CONCURRENT.fetch_max(current, Ordering::SeqCst);
+                    thread::sleep(Duration::from_millis(5));
+                    CONCURRENT.fetch_sub(1, Ordering::SeqCst);
+                })
+            })
+            .collect();
+
+        for handle in handles {
+            handle.join().unwrap();
+        }
+
+        assert_eq!(
+            MAX_CONCURRENT.load(Ordering::SeqCst),
+            1,
+            "lock_history_file should serialize access; only one holder should run at a time"
         );
     }
 }
