@@ -156,7 +156,8 @@ fn run_tray_action<R: Runtime>(app: AppHandle<R>, action_id: String) {
             &action_context,
             clipboard_text_for_history,
             &result,
-        );
+        )
+        .await;
 
         match result {
             Ok(text) => {

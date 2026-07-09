@@ -20,7 +20,7 @@ pub async fn run_action(
 ) -> Result<String, AppError> {
     let context = action_service::ActionContext::from_state(&action_id, &state)?;
     let result = action_service::run_action_with_context(&context, &selected_text).await;
-    action_service::record_action_history(&context, selected_text, &result);
+    action_service::record_action_history(&context, selected_text, &result).await;
 
     result
 }
@@ -35,7 +35,7 @@ pub async fn test_action(
 ) -> Result<String, AppError> {
     let context = action_service::ActionContext::from_state(&action_id, &state)?;
     let result = action_service::run_action_with_context(&context, &sample_text).await;
-    action_service::record_action_history(&context, sample_text, &result);
+    action_service::record_action_history(&context, sample_text, &result).await;
 
     result
 }

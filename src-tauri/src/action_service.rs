@@ -145,8 +145,13 @@ pub(crate) async fn test_provider_connection(provider: &Provider) -> Result<Stri
     ))
 }
 
+/// Records the outcome of an action run to history, if history is enabled.
+///
+/// History I/O is synchronous `std::fs` work; running it on a Tokio blocking
+/// thread instead of directly in the caller's async task avoids stalling
+/// that worker thread while the file is written.
 #[cfg_attr(test, allow(dead_code))]
-pub(crate) fn record_action_history(
+pub(crate) async fn record_action_history(
     context: &ActionContext,
     input_text: String,
     result: &Result<String, AppError>,
@@ -159,19 +164,30 @@ pub(crate) fn record_action_history(
         Ok(output) => (output.clone(), true),
         Err(err) => (err.to_string(), false),
     };
+    let action_name = context.action.name.clone();
+    let provider_name = context.provider.name.clone();
 
-    if let Err(err) = history::add_entry(
-        context.action.name.clone(),
-        context.provider.name.clone(),
-        input_text,
-        output_text,
-        success,
-    ) {
-        error!(
-            error = %err,
-            action_id = %context.action.id,
-            "Failed to log history entry"
-        );
+    let write_result = tokio::task::spawn_blocking(move || {
+        history::add_entry(action_name, provider_name, input_text, output_text, success)
+    })
+    .await;
+
+    match write_result {
+        Ok(Ok(())) => {}
+        Ok(Err(err)) => {
+            error!(
+                error = %err,
+                action_id = %context.action.id,
+                "Failed to log history entry"
+            );
+        }
+        Err(join_err) => {
+            error!(
+                error = %join_err,
+                action_id = %context.action.id,
+                "History write task panicked"
+            );
+        }
     }
 }
 
