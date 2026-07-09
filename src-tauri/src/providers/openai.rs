@@ -113,6 +113,25 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_unreachable_endpoint_returns_network_error() {
+        // Bind then drop a listener so the port is guaranteed closed, then
+        // point the provider at it to force a connection failure.
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        drop(listener);
+
+        let provider = make_provider(&format!("http://127.0.0.1:{port}"));
+        let result =
+            call_openai_with_client(&provider, "test", None, 1024, &no_proxy_client()).await;
+
+        assert!(
+            matches!(result, Err(AppError::NetworkError)),
+            "expected NetworkError for an unreachable endpoint, got {:?}",
+            result
+        );
+    }
+
+    #[tokio::test]
     async fn test_successful_response_returns_parsed_value() {
         let Some(server) = start_mock_server_or_skip().await else {
             return;

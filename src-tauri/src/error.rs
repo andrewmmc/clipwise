@@ -67,6 +67,22 @@ impl AppError {
             AppError::RateLimited | AppError::NetworkError | AppError::Http(_)
         ) || matches!(self, AppError::Llm(message) if message.starts_with("HTTP 5"))
     }
+
+    /// Classifies a `reqwest::Error` produced by a failed request.
+    ///
+    /// Connection- and timeout-level failures (DNS resolution, connection
+    /// refused, TLS handshake failure, request timeout) mean the server was
+    /// never reached, so they map to the user-friendly `NetworkError`
+    /// ("could not reach the server"). Anything else (e.g. a body
+    /// encoding/decoding error) falls back to `Http`, which surfaces the
+    /// underlying reqwest error message.
+    pub fn from_request_error(err: reqwest::Error) -> Self {
+        if err.is_connect() || err.is_timeout() {
+            AppError::NetworkError
+        } else {
+            AppError::Http(err)
+        }
+    }
 }
 
 impl serde::Serialize for AppError {
@@ -146,5 +162,41 @@ mod tests {
         assert!(!AppError::InvalidResponse.is_retryable());
         assert!(!AppError::ActionNotFound("test".into()).is_retryable());
         assert!(!AppError::ProviderNotFound("test".into()).is_retryable());
+    }
+
+    // -- from_request_error -------------------------------------------------------
+
+    #[tokio::test]
+    async fn test_from_request_error_classifies_connection_failure_as_network_error() {
+        // Bind to an ephemeral port, then drop the listener so the port is
+        // guaranteed to be closed and refuse the connection deterministically.
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        drop(listener);
+
+        let client = reqwest::Client::new();
+        let err = client
+            .get(format!("http://127.0.0.1:{port}"))
+            .send()
+            .await
+            .expect_err("connecting to a closed port should fail");
+
+        assert!(matches!(
+            AppError::from_request_error(err),
+            AppError::NetworkError
+        ));
+    }
+
+    #[test]
+    fn test_from_request_error_network_error_message_is_user_friendly() {
+        assert_eq!(
+            AppError::NetworkError.to_string(),
+            "Network error: could not reach the server."
+        );
+    }
+
+    #[test]
+    fn test_network_error_is_retryable() {
+        assert!(AppError::NetworkError.is_retryable());
     }
 }

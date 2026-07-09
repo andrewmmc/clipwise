@@ -87,7 +87,7 @@ pub(crate) async fn send_json_with_retry(
             .json(body)
             .send()
             .await
-            .map_err(AppError::Http)?;
+            .map_err(AppError::from_request_error)?;
         let status = response.status();
 
         if !status.is_success() {
