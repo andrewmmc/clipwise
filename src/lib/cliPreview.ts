@@ -11,6 +11,5 @@ export function buildCommandPreview(command: string, args: string[]): string {
   const parts: string[] = [];
   if (trimmedCommand) parts.push(trimmedCommand);
   parts.push(...cleanArgs.map(shellQuote));
-  parts.push(shellQuote("<your prompt>"));
   return parts.join(" ");
 }

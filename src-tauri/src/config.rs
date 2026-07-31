@@ -58,6 +58,22 @@ pub fn save_config(config: &AppConfig) -> Result<(), AppError> {
     save_config_to(config, &config_path()?)
 }
 
+fn quarantine_invalid_config_at(path: &Path) -> Result<PathBuf, AppError> {
+    if !path.exists() {
+        return Err(AppError::Config(
+            "Cannot preserve invalid config because the file does not exist".into(),
+        ));
+    }
+
+    let backup_path = path.with_file_name(format!("config.corrupt.{}.json", uuid::Uuid::new_v4()));
+    std::fs::rename(path, &backup_path)?;
+    Ok(backup_path)
+}
+
+pub fn quarantine_invalid_config() -> Result<PathBuf, AppError> {
+    quarantine_invalid_config_at(&config_path()?)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -329,5 +345,20 @@ mod tests {
         assert!(result.is_ok());
         let config = result.unwrap();
         assert_eq!(config.settings.max_tokens, 0);
+    }
+
+    #[test]
+    fn test_quarantine_invalid_config_preserves_original_contents() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("config.json");
+        std::fs::write(&path, "{ malformed }").unwrap();
+
+        let backup_path = quarantine_invalid_config_at(&path).unwrap();
+
+        assert!(!path.exists());
+        assert_eq!(
+            std::fs::read_to_string(backup_path).unwrap(),
+            "{ malformed }"
+        );
     }
 }

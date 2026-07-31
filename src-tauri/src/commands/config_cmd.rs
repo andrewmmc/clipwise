@@ -12,7 +12,7 @@ use crate::providers::http::validate_provider_endpoint;
 #[cfg(not(test))]
 use tauri::{AppHandle, State};
 #[cfg(not(test))]
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 use uuid::Uuid;
 
 // ── Pure business-logic helpers (pub(crate) so tests can call them) ──────────
@@ -47,6 +47,30 @@ fn ensure_single_apple_provider(config: &AppConfig, provider: &Provider) -> Resu
         return Err(AppError::Config(
             "Only one Apple Intelligence provider can be configured.".into(),
         ));
+    }
+
+    Ok(())
+}
+
+#[cfg(not(test))]
+async fn validate_provider_capability(provider: &Provider) -> Result<(), AppError> {
+    if provider.provider_type == ProviderType::Cli && !cfg!(feature = "cli-provider") {
+        return Err(AppError::Config(
+            "CLI providers are not available in this build.".into(),
+        ));
+    }
+
+    if provider.provider_type == ProviderType::Apple {
+        let (available, reason) = crate::providers::apple::check_availability().await?;
+        if !available {
+            return Err(AppError::Config(format!(
+                "Apple Intelligence is not available on this Mac{}.",
+                reason
+                    .as_deref()
+                    .map(|value| format!(" ({value})"))
+                    .unwrap_or_default()
+            )));
+        }
     }
 
     Ok(())
@@ -257,24 +281,29 @@ pub fn save_settings(
 ) -> Result<(), AppError> {
     validate_settings(&settings)?;
 
-    let (updated_config, history_being_disabled) = {
-        let mut config = state.lock()?;
-        let previous = config.clone();
-        let history_being_disabled = config.settings.history_enabled && !settings.history_enabled;
-        config.settings = settings;
-        let snapshot = config.clone();
+    let mut config = state.lock()?;
+    let previous = config.clone();
+    let history_being_disabled = config.settings.history_enabled && !settings.history_enabled;
+    config.settings = settings;
+    let updated_config = config.clone();
 
-        if let Err(err) = save_config(&snapshot) {
-            *config = previous;
-            return Err(err);
-        }
-
-        (snapshot, history_being_disabled)
-    };
+    if let Err(err) = save_config(&updated_config) {
+        *config = previous;
+        return Err(err);
+    }
 
     if history_being_disabled {
-        let _ = history::purge_history();
+        if let Err(purge_err) = history::purge_history() {
+            *config = previous.clone();
+            if let Err(rollback_err) = save_config(&previous) {
+                return Err(AppError::Service(format!(
+                    "Failed to delete history ({purge_err}) and failed to restore settings ({rollback_err})"
+                )));
+            }
+            return Err(purge_err);
+        }
     }
+    drop(config);
     info!(
         max_tokens = updated_config.settings.max_tokens,
         show_notification_on_complete = updated_config.settings.show_notification_on_complete,
@@ -286,11 +315,12 @@ pub fn save_settings(
 
 #[cfg(not(test))]
 #[tauri::command]
-pub fn add_provider(
+pub async fn add_provider(
     provider: Provider,
-    state: State<ConfigState>,
+    state: State<'_, ConfigState>,
     _app: AppHandle,
 ) -> Result<Provider, AppError> {
+    validate_provider_capability(&provider).await?;
     let (result, _) = mutate_config(&state, |config| insert_provider(config, provider))?;
     info!(
         provider_id = %result.id,
@@ -304,11 +334,12 @@ pub fn add_provider(
 
 #[cfg(not(test))]
 #[tauri::command]
-pub fn update_provider(
+pub async fn update_provider(
     provider: Provider,
-    state: State<ConfigState>,
+    state: State<'_, ConfigState>,
     _app: AppHandle,
 ) -> Result<(), AppError> {
+    validate_provider_capability(&provider).await?;
     let provider_id = provider.id.clone();
     let provider_name = provider.name.clone();
     let provider_type = provider.provider_type.clone();
@@ -357,8 +388,9 @@ pub fn add_action(
 ) -> Result<Action, AppError> {
     let (result, updated_config) = mutate_config(&state, |config| insert_action(config, action))?;
 
-    crate::tray::refresh_tray_menu(&app, &updated_config)
-        .map_err(|e| AppError::Service(e.to_string()))?;
+    if let Err(err) = crate::tray::refresh_tray_menu(&app, &updated_config) {
+        warn!(error = %err, "Action was added but tray menu refresh failed");
+    }
     info!(
         action_id = %result.id,
         action_name = %result.name,
@@ -380,8 +412,9 @@ pub fn update_action(
     let provider_id = action.provider_id.clone();
     let (_, updated_config) = mutate_config(&state, |config| replace_action(config, action))?;
 
-    crate::tray::refresh_tray_menu(&app, &updated_config)
-        .map_err(|e| AppError::Service(e.to_string()))?;
+    if let Err(err) = crate::tray::refresh_tray_menu(&app, &updated_config) {
+        warn!(error = %err, "Action was updated but tray menu refresh failed");
+    }
     info!(
         action_id = %action_id,
         action_name = %action_name,
@@ -400,8 +433,9 @@ pub fn delete_action(
 ) -> Result<(), AppError> {
     let (_, updated_config) = mutate_config(&state, |config| remove_action(config, &id))?;
 
-    crate::tray::refresh_tray_menu(&app, &updated_config)
-        .map_err(|e| AppError::Service(e.to_string()))?;
+    if let Err(err) = crate::tray::refresh_tray_menu(&app, &updated_config) {
+        warn!(error = %err, "Action was deleted but tray menu refresh failed");
+    }
     info!(action_id = %id, "Deleted action");
     Ok(())
 }
@@ -415,8 +449,9 @@ pub fn reorder_actions(
 ) -> Result<(), AppError> {
     let (_, updated_config) = mutate_config(&state, |config| apply_action_reorder(config, &ids))?;
 
-    crate::tray::refresh_tray_menu(&app, &updated_config)
-        .map_err(|e| AppError::Service(e.to_string()))?;
+    if let Err(err) = crate::tray::refresh_tray_menu(&app, &updated_config) {
+        warn!(error = %err, "Actions were reordered but tray menu refresh failed");
+    }
     info!(action_count = ids.len(), "Reordered actions");
     Ok(())
 }

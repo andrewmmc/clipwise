@@ -5,6 +5,7 @@ import {
   waitFor,
   cleanup,
 } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import HistoryList from "./HistoryList";
 import * as tauri from "../lib/tauri";
@@ -20,11 +21,16 @@ vi.mock("../lib/tauri", () => ({
   },
 }));
 
-Object.assign(navigator, {
-  clipboard: {
-    writeText: vi.fn(() => Promise.resolve()),
-  },
-});
+const installClipboardMock = () => {
+  Object.defineProperty(navigator, "clipboard", {
+    configurable: true,
+    value: {
+      writeText: vi.fn(() => Promise.resolve()),
+    },
+  });
+};
+
+installClipboardMock();
 
 describe("HistoryList", () => {
   const mockHistory: HistoryEntry[] = [
@@ -53,6 +59,7 @@ describe("HistoryList", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    installClipboardMock();
   });
 
   afterEach(() => {
@@ -556,7 +563,7 @@ describe("HistoryList", () => {
     await waitFor(() => screen.getByText("Summarize"));
     const entryButton = screen
       .getByText("Summarize")
-      .closest('[role="button"]') as HTMLElement;
+      .closest("button") as HTMLElement;
     fireEvent.keyDown(entryButton, { key: "Escape" });
 
     expect(screen.queryByText("Summary text")).not.toBeInTheDocument();
@@ -633,19 +640,39 @@ describe("HistoryList", () => {
 
   it("toggles expanded state with keyboard", async () => {
     vi.mocked(tauri.tauriCommands.getHistory).mockResolvedValue(mockHistory);
+    const user = userEvent.setup();
 
     render(<HistoryList />);
 
     await waitFor(() => screen.getByText("Summarize"));
     const entryButton = screen
       .getByText("Summarize")
-      .closest('[role="button"]') as HTMLElement;
-    fireEvent.keyDown(entryButton, { key: "Enter" });
+      .closest("button") as HTMLButtonElement;
+    entryButton.focus();
+    await user.keyboard("{Enter}");
     expect(screen.getByText("Summary text")).toBeInTheDocument();
-    fireEvent.keyDown(entryButton, { key: " " });
+    await user.keyboard(" ");
     await waitFor(() =>
       expect(screen.queryByText("Summary text")).not.toBeInTheDocument(),
     );
+  });
+
+  it("activates star without expanding the entry from the keyboard", async () => {
+    vi.mocked(tauri.tauriCommands.getHistory).mockResolvedValue(mockHistory);
+    vi.mocked(tauri.tauriCommands.toggleStarEntry).mockResolvedValue(true);
+    const user = userEvent.setup();
+
+    render(<HistoryList />);
+
+    await waitFor(() => screen.getByText("Summarize"));
+    const starButton = screen.getAllByTitle("Star entry")[0];
+    starButton.focus();
+    await user.keyboard(" ");
+
+    await waitFor(() =>
+      expect(tauri.tauriCommands.toggleStarEntry).toHaveBeenCalledWith("1"),
+    );
+    expect(screen.queryByText("Summary text")).not.toBeInTheDocument();
   });
 
   it("filters history by search query", async () => {

@@ -226,6 +226,7 @@ describe("App", () => {
     await waitFor(() => screen.getByText("No history yet"));
     await user.click(screen.getByRole("button", { name: /settings/i }));
     await user.click(screen.getByRole("switch", { name: /enable history/i }));
+    await user.click(screen.getByRole("button", { name: "Disable" }));
 
     await waitFor(() =>
       expect(

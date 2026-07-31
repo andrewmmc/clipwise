@@ -1,7 +1,7 @@
 use crate::config::ConfigState;
 use crate::error::AppError;
 use crate::history;
-use crate::models::{Action, LlmResult, Provider, ProviderType};
+use crate::models::{Action, AppConfig, LlmResult, Provider, ProviderType};
 #[cfg(feature = "cli-provider")]
 use crate::providers::cli;
 use crate::providers::{anthropic, apple, openai};
@@ -14,6 +14,7 @@ pub(crate) struct ActionContext {
     pub provider: Provider,
     pub max_tokens: u32,
     pub history_enabled: bool,
+    pub history_generation: u64,
     pub show_notification_on_complete: bool,
 }
 
@@ -26,6 +27,15 @@ impl ActionContext {
             .find(|a| a.id == action_id)
             .cloned()
             .ok_or_else(|| AppError::ActionNotFound(action_id.to_string()))?;
+        Self::from_action_and_config(action, &config)
+    }
+
+    pub(crate) fn from_action(action: Action, state: &ConfigState) -> Result<Self, AppError> {
+        let config = state.lock()?;
+        Self::from_action_and_config(action, &config)
+    }
+
+    fn from_action_and_config(action: Action, config: &AppConfig) -> Result<Self, AppError> {
         let provider = config
             .providers
             .iter()
@@ -38,6 +48,7 @@ impl ActionContext {
             provider,
             max_tokens: config.settings.max_tokens,
             history_enabled: config.settings.history_enabled,
+            history_generation: history::current_generation(),
             show_notification_on_complete: config.settings.show_notification_on_complete,
         })
     }
@@ -166,14 +177,28 @@ pub(crate) async fn record_action_history(
     };
     let action_name = context.action.name.clone();
     let provider_name = context.provider.name.clone();
+    let history_generation = context.history_generation;
 
     let write_result = tokio::task::spawn_blocking(move || {
-        history::add_entry(action_name, provider_name, input_text, output_text, success)
+        history::add_entry_if_generation(
+            history_generation,
+            action_name,
+            provider_name,
+            input_text,
+            output_text,
+            success,
+        )
     })
     .await;
 
     match write_result {
-        Ok(Ok(())) => {}
+        Ok(Ok(true)) => {}
+        Ok(Ok(false)) => {
+            info!(
+                action_id = %context.action.id,
+                "Skipped stale history entry after history was purged"
+            );
+        }
         Ok(Err(err)) => {
             error!(
                 error = %err,
@@ -198,7 +223,7 @@ mod tests {
     use std::sync::Mutex;
 
     fn make_test_config_state() -> ConfigState {
-        let mut providers = vec![Provider {
+        let providers = vec![Provider {
             id: "anthropic-provider".into(),
             name: "Anthropic".into(),
             provider_type: ProviderType::Anthropic,
@@ -210,17 +235,21 @@ mod tests {
             args: vec![],
         }];
         #[cfg(feature = "cli-provider")]
-        providers.push(Provider {
-            id: "cli-provider".into(),
-            name: "CLI".into(),
-            provider_type: ProviderType::Cli,
-            endpoint: None,
-            api_key: None,
-            headers: ProviderHeaders::new(),
-            default_model: None,
-            command: Some("echo".into()),
-            args: vec!["-n".into()],
-        });
+        let providers = {
+            let mut providers = providers;
+            providers.push(Provider {
+                id: "cli-provider".into(),
+                name: "CLI".into(),
+                provider_type: ProviderType::Cli,
+                endpoint: None,
+                api_key: None,
+                headers: ProviderHeaders::new(),
+                default_model: None,
+                command: Some("echo".into()),
+                args: vec!["-n".into()],
+            });
+            providers
+        };
         ConfigState(Mutex::new(AppConfig {
             providers,
             actions: vec![
@@ -253,6 +282,24 @@ mod tests {
         let result = ActionContext::from_state("nonexistent-action", &state);
 
         assert!(matches!(result, Err(AppError::ActionNotFound(_))));
+    }
+
+    #[test]
+    fn test_action_context_from_action_uses_draft_values() {
+        let state = make_test_config_state();
+        let draft = Action {
+            id: "action-with-provider".into(),
+            name: "Draft name".into(),
+            provider_id: "anthropic-provider".into(),
+            user_prompt: "Draft prompt".into(),
+            model: Some("draft-model".into()),
+        };
+
+        let context = ActionContext::from_action(draft, &state).unwrap();
+
+        assert_eq!(context.action.name, "Draft name");
+        assert_eq!(context.action.user_prompt, "Draft prompt");
+        assert_eq!(context.action.model.as_deref(), Some("draft-model"));
     }
 
     #[test]

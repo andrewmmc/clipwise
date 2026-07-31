@@ -94,11 +94,28 @@ export default function ActionForm({
 
   const handleTest = async () => {
     if (!initial) return;
+    const validationError = validateActionForm(
+      { name, providerId, userPrompt },
+      config,
+    );
+    if (validationError) {
+      setTestResult(`Error: ${validationError}`);
+      return;
+    }
     const input = testInput || DEFAULT_TEST_INPUT;
     setTesting(true);
     setTestResult(null);
     try {
-      const result = await tauriCommands.testAction(initial.id, input);
+      const result = await tauriCommands.testAction(
+        {
+          id: initial.id,
+          name: name.trim(),
+          providerId,
+          userPrompt: userPrompt.trim(),
+          model: model.trim() || undefined,
+        },
+        input,
+      );
       setTestResult(result);
     } catch (e) {
       const message = getErrorMessage(e);

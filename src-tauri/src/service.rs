@@ -14,7 +14,7 @@ mod macos {
         }
     }
 
-    pub fn write_clipboard_text(text: &str) {
+    pub fn write_clipboard_text(text: &str) -> bool {
         // SAFETY: AppKit pasteboard APIs must run on the main thread. Callers route
         // this through `AppHandle::run_on_main_thread`, and `NSString::from_str`
         // creates an owned Objective-C string for the duration of the pasteboard call.
@@ -22,7 +22,7 @@ mod macos {
             let pb = NSPasteboard::generalPasteboard();
             pb.clearContents();
             let ns_text = NSString::from_str(text);
-            pb.setString_forType(&ns_text, NSPasteboardTypeString);
+            pb.setString_forType(&ns_text, NSPasteboardTypeString)
         }
     }
 }
@@ -36,4 +36,6 @@ pub fn read_clipboard_text() -> Option<String> {
 }
 
 #[cfg(not(target_os = "macos"))]
-pub fn write_clipboard_text(_text: &str) {}
+pub fn write_clipboard_text(_text: &str) -> bool {
+    true
+}

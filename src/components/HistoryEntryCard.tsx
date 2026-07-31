@@ -35,52 +35,45 @@ export default function HistoryEntryCard({
 }: Props) {
   return (
     <div className="card">
-      <div
-        onClick={onToggleExpanded}
-        className="flex w-full cursor-pointer items-start gap-3 p-3 transition-colors hover:bg-surface-hover"
-        role="button"
-        tabIndex={0}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            onToggleExpanded();
-          }
-        }}
-      >
-        <span className="mt-0.5 text-text-tertiary">
-          {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-        </span>
+      <div className="flex w-full items-start transition-colors hover:bg-surface-hover">
+        <button
+          type="button"
+          onClick={onToggleExpanded}
+          className="flex min-w-0 flex-1 cursor-pointer items-start gap-3 p-3 text-left"
+          aria-expanded={expanded}
+        >
+          <span className="mt-0.5 text-text-tertiary">
+            {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+          </span>
 
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            {entry.success ? (
-              <CheckCircle2 size={14} className="shrink-0 text-success" />
-            ) : (
-              <XCircle size={14} className="shrink-0 text-error" />
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              {entry.success ? (
+                <CheckCircle2 size={14} className="shrink-0 text-success" />
+              ) : (
+                <XCircle size={14} className="shrink-0 text-error" />
+              )}
+              <span className="text-[13px] font-medium text-text-primary">
+                {entry.actionName}
+              </span>
+              <span className="text-[12px] text-text-tertiary">
+                {entry.providerName}
+              </span>
+            </div>
+            <p className="mt-0.5 text-[12px] text-text-tertiary">{timestamp}</p>
+
+            {!expanded && (
+              <p className="mt-1.5 line-clamp-2 text-[12px] text-text-secondary">
+                {entry.inputText}
+              </p>
             )}
-            <span className="text-[13px] font-medium text-text-primary">
-              {entry.actionName}
-            </span>
-            <span className="text-[12px] text-text-tertiary">
-              {entry.providerName}
-            </span>
           </div>
-          <p className="mt-0.5 text-[12px] text-text-tertiary">{timestamp}</p>
+        </button>
 
-          {!expanded && (
-            <p className="mt-1.5 line-clamp-2 text-[12px] text-text-secondary">
-              {entry.inputText}
-            </p>
-          )}
-        </div>
-
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 p-3 pl-1">
           <button
             type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggleStar();
-            }}
+            onClick={onToggleStar}
             disabled={starring}
             className={cx(
               "btn-icon",
@@ -94,10 +87,7 @@ export default function HistoryEntryCard({
           {expanded && (
             <button
               type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onDelete();
-              }}
+              onClick={onDelete}
               disabled={deleting}
               className="btn-icon btn-icon-danger"
               title="Delete entry"

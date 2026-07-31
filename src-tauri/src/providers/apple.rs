@@ -1,11 +1,10 @@
 use crate::error::AppError;
 use crate::llm_response::normalize_response_str;
 use crate::models::SYSTEM_PROMPT;
+use crate::providers::process::run_command;
 use serde_json::Value;
 use std::env;
 use std::path::PathBuf;
-use std::process::Stdio;
-use tokio::io::AsyncWriteExt;
 use tokio::process::Command;
 use tracing::{debug, info, warn};
 
@@ -75,32 +74,12 @@ pub async fn call_apple(user_message: &str) -> Result<serde_json::Value, AppErro
     let stdin_input = format!("{}\n\n{}", SYSTEM_PROMPT, user_message);
 
     let mut cmd = Command::new(&runner_path);
-    cmd.stdin(Stdio::piped());
-    cmd.stdout(Stdio::piped());
-    cmd.stderr(Stdio::piped());
-
-    let mut child = cmd.spawn().map_err(|e| {
-        AppError::Llm(format!(
-            "Failed to spawn Apple model runner '{:?}': {}",
-            runner_path, e
-        ))
-    })?;
-
-    // Write prompt to stdin
-    if let Some(mut stdin) = child.stdin.take() {
-        stdin.write_all(stdin_input.as_bytes()).await.map_err(|e| {
-            AppError::Llm(format!(
-                "Failed to write to Apple model runner stdin: {}",
-                e
-            ))
-        })?;
-        // Drop stdin to signal EOF
-    }
-
-    let output = child
-        .wait_with_output()
-        .await
-        .map_err(|e| AppError::Llm(format!("Failed to wait for Apple model runner: {}", e)))?;
+    let output = run_command(
+        &mut cmd,
+        Some(stdin_input.as_bytes()),
+        "Apple Intelligence model",
+    )
+    .await?;
 
     if !output.status.success() {
         warn!(
@@ -144,18 +123,16 @@ pub async fn check_availability() -> Result<(bool, Option<String>), AppError> {
         }
     };
 
-    let output = Command::new(&runner_path)
-        .arg("--check-availability")
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .output()
-        .await
-        .map_err(|e| {
-            AppError::Llm(format!(
-                "Failed to check Apple Intelligence availability: {}",
-                e
-            ))
-        })?;
+    let mut command = Command::new(&runner_path);
+    command.arg("--check-availability");
+    let output = run_command(&mut command, None, "Apple Intelligence availability check").await?;
+
+    if !output.status.success() {
+        return Err(AppError::Llm(format!(
+            "Apple Intelligence availability check failed: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        )));
+    }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stdout = stdout.trim();

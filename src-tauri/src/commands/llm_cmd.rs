@@ -5,7 +5,7 @@ use crate::config::ConfigState;
 #[cfg(not(test))]
 use crate::error::AppError;
 #[cfg(not(test))]
-use crate::models::{Provider, ProviderType};
+use crate::models::{Action, Provider, ProviderType};
 #[cfg(not(test))]
 use tauri::State;
 
@@ -29,11 +29,11 @@ pub async fn run_action(
 #[cfg(not(test))]
 #[tauri::command]
 pub async fn test_action(
-    action_id: String,
+    action: Action,
     sample_text: String,
     state: State<'_, ConfigState>,
 ) -> Result<String, AppError> {
-    let context = action_service::ActionContext::from_state(&action_id, &state)?;
+    let context = action_service::ActionContext::from_action(action, &state)?;
     let result = action_service::run_action_with_context(&context, &sample_text).await;
     action_service::record_action_history(&context, sample_text, &result).await;
 

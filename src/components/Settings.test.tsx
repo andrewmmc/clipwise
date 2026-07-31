@@ -91,6 +91,7 @@ describe("SettingsPanel", () => {
     await waitFor(() =>
       expect(screen.getByText(/write error/)).toBeInTheDocument(),
     );
+    expect(toggles[0]).toHaveAttribute("aria-checked", "true");
   });
 
   it("shows non-Error save failures", async () => {
@@ -110,8 +111,12 @@ describe("SettingsPanel", () => {
     const user = userEvent.setup();
     render(<SettingsPanel config={mockConfig} onRefresh={onRefresh} />);
     const toggles = screen.getAllByRole("switch");
-    // Second toggle is history enabled
     await user.click(toggles[1]);
+    expect(mockInvoke).not.toHaveBeenCalledWith(
+      "save_settings",
+      expect.anything(),
+    );
+    await user.click(screen.getByRole("button", { name: "Disable" }));
     await waitFor(() =>
       expect(mockInvoke).toHaveBeenCalledWith("save_settings", {
         settings: expect.objectContaining({

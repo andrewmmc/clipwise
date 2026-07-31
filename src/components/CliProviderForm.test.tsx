@@ -17,13 +17,13 @@ describe("CliProviderForm helpers", () => {
     expect(shellQuote("don't")).toBe("'don'\\''t'");
   });
 
-  it("builds a preview with clean args and prompt placeholder", () => {
+  it("builds a preview with clean args", () => {
     expect(
       buildCommandPreview(" claude ", [" -p ", "", "--model", "sonnet"]),
-    ).toBe("claude -p --model sonnet '<your prompt>'");
+    ).toBe("claude -p --model sonnet");
   });
 
-  it("still shows prompt placeholder when command is empty", () => {
-    expect(buildCommandPreview("", [])).toBe("'<your prompt>'");
+  it("returns an empty preview when command and arguments are empty", () => {
+    expect(buildCommandPreview("", [])).toBe("");
   });
 });

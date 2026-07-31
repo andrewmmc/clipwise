@@ -98,7 +98,9 @@ export default function ProviderForm({
 
   const appleUnavailableMessage =
     form.type === "apple"
-      ? getAppleAvailabilityMessage(appleAvailability)
+      ? appleAvailability === null
+        ? "Checking Apple Intelligence availability…"
+        : getAppleAvailabilityMessage(appleAvailability)
       : null;
   const appleProviderExists = existingProviders.some(
     (provider) => provider.type === "apple" && provider.id !== initial?.id,
@@ -107,10 +109,21 @@ export default function ProviderForm({
     ? "Only one Apple Intelligence provider can be configured."
     : null;
   const appleOptionDisabled =
-    appleAvailability?.available === false || appleProviderExists;
+    appleAvailability?.available !== true || appleProviderExists;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (form.type === "apple" && appleAvailability?.available !== true) {
+      setError(
+        appleUnavailableMessage ??
+          "Apple Intelligence is currently unavailable on this Mac.",
+      );
+      return;
+    }
+    if (form.type === "cli" && !cliEnabled) {
+      setError("CLI providers are not available in this build.");
+      return;
+    }
     const validationError = validateProviderForm(
       {
         name: form.name,

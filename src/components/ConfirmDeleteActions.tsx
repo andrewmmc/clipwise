@@ -1,9 +1,14 @@
 interface Props {
   onConfirm: () => void;
   onCancel: () => void;
+  confirmLabel?: string;
 }
 
-export default function ConfirmDeleteActions({ onConfirm, onCancel }: Props) {
+export default function ConfirmDeleteActions({
+  onConfirm,
+  onCancel,
+  confirmLabel = "Delete",
+}: Props) {
   return (
     <>
       <button
@@ -11,7 +16,7 @@ export default function ConfirmDeleteActions({ onConfirm, onCancel }: Props) {
         onClick={onConfirm}
         className="btn btn-danger px-2 py-1 text-[12px]"
       >
-        Delete
+        {confirmLabel}
       </button>
       <button
         type="button"

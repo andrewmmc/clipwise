@@ -1,9 +1,9 @@
 use crate::error::AppError;
 use crate::llm_response::normalize_response_str;
 use crate::models::{Provider, SYSTEM_PROMPT};
+use crate::providers::process::run_command;
 use std::env;
 use std::path::{Path, PathBuf};
-use std::process::Stdio;
 use tokio::process::Command;
 use tracing::{debug, info, warn};
 
@@ -32,17 +32,13 @@ pub async fn call_cli(
     let mut cmd = Command::new(&resolved_command);
     cmd.args(&inline_args);
     cmd.args(&provider.args);
-    cmd.arg(&full_prompt);
-    cmd.stdout(Stdio::piped());
-    cmd.stderr(Stdio::piped());
 
-    let output = cmd.output().await.map_err(|e| {
-        AppError::Llm(format!(
-            "Failed to spawn CLI '{}': {}. Try an absolute path like '/opt/homebrew/bin/claude'.",
-            resolved_command.display(),
-            e
-        ))
-    })?;
+    let output = run_command(
+        &mut cmd,
+        Some(full_prompt.as_bytes()),
+        &format!("CLI '{}'", resolved_command.display()),
+    )
+    .await?;
 
     if !output.status.success() {
         warn!(

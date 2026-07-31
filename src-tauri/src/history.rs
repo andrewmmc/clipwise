@@ -4,6 +4,7 @@ use crate::models::HistoryEntry;
 use crate::paths::app_data_dir;
 use std::path::Path;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{LazyLock, Mutex, MutexGuard};
 use tracing::info;
 use uuid::Uuid;
@@ -25,11 +26,16 @@ const OUTPUT_TRUNCATE_CHARS: usize = 2000;
 /// `_at` helpers used by tests operate on independent temp paths and don't
 /// need it.
 static HISTORY_FILE_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
+static HISTORY_GENERATION: AtomicU64 = AtomicU64::new(0);
 
 fn lock_history_file() -> MutexGuard<'static, ()> {
     HISTORY_FILE_LOCK
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
+pub fn current_generation() -> u64 {
+    HISTORY_GENERATION.load(Ordering::Acquire)
 }
 
 /// Returns the path to the history file:
@@ -173,6 +179,30 @@ pub fn add_entry(
     )
 }
 
+pub fn add_entry_if_generation(
+    expected_generation: u64,
+    action_name: String,
+    provider_name: String,
+    input_text: String,
+    output_text: String,
+    success: bool,
+) -> Result<bool, AppError> {
+    let _guard = lock_history_file();
+    if current_generation() != expected_generation {
+        return Ok(false);
+    }
+
+    add_entry_to_path(
+        &history_path()?,
+        action_name,
+        provider_name,
+        input_text,
+        output_text,
+        success,
+    )?;
+    Ok(true)
+}
+
 pub fn clear_history_at(path: &Path) -> Result<(), AppError> {
     let mut history = load_history_from(path)?;
     let original_len = history.len();
@@ -213,6 +243,7 @@ pub fn purge_history_at(path: &Path) -> Result<(), AppError> {
 /// Permanently delete all history entries, including starred entries.
 pub fn purge_history() -> Result<(), AppError> {
     let _guard = lock_history_file();
+    HISTORY_GENERATION.fetch_add(1, Ordering::AcqRel);
     purge_history_at(&history_path()?)
 }
 
@@ -345,6 +376,21 @@ mod tests {
         let text = "😀".repeat(50);
         let result = truncate_text(&text, 20);
         assert_eq!(result.chars().count(), 23); // 20 + "..."
+    }
+
+    #[test]
+    fn test_add_entry_skips_stale_history_generation() {
+        let result = add_entry_if_generation(
+            current_generation().wrapping_add(1),
+            "Action".into(),
+            "Provider".into(),
+            "input".into(),
+            "output".into(),
+            true,
+        )
+        .unwrap();
+
+        assert!(!result);
     }
 
     // ── add_entry ───────────────────────────────────────────────────────────────

@@ -174,7 +174,7 @@ mod tests {
         let port = listener.local_addr().unwrap().port();
         drop(listener);
 
-        let client = reqwest::Client::new();
+        let client = reqwest::Client::builder().no_proxy().build().unwrap();
         let err = client
             .get(format!("http://127.0.0.1:{port}"))
             .send()

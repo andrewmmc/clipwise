@@ -37,9 +37,15 @@ pub fn normalize_response_str(raw: &str) -> Result<Value, AppError> {
         return Err(AppError::InvalidResponse);
     }
 
-    let result = validate_response_str(trimmed)
-        .or_else(|_| ParseStrategy::EmbeddedJson(trimmed).extract())
-        .or_else(|_| ParseStrategy::PlainText(trimmed).extract())?;
+    let result = match serde_json::from_str::<Value>(trimmed) {
+        Ok(parsed) => extract_result_from_value(parsed)?,
+        Err(_) => match extract_json_object(trimmed) {
+            Some(candidate) if serde_json::from_str::<Value>(candidate).is_ok() => {
+                ParseStrategy::EmbeddedJson(trimmed).extract()?
+            }
+            _ => ParseStrategy::PlainText(trimmed).extract()?,
+        },
+    };
 
     Ok(json!({ "result": result }))
 }
@@ -208,6 +214,24 @@ mod tests {
             normalize_response_str(raw).unwrap(),
             json!({ "result": "cleaned up" })
         );
+    }
+
+    #[test]
+    fn test_json_object_without_result_is_not_downgraded_to_plain_text() {
+        let raw = r#"{"error":"safety refusal"}"#;
+        assert!(matches!(
+            normalize_response_str(raw),
+            Err(AppError::InvalidResponse)
+        ));
+    }
+
+    #[test]
+    fn test_embedded_json_without_result_is_not_downgraded_to_plain_text() {
+        let raw = r#"Provider response: {"error":"safety refusal"}"#;
+        assert!(matches!(
+            normalize_response_str(raw),
+            Err(AppError::InvalidResponse)
+        ));
     }
 
     #[test]

@@ -8,12 +8,12 @@ vi.mock("../lib/tauri", () => ({
 }));
 
 describe("useCliProviderEnabled", () => {
-  it("defaults to true before the check resolves", () => {
+  it("defaults to false before the check resolves", () => {
     vi.mocked(tauriCommands.isCliProviderEnabled).mockReturnValue(
       new Promise(() => {}),
     );
     const { result } = renderHook(() => useCliProviderEnabled());
-    expect(result.current).toBe(true);
+    expect(result.current).toBe(false);
   });
 
   it("updates to the resolved value", async () => {
@@ -49,6 +49,6 @@ describe("useCliProviderEnabled", () => {
 
     // Unmounted before resolution: the hook's guard should have skipped
     // setEnabled, so the last rendered value stays at the initial default.
-    expect(result.current).toBe(true);
+    expect(result.current).toBe(false);
   });
 });

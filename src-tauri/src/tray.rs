@@ -1,5 +1,6 @@
 use crate::config::ConfigState;
 use crate::models::AppConfig;
+use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
@@ -10,6 +11,24 @@ use tracing::{debug, error, info};
 
 const TRAY_ID: &str = "main";
 const TRAY_ACTION_PREFIX: &str = "tray_action:";
+static TRAY_ACTION_RUNNING: AtomicBool = AtomicBool::new(false);
+
+struct TrayActionGuard;
+
+impl TrayActionGuard {
+    fn acquire() -> Option<Self> {
+        TRAY_ACTION_RUNNING
+            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+            .ok()
+            .map(|_| Self)
+    }
+}
+
+impl Drop for TrayActionGuard {
+    fn drop(&mut self) {
+        TRAY_ACTION_RUNNING.store(false, Ordering::Release);
+    }
+}
 
 pub(crate) fn refresh_tray_menu<R: Runtime>(
     app: &AppHandle<R>,
@@ -78,6 +97,16 @@ fn set_tray_icon<R: Runtime>(app: &AppHandle<R>, bytes: &[u8]) {
 
 fn run_tray_action<R: Runtime>(app: AppHandle<R>, action_id: String) {
     tauri::async_runtime::spawn(async move {
+        let Some(_guard) = TrayActionGuard::acquire() else {
+            let _ = app
+                .notification()
+                .builder()
+                .title("Clipwise")
+                .body("Another transformation is already in progress.")
+                .show();
+            return;
+        };
+
         info!(action_id = %action_id, "Tray action requested");
 
         let clipboard_text = match crate::clipboard::read_clipboard_text(&app) {
@@ -152,16 +181,18 @@ fn run_tray_action<R: Runtime>(app: AppHandle<R>, action_id: String) {
             crate::action_service::run_action_with_context(&action_context, &clipboard_text).await;
         set_tray_icon(&app, include_bytes!("../icons/tray-icon.png"));
 
-        crate::action_service::record_action_history(
-            &action_context,
-            clipboard_text_for_history,
-            &result,
-        )
-        .await;
-
         match result {
             Ok(text) => {
                 if let Err(err) = crate::clipboard::write_clipboard_text(&app, text.clone()) {
+                    let delivery_error = crate::error::AppError::Service(format!(
+                        "Could not write the transformed text to the clipboard: {err}"
+                    ));
+                    crate::action_service::record_action_history(
+                        &action_context,
+                        clipboard_text_for_history,
+                        &Err(delivery_error),
+                    )
+                    .await;
                     error!(action_id = %action_id_for_logs, error = %err, "Failed to write clipboard for tray action");
                     let _ = app
                         .notification()
@@ -171,6 +202,13 @@ fn run_tray_action<R: Runtime>(app: AppHandle<R>, action_id: String) {
                         .show();
                     return;
                 }
+
+                crate::action_service::record_action_history(
+                    &action_context,
+                    clipboard_text_for_history,
+                    &Ok(text.clone()),
+                )
+                .await;
 
                 info!(
                     action_id = %action_id_for_logs,
@@ -192,12 +230,20 @@ fn run_tray_action<R: Runtime>(app: AppHandle<R>, action_id: String) {
                 }
             }
             Err(err) => {
-                error!(action_id = %action_id_for_logs, error = %err, "Tray action failed");
+                let error_message = err.to_string();
+                let action_result: Result<String, crate::error::AppError> = Err(err);
+                crate::action_service::record_action_history(
+                    &action_context,
+                    clipboard_text_for_history,
+                    &action_result,
+                )
+                .await;
+                error!(action_id = %action_id_for_logs, error = %error_message, "Tray action failed");
                 let _ = app
                     .notification()
                     .builder()
                     .title("Clipwise")
-                    .body(err.to_string())
+                    .body(error_message)
                     .show();
             }
         }
@@ -268,5 +314,13 @@ mod tests {
     #[test]
     fn test_tray_id_constant() {
         assert_eq!(TRAY_ID, "main");
+    }
+
+    #[test]
+    fn test_tray_action_guard_allows_only_one_action() {
+        let guard = TrayActionGuard::acquire().expect("first action should acquire the guard");
+        assert!(TrayActionGuard::acquire().is_none());
+        drop(guard);
+        assert!(TrayActionGuard::acquire().is_some());
     }
 }

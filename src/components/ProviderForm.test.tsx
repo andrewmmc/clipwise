@@ -8,6 +8,16 @@ const mockInvoke = vi.mocked(invoke);
 const { default: ProviderForm } = await import("./ProviderForm");
 import { mockProvider, mockCliProvider } from "../test/fixtures";
 
+async function selectAvailableProviderType(
+  user: ReturnType<typeof userEvent.setup>,
+  value: string,
+  label: string,
+) {
+  const option = await screen.findByRole("option", { name: label });
+  await waitFor(() => expect(option).toBeEnabled());
+  await user.selectOptions(screen.getByRole("combobox"), value);
+}
+
 describe("ProviderForm", () => {
   const onSave = vi.fn();
   const onCancel = vi.fn();
@@ -83,7 +93,11 @@ describe("ProviderForm", () => {
     const user = userEvent.setup();
     render(<ProviderForm onSave={onSave} onCancel={onCancel} />);
 
-    await user.selectOptions(screen.getByDisplayValue("Anthropic"), "apple");
+    await selectAvailableProviderType(
+      user,
+      "apple",
+      "Apple Intelligence (On-Device)",
+    );
 
     expect(
       screen.getByDisplayValue("Apple Intelligence (On-Device)"),
@@ -209,8 +223,11 @@ describe("ProviderForm", () => {
   it("switching type to cli hides API fields and shows CLI fields", async () => {
     const user = userEvent.setup();
     render(<ProviderForm onSave={onSave} onCancel={onCancel} />);
-    const typeSelect = screen.getByDisplayValue("Anthropic");
-    await user.selectOptions(typeSelect, "cli");
+    await selectAvailableProviderType(
+      user,
+      "cli",
+      "CLI (claude/codex/copilot)",
+    );
     expect(screen.queryByPlaceholderText("sk-...")).not.toBeInTheDocument();
     expect(screen.getByPlaceholderText("e.g. claude")).toBeInTheDocument();
   });
@@ -218,16 +235,22 @@ describe("ProviderForm", () => {
   it("defaults new CLI providers to a -p argument", async () => {
     const user = userEvent.setup();
     render(<ProviderForm onSave={onSave} onCancel={onCancel} />);
-    const typeSelect = screen.getByDisplayValue("Anthropic");
-    await user.selectOptions(typeSelect, "cli");
+    await selectAvailableProviderType(
+      user,
+      "cli",
+      "CLI (claude/codex/copilot)",
+    );
     expect(screen.getByDisplayValue("-p")).toBeInTheDocument();
   });
 
   it("shows a command path hint in CLI mode", async () => {
     const user = userEvent.setup();
     render(<ProviderForm onSave={onSave} onCancel={onCancel} />);
-    const typeSelect = screen.getByDisplayValue("Anthropic");
-    await user.selectOptions(typeSelect, "cli");
+    await selectAvailableProviderType(
+      user,
+      "cli",
+      "CLI (claude/codex/copilot)",
+    );
     const hint = screen.getByText(/find the binary path with/i);
     expect(hint).toBeInTheDocument();
     expect(screen.getByText("which claude")).toBeInTheDocument();
@@ -236,9 +259,15 @@ describe("ProviderForm", () => {
   it("shows a headless mode hint for CLI arguments", async () => {
     const user = userEvent.setup();
     render(<ProviderForm onSave={onSave} onCancel={onCancel} />);
-    const typeSelect = screen.getByDisplayValue("Anthropic");
-    await user.selectOptions(typeSelect, "cli");
+    await selectAvailableProviderType(
+      user,
+      "cli",
+      "CLI (claude/codex/copilot)",
+    );
     expect(screen.getByText(/configure headless mode/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/sent through standard input/i),
+    ).toBeInTheDocument();
   });
 
   // ── Validation ────────────────────────────────────────────────────────────
@@ -272,8 +301,11 @@ describe("ProviderForm", () => {
       screen.getByPlaceholderText("e.g. Anthropic Claude"),
       "My CLI",
     );
-    const typeSelect = screen.getByDisplayValue("Anthropic");
-    await user.selectOptions(typeSelect, "cli");
+    await selectAvailableProviderType(
+      user,
+      "cli",
+      "CLI (claude/codex/copilot)",
+    );
     await user.click(screen.getByRole("button", { name: /^save$/i }));
     expect(
       screen.getByText("Command is required for CLI providers."),
@@ -379,7 +411,11 @@ describe("ProviderForm", () => {
       screen.getByPlaceholderText("e.g. Anthropic Claude"),
       "My CLI",
     );
-    await user.selectOptions(screen.getByDisplayValue("Anthropic"), "cli");
+    await selectAvailableProviderType(
+      user,
+      "cli",
+      "CLI (claude/codex/copilot)",
+    );
     await user.type(screen.getByPlaceholderText("e.g. claude"), "/bin/sh");
     await user.click(screen.getByRole("button", { name: /^test$/i }));
 
@@ -407,7 +443,11 @@ describe("ProviderForm", () => {
     const user = userEvent.setup();
     render(<ProviderForm onSave={onSave} onCancel={onCancel} />);
 
-    await user.selectOptions(screen.getByDisplayValue("Anthropic"), "cli");
+    await selectAvailableProviderType(
+      user,
+      "cli",
+      "CLI (claude/codex/copilot)",
+    );
     await user.type(screen.getByPlaceholderText("e.g. claude"), "bad-cli");
     await user.click(screen.getByRole("button", { name: /^test$/i }));
 
@@ -432,7 +472,11 @@ describe("ProviderForm", () => {
     const user = userEvent.setup();
     render(<ProviderForm onSave={onSave} onCancel={onCancel} />);
 
-    await user.selectOptions(screen.getByDisplayValue("Anthropic"), "cli");
+    await selectAvailableProviderType(
+      user,
+      "cli",
+      "CLI (claude/codex/copilot)",
+    );
     await user.type(screen.getByPlaceholderText("e.g. claude"), "bad-cli");
     await user.click(screen.getByRole("button", { name: /^test$/i }));
 
@@ -475,8 +519,11 @@ describe("ProviderForm", () => {
       screen.getByPlaceholderText("e.g. Anthropic Claude"),
       "My CLI",
     );
-    const typeSelect = screen.getByDisplayValue("Anthropic");
-    await user.selectOptions(typeSelect, "cli");
+    await selectAvailableProviderType(
+      user,
+      "cli",
+      "CLI (claude/codex/copilot)",
+    );
     await user.type(screen.getByPlaceholderText("e.g. claude"), "claude");
     await user.click(screen.getByRole("button", { name: /^save$/i }));
 
@@ -501,7 +548,11 @@ describe("ProviderForm", () => {
       screen.getByPlaceholderText("e.g. Anthropic Claude"),
       "Apple Local",
     );
-    await user.selectOptions(screen.getByDisplayValue("Anthropic"), "apple");
+    await selectAvailableProviderType(
+      user,
+      "apple",
+      "Apple Intelligence (On-Device)",
+    );
     await user.click(screen.getByRole("button", { name: /^save$/i }));
 
     await waitFor(() =>
@@ -606,7 +657,11 @@ describe("ProviderForm", () => {
     const user = userEvent.setup();
     render(<ProviderForm onSave={onSave} onCancel={onCancel} />);
 
-    await user.selectOptions(screen.getByDisplayValue("Anthropic"), "cli");
+    await selectAvailableProviderType(
+      user,
+      "cli",
+      "CLI (claude/codex/copilot)",
+    );
     await user.click(screen.getByRole("button", { name: /^test$/i }));
 
     expect(
@@ -691,13 +746,14 @@ describe("ProviderForm", () => {
     );
 
     // Switch to CLI
-    await user.selectOptions(screen.getByDisplayValue("Anthropic"), "cli");
+    await selectAvailableProviderType(
+      user,
+      "cli",
+      "CLI (claude/codex/copilot)",
+    );
 
     // Switch back to API - state should be preserved
-    await user.selectOptions(
-      screen.getByDisplayValue("CLI (claude/codex/copilot)"),
-      "anthropic",
-    );
+    await user.selectOptions(screen.getByRole("combobox"), "anthropic");
 
     expect(screen.getByDisplayValue("My Provider")).toBeInTheDocument();
     expect(screen.getByDisplayValue("sk-test-key")).toBeInTheDocument();
@@ -711,7 +767,11 @@ describe("ProviderForm", () => {
     render(<ProviderForm onSave={onSave} onCancel={onCancel} />);
 
     // Switch to CLI and trigger validation error
-    await user.selectOptions(screen.getByDisplayValue("Anthropic"), "cli");
+    await selectAvailableProviderType(
+      user,
+      "cli",
+      "CLI (claude/codex/copilot)",
+    );
     await user.type(
       screen.getByPlaceholderText("e.g. Anthropic Claude"),
       "My CLI",
@@ -723,10 +783,7 @@ describe("ProviderForm", () => {
     ).toBeInTheDocument();
 
     // Switch back to API - error should clear
-    await user.selectOptions(
-      screen.getByDisplayValue("CLI (claude/codex/copilot)"),
-      "anthropic",
-    );
+    await user.selectOptions(screen.getByRole("combobox"), "anthropic");
 
     expect(
       screen.queryByText("Command is required for CLI providers."),
@@ -757,10 +814,10 @@ describe("ProviderForm", () => {
     );
 
     // First switch to API (should default to anthropic)
-    await user.selectOptions(
-      screen.getByDisplayValue("CLI (claude/codex/copilot)"),
-      "anthropic",
-    );
+    await screen.findByRole("option", {
+      name: "CLI (claude/codex/copilot)",
+    });
+    await user.selectOptions(screen.getByRole("combobox"), "anthropic");
 
     const endpointInput = screen.getByPlaceholderText(
       "https://api.anthropic.com/v1/messages",
@@ -1026,7 +1083,11 @@ describe("ProviderForm", () => {
       screen.getByPlaceholderText("e.g. Anthropic Claude"),
       "My CLI",
     );
-    await user.selectOptions(screen.getByDisplayValue("Anthropic"), "cli");
+    await selectAvailableProviderType(
+      user,
+      "cli",
+      "CLI (claude/codex/copilot)",
+    );
     await user.type(screen.getByPlaceholderText("e.g. claude"), "   ");
     await user.click(screen.getByRole("button", { name: /^save$/i }));
 

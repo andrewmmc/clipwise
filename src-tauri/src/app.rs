@@ -1,5 +1,5 @@
 use crate::commands::{app_info_cmd::*, apple_cmd::*, config_cmd::*, history_cmd::*, llm_cmd::*};
-use crate::config::{load_config, ConfigState};
+use crate::config::{load_config, quarantine_invalid_config, ConfigState};
 use crate::models::AppConfig;
 use std::sync::Mutex;
 use tracing::{error, info, warn};
@@ -34,7 +34,16 @@ pub fn run() {
     let config = match load_config() {
         Ok(config) => config,
         Err(err) => {
-            error!(error = %err, "Failed to load config; using defaults instead");
+            let backup_path = quarantine_invalid_config().unwrap_or_else(|backup_err| {
+                panic!(
+                    "Failed to load config ({err}) and could not preserve it ({backup_err}); refusing to overwrite user data"
+                )
+            });
+            error!(
+                error = %err,
+                backup_path = %backup_path.display(),
+                "Failed to load config; preserved invalid file and using defaults"
+            );
             AppConfig::default()
         }
     };

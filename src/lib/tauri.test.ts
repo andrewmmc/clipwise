@@ -119,9 +119,15 @@ describe("tauriCommands", () => {
 
   it("testAction calls invoke with 'test_action'", async () => {
     mockInvoke.mockResolvedValue("transformed text");
-    const result = await tauriCommands.testAction("a1", "sample");
+    const action = {
+      id: "a1",
+      name: "Test",
+      providerId: "p1",
+      userPrompt: "Improve",
+    };
+    const result = await tauriCommands.testAction(action, "sample");
     expect(mockInvoke).toHaveBeenCalledWith("test_action", {
-      actionId: "a1",
+      action,
       sampleText: "sample",
     });
     expect(result).toBe("transformed text");

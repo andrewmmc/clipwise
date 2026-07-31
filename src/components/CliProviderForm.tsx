@@ -120,8 +120,8 @@ export default function CliProviderForm({
           {commandPreview}
         </pre>
         <p className="helper-text mt-2">
-          Your copied text is appended as the final argument when the action
-          runs.
+          The system prompt and copied text are sent through standard input so
+          they are not exposed in the process argument list.
         </p>
       </div>
     </>

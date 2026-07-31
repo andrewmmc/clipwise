@@ -60,6 +60,18 @@ pub(crate) fn model_or_default<'a>(
         .unwrap_or(default_model)
 }
 
+pub(crate) fn endpoint_or_default<'a>(
+    provider: &'a Provider,
+    default_endpoint: &'a str,
+) -> &'a str {
+    provider
+        .endpoint
+        .as_deref()
+        .map(str::trim)
+        .filter(|endpoint| !endpoint.is_empty())
+        .unwrap_or(default_endpoint)
+}
+
 pub(crate) fn apply_custom_headers(
     mut request: RequestBuilder,
     headers: &crate::models::ProviderHeaders,
@@ -230,5 +242,27 @@ mod tests {
             "https://proxy.example/v1"
         )))
         .is_ok());
+    }
+
+    #[test]
+    fn test_endpoint_or_default_uses_default_for_blank_endpoint() {
+        assert_eq!(
+            endpoint_or_default(
+                &provider_with_endpoint(Some("  ")),
+                "https://default.example"
+            ),
+            "https://default.example"
+        );
+    }
+
+    #[test]
+    fn test_endpoint_or_default_trims_custom_endpoint() {
+        assert_eq!(
+            endpoint_or_default(
+                &provider_with_endpoint(Some(" https://custom.example/v1 ")),
+                "https://default.example"
+            ),
+            "https://custom.example/v1"
+        );
     }
 }

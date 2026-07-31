@@ -20,11 +20,13 @@ pub(crate) fn write_clipboard_text<R: Runtime>(
 ) -> Result<(), String> {
     let (tx, rx) = mpsc::channel();
     app.run_on_main_thread(move || {
-        crate::service::write_clipboard_text(&text);
-        let _ = tx.send(());
+        let _ = tx.send(crate::service::write_clipboard_text(&text));
     })
     .map_err(|e| e.to_string())?;
-    rx.recv_timeout(Duration::from_secs(5))
+    let written = rx
+        .recv_timeout(Duration::from_secs(5))
         .map_err(|e| e.to_string())?;
-    Ok(())
+    written
+        .then_some(())
+        .ok_or_else(|| "macOS rejected the clipboard write".to_string())
 }

@@ -41,8 +41,8 @@ export const tauriCommands = {
     invoke("reorder_actions", { ids }),
 
   // LLM
-  testAction: (actionId: string, sampleText: string): Promise<string> =>
-    invoke("test_action", { actionId, sampleText }),
+  testAction: (action: Action, sampleText: string): Promise<string> =>
+    invoke("test_action", { action, sampleText }),
 
   // Apple Intelligence
   checkAppleModelAvailability: (): Promise<AppleModelAvailability> =>

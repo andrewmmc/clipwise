@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { tauriCommands } from "../lib/tauri";
 
-export default function useCliProviderEnabled(defaultValue = true) {
+export default function useCliProviderEnabled(defaultValue = false) {
   const [enabled, setEnabled] = useState(defaultValue);
 
   useEffect(() => {

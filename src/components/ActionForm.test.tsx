@@ -372,7 +372,7 @@ describe("ActionForm", () => {
 
     await waitFor(() =>
       expect(mockInvoke).toHaveBeenCalledWith("test_action", {
-        actionId: "a1",
+        action: mockAction,
         sampleText: "The quick brown fox jumps over the lazy dog.",
       }),
     );
@@ -396,8 +396,41 @@ describe("ActionForm", () => {
 
     await waitFor(() =>
       expect(mockInvoke).toHaveBeenCalledWith("test_action", {
-        actionId: "a1",
+        action: mockAction,
         sampleText: "Custom",
+      }),
+    );
+  });
+
+  it("tests the current unsaved action draft", async () => {
+    mockInvoke.mockResolvedValue("Draft result");
+    const user = userEvent.setup();
+    render(
+      <ActionForm
+        config={mockConfig}
+        initial={mockAction}
+        onSave={onSave}
+        onCancel={onCancel}
+      />,
+    );
+
+    const prompt = screen.getByPlaceholderText(/refine this text/i);
+    await user.clear(prompt);
+    await user.type(prompt, "Draft prompt");
+    await user.type(
+      screen.getByPlaceholderText("Leave blank for provider default"),
+      "draft-model",
+    );
+    await user.click(screen.getByRole("button", { name: /^test$/i }));
+
+    await waitFor(() =>
+      expect(mockInvoke).toHaveBeenCalledWith("test_action", {
+        action: {
+          ...mockAction,
+          userPrompt: "Draft prompt",
+          model: "draft-model",
+        },
+        sampleText: "The quick brown fox jumps over the lazy dog.",
       }),
     );
   });

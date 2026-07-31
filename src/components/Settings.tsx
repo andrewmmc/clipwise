@@ -2,6 +2,7 @@ import { useState } from "react";
 import useAsyncAction from "../hooks/useAsyncAction";
 import { tauriCommands } from "../lib/tauri";
 import type { AppConfig, AppSettings } from "../types/config";
+import ConfirmDeleteActions from "./ConfirmDeleteActions";
 import ErrorBox from "./ErrorBox";
 
 interface Props {
@@ -14,13 +15,17 @@ export default function SettingsPanel({ config, onRefresh }: Props) {
     source: config.settings,
     settings: { ...config.settings },
   });
-  const { error, run } = useAsyncAction();
+  const [confirmingHistoryDisable, setConfirmingHistoryDisable] =
+    useState(false);
+  const { error, pending, run } = useAsyncAction();
   const settings =
     settingsState.source === config.settings
       ? settingsState.settings
       : config.settings;
 
   const updateSettings = (nextSettings: Partial<AppSettings>) => {
+    if (pending) return;
+    const previous = settings;
     const updated = { ...settings, ...nextSettings };
     setSettingsState({ source: config.settings, settings: updated });
     void (async () => {
@@ -30,7 +35,7 @@ export default function SettingsPanel({ config, onRefresh }: Props) {
           onRefresh();
         });
       } catch {
-        // useAsyncAction captures the displayed error.
+        setSettingsState({ source: config.settings, settings: previous });
       }
     })();
   };
@@ -55,6 +60,7 @@ export default function SettingsPanel({ config, onRefresh }: Props) {
               role="switch"
               aria-checked={settings.showNotificationOnComplete}
               aria-label="Show notification on complete"
+              disabled={pending}
               onClick={() =>
                 updateSettings({
                   showNotificationOnComplete:
@@ -76,20 +82,42 @@ export default function SettingsPanel({ config, onRefresh }: Props) {
                 Keep a log of the last 100 text transformations.
               </p>
             </div>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={settings.historyEnabled}
-              aria-label="Enable history"
-              onClick={() =>
-                updateSettings({
-                  historyEnabled: !settings.historyEnabled,
-                })
-              }
-              className="toggle"
-            >
-              <span className="toggle-thumb" aria-hidden="true" />
-            </button>
+            {confirmingHistoryDisable ? (
+              <div
+                className="flex items-center gap-1"
+                aria-label="Confirm disabling history"
+              >
+                <span className="mr-1 text-[11px] text-error">
+                  Deletes all saved history.
+                </span>
+                <ConfirmDeleteActions
+                  confirmLabel="Disable"
+                  onConfirm={() => {
+                    setConfirmingHistoryDisable(false);
+                    updateSettings({ historyEnabled: false });
+                  }}
+                  onCancel={() => setConfirmingHistoryDisable(false)}
+                />
+              </div>
+            ) : (
+              <button
+                type="button"
+                role="switch"
+                aria-checked={settings.historyEnabled}
+                aria-label="Enable history"
+                disabled={pending}
+                onClick={() => {
+                  if (settings.historyEnabled) {
+                    setConfirmingHistoryDisable(true);
+                  } else {
+                    updateSettings({ historyEnabled: true });
+                  }
+                }}
+                className="toggle"
+              >
+                <span className="toggle-thumb" aria-hidden="true" />
+              </button>
+            )}
           </div>
 
           <div className="flex items-center justify-between">
@@ -103,6 +131,7 @@ export default function SettingsPanel({ config, onRefresh }: Props) {
             </div>
             <select
               value={settings.maxTokens}
+              disabled={pending}
               onChange={(e) =>
                 updateSettings({ maxTokens: parseInt(e.target.value, 10) })
               }

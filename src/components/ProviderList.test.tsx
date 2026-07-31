@@ -110,12 +110,14 @@ describe("ProviderList", () => {
     expect(screen.queryByTitle("Delete")).not.toBeInTheDocument();
   });
 
-  it("renders the section heading and description", () => {
+  it("renders the section heading and description", async () => {
     render(<ProviderList config={mockConfig} onRefresh={onRefresh} />);
     expect(screen.getByText("Providers")).toBeInTheDocument();
-    expect(
-      screen.getByText("Configure LLM API or CLI providers."),
-    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(
+        screen.getByText("Configure LLM API or CLI providers."),
+      ).toBeInTheDocument(),
+    );
   });
 
   it("hides CLI copy when CLI providers are disabled", async () => {
