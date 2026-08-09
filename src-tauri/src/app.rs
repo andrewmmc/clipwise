@@ -48,6 +48,11 @@ pub fn run() {
         }
     };
 
+    if let Err(err) = crate::history::purge_history_if_disabled(config.settings.history_enabled) {
+        error!(error = %err, "Failed to enforce disabled history setting");
+        panic!("history is disabled but saved history could not be deleted: {err}");
+    }
+
     info!(
         provider_count = config.providers.len(),
         action_count = config.actions.len(),

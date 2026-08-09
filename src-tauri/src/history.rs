@@ -247,6 +247,28 @@ pub fn purge_history() -> Result<(), AppError> {
     purge_history_at(&history_path()?)
 }
 
+fn purge_history_if_disabled_at(history_enabled: bool, path: &Path) -> Result<(), AppError> {
+    if history_enabled {
+        return Ok(());
+    }
+
+    purge_history_at(path)
+}
+
+/// Reconciles persisted history with the privacy setting during startup.
+///
+/// If the app previously stopped after disabling history but before deleting
+/// the history file, this retries the deletion before the app becomes usable.
+pub fn purge_history_if_disabled(history_enabled: bool) -> Result<(), AppError> {
+    if history_enabled {
+        return Ok(());
+    }
+
+    let _guard = lock_history_file();
+    HISTORY_GENERATION.fetch_add(1, Ordering::AcqRel);
+    purge_history_if_disabled_at(false, &history_path()?)
+}
+
 pub fn delete_entry_at(path: &Path, id: &str) -> Result<bool, AppError> {
     let mut history = load_history_from(path)?;
     let original_len = history.len();
@@ -523,6 +545,26 @@ mod tests {
 
         assert!(!path.exists());
         assert!(purge_history_at(&path).is_ok());
+    }
+
+    #[test]
+    fn test_purge_history_if_disabled_removes_existing_history() {
+        let dir = TempDir::new().unwrap();
+        let path = setup_test_history_file(&dir, vec![make_test_entry("id1", "Action1")]);
+
+        purge_history_if_disabled_at(false, &path).unwrap();
+
+        assert!(!path.exists());
+    }
+
+    #[test]
+    fn test_purge_history_if_disabled_preserves_enabled_history() {
+        let dir = TempDir::new().unwrap();
+        let path = setup_test_history_file(&dir, vec![make_test_entry("id1", "Action1")]);
+
+        purge_history_if_disabled_at(true, &path).unwrap();
+
+        assert!(path.exists());
     }
 
     // ── load_history ───────────────────────────────────────────────────────────
