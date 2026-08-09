@@ -4,7 +4,7 @@ use crate::error::AppError;
 #[cfg(not(test))]
 use crate::history;
 use crate::models::AppSettings;
-use crate::models::{Action, AppConfig, Provider, ProviderType};
+use crate::models::{Action, AppConfig, Provider, ProviderType, APPLE_PROVIDER_ID};
 #[cfg(feature = "cli-provider")]
 #[cfg(not(test))]
 use crate::providers::cli::validate_cli_command;
@@ -83,7 +83,11 @@ pub(crate) fn insert_provider(
     ensure_single_apple_provider(config, &provider)?;
     validate_provider_endpoint(&provider)?;
     let mut provider = provider;
-    provider.id = Uuid::new_v4().to_string();
+    provider.id = if provider.provider_type == ProviderType::Apple {
+        APPLE_PROVIDER_ID.to_string()
+    } else {
+        Uuid::new_v4().to_string()
+    };
     config.providers.push(provider.clone());
     Ok(provider)
 }
@@ -97,10 +101,12 @@ fn ensure_apple_provider_type_is_immutable(
     existing: &Provider,
     updated: &Provider,
 ) -> Result<(), AppError> {
-    if existing.provider_type == ProviderType::Apple && updated.provider_type != ProviderType::Apple
+    if existing.provider_type != updated.provider_type
+        && (existing.provider_type == ProviderType::Apple
+            || updated.provider_type == ProviderType::Apple)
     {
         return Err(AppError::Config(
-            "The built-in Apple Intelligence provider's type cannot be changed.".into(),
+            "Providers cannot be changed to or from the built-in Apple Intelligence type.".into(),
         ));
     }
     Ok(())
@@ -574,6 +580,16 @@ mod tests {
         assert!(matches!(result, Err(AppError::Config(_))));
     }
 
+    #[test]
+    fn test_insert_apple_provider_uses_reserved_id() {
+        let mut config = AppConfig::default();
+
+        let result = insert_provider(&mut config, stub_apple_provider("submitted-id")).unwrap();
+
+        assert_eq!(result.id, APPLE_PROVIDER_ID);
+        assert_eq!(config.providers[0].id, APPLE_PROVIDER_ID);
+    }
+
     // ── replace_provider ──────────────────────────────────────────────────────
 
     #[test]
@@ -608,6 +624,22 @@ mod tests {
         let result = replace_provider(&mut config, updated);
 
         assert!(matches!(result, Err(AppError::Config(_))));
+    }
+
+    #[test]
+    fn test_replace_provider_rejects_changing_to_apple_provider() {
+        let mut config = AppConfig {
+            providers: vec![stub_provider("p1")],
+            ..AppConfig::default()
+        };
+        let mut updated = stub_provider("p1");
+        updated.provider_type = ProviderType::Apple;
+        updated.api_key = None;
+
+        let result = replace_provider(&mut config, updated);
+
+        assert!(matches!(result, Err(AppError::Config(_))));
+        assert_eq!(config.providers[0].provider_type, ProviderType::Anthropic);
     }
 
     #[test]
