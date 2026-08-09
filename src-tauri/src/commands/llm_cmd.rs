@@ -25,7 +25,7 @@ pub async fn run_action(
     result
 }
 
-/// Test an action from the settings UI. Same as run_action but called from the frontend.
+/// Test an action from the settings UI without adding the sample transformation to history.
 #[cfg(not(test))]
 #[tauri::command]
 pub async fn test_action(
@@ -34,10 +34,7 @@ pub async fn test_action(
     state: State<'_, ConfigState>,
 ) -> Result<String, AppError> {
     let context = action_service::ActionContext::from_action(action, &state)?;
-    let result = action_service::run_action_with_context(&context, &sample_text).await;
-    action_service::record_action_history(&context, sample_text, &result).await;
-
-    result
+    action_service::run_action_with_context(&context, &sample_text).await
 }
 
 /// Test an API provider's connection using the current form settings.
