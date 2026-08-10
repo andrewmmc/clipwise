@@ -1,5 +1,8 @@
+use crate::config::validate_settings;
 #[cfg(not(test))]
 use crate::config::{save_config, ConfigState};
+#[cfg(test)]
+use crate::config::{MAX_MAX_TOKENS, MIN_MAX_TOKENS};
 use crate::error::AppError;
 #[cfg(not(test))]
 use crate::history;
@@ -16,23 +19,6 @@ use tracing::{debug, info, warn};
 use uuid::Uuid;
 
 // ── Pure business-logic helpers (pub(crate) so tests can call them) ──────────
-
-/// Inclusive lower bound for `max_tokens`. A request must allow at least one token.
-pub(crate) const MIN_MAX_TOKENS: u32 = 1;
-/// Inclusive upper bound for `max_tokens`. Matches the largest option offered in
-/// the settings UI and guards against oversized/runaway provider requests.
-pub(crate) const MAX_MAX_TOKENS: u32 = 32_768;
-
-/// Validate user-supplied [`AppSettings`] at the Rust boundary before persisting.
-pub(crate) fn validate_settings(settings: &AppSettings) -> Result<(), AppError> {
-    if !(MIN_MAX_TOKENS..=MAX_MAX_TOKENS).contains(&settings.max_tokens) {
-        return Err(AppError::Config(format!(
-            "max_tokens must be between {MIN_MAX_TOKENS} and {MAX_MAX_TOKENS} (got {})",
-            settings.max_tokens
-        )));
-    }
-    Ok(())
-}
 
 fn ensure_single_apple_provider(config: &AppConfig, provider: &Provider) -> Result<(), AppError> {
     if provider.provider_type != ProviderType::Apple {

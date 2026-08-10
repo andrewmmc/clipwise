@@ -1,10 +1,125 @@
 use crate::error::AppError;
 use crate::json_store::{load_json_or_default, save_pretty_json};
-use crate::models::AppConfig;
+use crate::models::{AppConfig, AppSettings, ProviderType};
 use crate::paths::app_data_dir;
+use crate::providers::http::validate_provider_endpoint;
+use reqwest::header::{HeaderName, HeaderValue};
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use tracing::info;
+
+/// Inclusive bounds for provider response limits accepted from settings.
+pub(crate) const MIN_MAX_TOKENS: u32 = 1;
+pub(crate) const MAX_MAX_TOKENS: u32 = 32_768;
+
+pub(crate) fn validate_settings(settings: &AppSettings) -> Result<(), AppError> {
+    if !(MIN_MAX_TOKENS..=MAX_MAX_TOKENS).contains(&settings.max_tokens) {
+        return Err(AppError::Config(format!(
+            "max_tokens must be between {MIN_MAX_TOKENS} and {MAX_MAX_TOKENS} (got {})",
+            settings.max_tokens
+        )));
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_config(config: &AppConfig) -> Result<(), AppError> {
+    validate_settings(&config.settings)?;
+
+    let mut provider_ids = HashSet::new();
+    let mut apple_provider_count = 0;
+    for provider in &config.providers {
+        if provider.id.trim().is_empty() {
+            return Err(AppError::Config("Provider ID cannot be empty".into()));
+        }
+        if !provider_ids.insert(provider.id.as_str()) {
+            return Err(AppError::Config(format!(
+                "Duplicate provider ID: {}",
+                provider.id
+            )));
+        }
+        if provider.name.trim().is_empty() {
+            return Err(AppError::Config(format!(
+                "Provider {} has an empty name",
+                provider.id
+            )));
+        }
+        validate_provider_endpoint(provider)?;
+        for (name, value) in &provider.headers {
+            HeaderName::from_bytes(name.as_bytes()).map_err(|_| {
+                AppError::Config(format!(
+                    "Provider {} has invalid header name {name:?}",
+                    provider.id
+                ))
+            })?;
+            HeaderValue::from_str(value).map_err(|_| {
+                AppError::Config(format!(
+                    "Provider {} has an invalid value for header {name:?}",
+                    provider.id
+                ))
+            })?;
+        }
+
+        match provider.provider_type {
+            ProviderType::OpenAI | ProviderType::Anthropic => {
+                if provider.api_key.as_deref().unwrap_or("").trim().is_empty() {
+                    return Err(AppError::Config(format!(
+                        "API provider {} is missing an API key",
+                        provider.id
+                    )));
+                }
+            }
+            ProviderType::Cli => {
+                if provider.command.as_deref().unwrap_or("").trim().is_empty() {
+                    return Err(AppError::Config(format!(
+                        "CLI provider {} is missing a command",
+                        provider.id
+                    )));
+                }
+            }
+            ProviderType::Apple => apple_provider_count += 1,
+        }
+    }
+
+    if apple_provider_count > 1 {
+        return Err(AppError::Config(
+            "Only one Apple Intelligence provider can be configured".into(),
+        ));
+    }
+
+    let mut action_ids = HashSet::new();
+    for action in &config.actions {
+        if action.id.trim().is_empty() {
+            return Err(AppError::Config("Action ID cannot be empty".into()));
+        }
+        if !action_ids.insert(action.id.as_str()) {
+            return Err(AppError::Config(format!(
+                "Duplicate action ID: {}",
+                action.id
+            )));
+        }
+        if action.name.trim().is_empty() {
+            return Err(AppError::Config(format!(
+                "Action {} has an empty name",
+                action.id
+            )));
+        }
+        if action.user_prompt.trim().is_empty() {
+            return Err(AppError::Config(format!(
+                "Action {} has an empty prompt",
+                action.id
+            )));
+        }
+        if !provider_ids.contains(action.provider_id.as_str()) {
+            return Err(AppError::Config(format!(
+                "Action {} references missing provider {}",
+                action.id, action.provider_id
+            )));
+        }
+    }
+
+    Ok(())
+}
 
 pub struct ConfigState(pub Mutex<AppConfig>);
 
@@ -29,6 +144,7 @@ pub fn load_config_from(path: &Path) -> Result<AppConfig, AppError> {
         info!(path = %path.display(), "Config file missing; using defaults");
     }
     let config: AppConfig = load_json_or_default(path)?;
+    validate_config(&config)?;
     info!(
         path = %path.display(),
         provider_count = config.providers.len(),
@@ -40,6 +156,7 @@ pub fn load_config_from(path: &Path) -> Result<AppConfig, AppError> {
 
 /// Save config to an explicit path (used by tests).
 pub fn save_config_to(config: &AppConfig, path: &Path) -> Result<(), AppError> {
+    validate_config(config)?;
     save_pretty_json(config, path)?;
     info!(
         path = %path.display(),
@@ -267,7 +384,7 @@ mod tests {
     // ── Provider/action relationship validation ─────────────────────────────────
 
     #[test]
-    fn test_config_with_action_referencing_missing_provider_loads() {
+    fn test_config_with_action_referencing_missing_provider_is_rejected() {
         let dir = TempDir::new().unwrap();
         let path = dir.path().join("config.json");
         // Action references provider "p1" which doesn't exist
@@ -280,36 +397,28 @@ mod tests {
         )
         .unwrap();
 
-        // Config should still load (validation happens at runtime)
         let result = load_config_from(&path);
-        assert!(result.is_ok());
-        let config = result.unwrap();
-        assert_eq!(config.actions[0].provider_id, "p1");
-        assert!(config.providers.is_empty());
+        assert!(matches!(result, Err(AppError::Config(_))));
     }
 
     #[test]
-    fn test_config_with_duplicate_provider_ids_allows() {
+    fn test_config_with_duplicate_provider_ids_is_rejected() {
         let dir = TempDir::new().unwrap();
         let path = dir.path().join("config.json");
-        // Two providers with same id (should be prevented by UI, but config could be edited manually)
         std::fs::write(
             &path,
             r#"{
                 "providers": [
-                    {"id": "p1", "name": "One", "type": "anthropic"},
-                    {"id": "p1", "name": "Two", "type": "openai"}
+                    {"id": "p1", "name": "One", "type": "anthropic", "apiKey": "key"},
+                    {"id": "p1", "name": "Two", "type": "openai", "apiKey": "key"}
                 ],
                 "actions": []
             }"#,
         )
         .unwrap();
 
-        // Config should load (deduplication is not enforced at load time)
         let result = load_config_from(&path);
-        assert!(result.is_ok());
-        let config = result.unwrap();
-        assert_eq!(config.providers.len(), 2);
+        assert!(matches!(result, Err(AppError::Config(_))));
     }
 
     // ── Settings validation ─────────────────────────────────────────────────────
@@ -331,7 +440,7 @@ mod tests {
     }
 
     #[test]
-    fn test_config_with_zero_max_tokens_loads() {
+    fn test_config_with_zero_max_tokens_is_rejected() {
         let dir = TempDir::new().unwrap();
         let path = dir.path().join("config.json");
         std::fs::write(
@@ -340,11 +449,8 @@ mod tests {
         )
         .unwrap();
 
-        // Zero is a valid u32 value
         let result = load_config_from(&path);
-        assert!(result.is_ok());
-        let config = result.unwrap();
-        assert_eq!(config.settings.max_tokens, 0);
+        assert!(matches!(result, Err(AppError::Config(_))));
     }
 
     #[test]
