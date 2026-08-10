@@ -1,5 +1,6 @@
 use crate::error::AppError;
 use serde::{de::DeserializeOwned, Serialize};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 
 pub(crate) fn load_json_or_default<T>(path: &Path) -> Result<T, AppError>
@@ -33,11 +34,28 @@ where
 
     let data = serde_json::to_string_pretty(value)?;
     let tmp_path = tmp_path_for(path);
-    std::fs::write(&tmp_path, &data).inspect_err(|_| {
+    write_private_file(&tmp_path, data.as_bytes()).inspect_err(|_| {
         let _ = std::fs::remove_file(&tmp_path);
     })?;
     std::fs::rename(&tmp_path, path)?;
     Ok(())
+}
+
+#[cfg(unix)]
+fn write_private_file(path: &Path, data: &[u8]) -> Result<(), std::io::Error> {
+    use std::os::unix::fs::OpenOptionsExt;
+
+    let mut file = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .open(path)?;
+    file.write_all(data)
+}
+
+#[cfg(not(unix))]
+fn write_private_file(path: &Path, data: &[u8]) -> Result<(), std::io::Error> {
+    std::fs::write(path, data)
 }
 
 /// Builds a unique temp-file path alongside `path`, e.g. `config.json` ->
@@ -118,5 +136,26 @@ mod tests {
 
         let loaded: Sample = load_json_or_default(&path).unwrap();
         assert_eq!(loaded.value, "ok");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_save_pretty_json_uses_owner_only_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("private.json");
+        save_pretty_json(
+            &Sample {
+                value: "secret".into(),
+            },
+            &path,
+        )
+        .unwrap();
+
+        assert_eq!(
+            std::fs::metadata(path).unwrap().permissions().mode() & 0o777,
+            0o600
+        );
     }
 }

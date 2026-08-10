@@ -218,12 +218,14 @@ Config is stored at `~/Library/Application Support/clipwise/config.json`:
   "settings": {
     "showNotificationOnComplete": true,
     "maxTokens": 4096,
-    "historyEnabled": true
+    "historyEnabled": false
   }
 }
 ```
 
 On Macs without Apple Intelligence support, `providers` may start as an empty array until you add one manually.
+
+History is opt-in. When enabled, Clipwise keeps up to 100 transformations in an owner-readable local file, storing the first 500 input characters and 2,000 output characters for both successful and failed actions.
 
 ## Author
 

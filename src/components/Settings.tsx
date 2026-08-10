@@ -79,7 +79,9 @@ export default function SettingsPanel({ config, onRefresh }: Props) {
                 Enable history
               </p>
               <p className="text-[12px] text-text-tertiary">
-                Keep a log of the last 100 text transformations.
+                Store up to 100 transformations in plaintext on this Mac,
+                including failures (first 500 input and 2,000 output
+                characters).
               </p>
             </div>
             {confirmingHistoryDisable ? (

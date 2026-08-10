@@ -112,7 +112,7 @@ pub struct AppSettings {
     pub show_notification_on_complete: bool,
     #[serde(default = "default_max_tokens")]
     pub max_tokens: u32,
-    #[serde(default = "default_true")]
+    #[serde(default)]
     pub history_enabled: bool,
 }
 
@@ -128,7 +128,7 @@ impl Default for AppSettings {
         Self {
             show_notification_on_complete: true,
             max_tokens: 4096,
-            history_enabled: true,
+            history_enabled: false,
         }
     }
 }
@@ -418,7 +418,7 @@ mod tests {
         let s: AppSettings = serde_json::from_str("{}").unwrap();
         assert!(s.show_notification_on_complete);
         assert_eq!(s.max_tokens, 4096);
-        assert!(s.history_enabled);
+        assert!(!s.history_enabled);
     }
 
     #[test]
@@ -426,7 +426,7 @@ mod tests {
         let s: AppSettings = serde_json::from_str(r#"{"maxTokens": 2048}"#).unwrap();
         assert!(s.show_notification_on_complete); // default preserved
         assert_eq!(s.max_tokens, 2048);
-        assert!(s.history_enabled); // default preserved
+        assert!(!s.history_enabled); // privacy-preserving default
     }
 
     #[test]
@@ -434,7 +434,7 @@ mod tests {
         let s = AppSettings::default();
         assert!(s.show_notification_on_complete);
         assert_eq!(s.max_tokens, 4096);
-        assert!(s.history_enabled);
+        assert!(!s.history_enabled);
     }
 
     #[test]

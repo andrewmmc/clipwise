@@ -37,6 +37,15 @@ describe("SettingsPanel", () => {
     expect(select).toHaveValue("4096");
   });
 
+  it("explains exactly what enabling history stores", () => {
+    render(<SettingsPanel config={mockConfig} onRefresh={onRefresh} />);
+
+    expect(
+      screen.getByText(/Store up to 100 transformations in plaintext/),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/including failures/)).toBeInTheDocument();
+  });
+
   it("clicking the toggle changes notification setting and auto-saves", async () => {
     mockInvoke.mockResolvedValue(undefined);
     const user = userEvent.setup();
