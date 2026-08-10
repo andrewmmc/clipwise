@@ -1,6 +1,6 @@
-use crate::config::{validate_action_fields, validate_provider_fields, validate_settings};
 #[cfg(not(test))]
 use crate::config::{save_config, ConfigState};
+use crate::config::{validate_action_fields, validate_provider_fields, validate_settings};
 #[cfg(test)]
 use crate::config::{MAX_MAX_TOKENS, MIN_MAX_TOKENS};
 use crate::error::AppError;
@@ -12,7 +12,7 @@ use crate::models::{Action, AppConfig, Provider, ProviderType, APPLE_PROVIDER_ID
 #[cfg(not(test))]
 use crate::providers::cli::validate_cli_command;
 #[cfg(not(test))]
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Manager};
 #[cfg(not(test))]
 use tracing::{debug, info, warn};
 use uuid::Uuid;
@@ -245,18 +245,40 @@ pub(crate) fn mutate_and_persist<T>(
 }
 
 #[cfg(not(test))]
-fn mutate_config<T>(
-    state: &State<ConfigState>,
-    mutate: impl FnOnce(&mut AppConfig) -> Result<T, AppError>,
-) -> Result<(T, AppConfig), AppError> {
-    let mut config = state.lock()?;
-    mutate_and_persist(&mut config, mutate, save_config)
+async fn run_config_worker<T>(
+    app: AppHandle,
+    operation: impl FnOnce(&mut AppConfig) -> Result<T, AppError> + Send + 'static,
+) -> Result<T, AppError>
+where
+    T: Send + 'static,
+{
+    tokio::task::spawn_blocking(move || {
+        let state = app.state::<ConfigState>();
+        let mut config = state.lock()?;
+        operation(&mut config)
+    })
+    .await
+    .map_err(|err| AppError::Service(format!("Config persistence worker failed: {err}")))?
+}
+
+#[cfg(not(test))]
+async fn mutate_config<T>(
+    app: AppHandle,
+    mutate: impl FnOnce(&mut AppConfig) -> Result<T, AppError> + Send + 'static,
+) -> Result<(T, AppConfig), AppError>
+where
+    T: Send + 'static,
+{
+    run_config_worker(app, move |config| {
+        mutate_and_persist(config, mutate, save_config)
+    })
+    .await
 }
 
 #[cfg(not(test))]
 #[tauri::command]
-pub fn get_config(state: State<ConfigState>) -> Result<AppConfig, AppError> {
-    let config = state.lock()?.clone();
+pub async fn get_config(app: AppHandle) -> Result<AppConfig, AppError> {
+    let config = run_config_worker(app, |config| Ok(config.clone())).await?;
     debug!(
         provider_count = config.providers.len(),
         action_count = config.actions.len(),
@@ -267,36 +289,34 @@ pub fn get_config(state: State<ConfigState>) -> Result<AppConfig, AppError> {
 
 #[cfg(not(test))]
 #[tauri::command]
-pub fn save_settings(
-    settings: AppSettings,
-    state: State<ConfigState>,
-    _app: AppHandle,
-) -> Result<(), AppError> {
+pub async fn save_settings(settings: AppSettings, app: AppHandle) -> Result<(), AppError> {
     validate_settings(&settings)?;
 
-    let mut config = state.lock()?;
-    let previous = config.clone();
-    let history_being_disabled = config.settings.history_enabled && !settings.history_enabled;
-    config.settings = settings;
-    let updated_config = config.clone();
+    let updated_config = run_config_worker(app, move |config| {
+        let previous = config.clone();
+        let history_being_disabled = config.settings.history_enabled && !settings.history_enabled;
+        config.settings = settings;
+        let updated_config = config.clone();
 
-    if let Err(err) = save_config(&updated_config) {
-        *config = previous;
-        return Err(err);
-    }
-
-    if history_being_disabled {
-        if let Err(purge_err) = history::purge_history() {
-            *config = previous.clone();
-            if let Err(rollback_err) = save_config(&previous) {
-                return Err(AppError::Service(format!(
-                    "Failed to delete history ({purge_err}) and failed to restore settings ({rollback_err})"
-                )));
-            }
-            return Err(purge_err);
+        if let Err(err) = save_config(&updated_config) {
+            *config = previous;
+            return Err(err);
         }
-    }
-    drop(config);
+
+        if history_being_disabled {
+            if let Err(purge_err) = history::purge_history() {
+                *config = previous.clone();
+                if let Err(rollback_err) = save_config(&previous) {
+                    return Err(AppError::Service(format!(
+                        "Failed to delete history ({purge_err}) and failed to restore settings ({rollback_err})"
+                    )));
+                }
+                return Err(purge_err);
+            }
+        }
+        Ok(updated_config)
+    })
+    .await?;
     info!(
         max_tokens = updated_config.settings.max_tokens,
         show_notification_on_complete = updated_config.settings.show_notification_on_complete,
@@ -308,13 +328,9 @@ pub fn save_settings(
 
 #[cfg(not(test))]
 #[tauri::command]
-pub async fn add_provider(
-    provider: Provider,
-    state: State<'_, ConfigState>,
-    _app: AppHandle,
-) -> Result<Provider, AppError> {
+pub async fn add_provider(provider: Provider, app: AppHandle) -> Result<Provider, AppError> {
     validate_provider_capability(&provider).await?;
-    let (result, _) = mutate_config(&state, |config| insert_provider(config, provider))?;
+    let (result, _) = mutate_config(app, move |config| insert_provider(config, provider)).await?;
     info!(
         provider_id = %result.id,
         provider_name = %result.name,
@@ -327,16 +343,12 @@ pub async fn add_provider(
 
 #[cfg(not(test))]
 #[tauri::command]
-pub async fn update_provider(
-    provider: Provider,
-    state: State<'_, ConfigState>,
-    _app: AppHandle,
-) -> Result<(), AppError> {
+pub async fn update_provider(provider: Provider, app: AppHandle) -> Result<(), AppError> {
     validate_provider_capability(&provider).await?;
     let provider_id = provider.id.clone();
     let provider_name = provider.name.clone();
     let provider_type = provider.provider_type.clone();
-    mutate_config(&state, |config| replace_provider(config, provider))?;
+    mutate_config(app, move |config| replace_provider(config, provider)).await?;
     info!(
         provider_id = %provider_id,
         provider_name = %provider_name,
@@ -349,15 +361,13 @@ pub async fn update_provider(
 
 #[cfg(not(test))]
 #[tauri::command]
-pub fn delete_provider(
-    id: String,
-    state: State<ConfigState>,
-    _app: AppHandle,
-) -> Result<(), AppError> {
-    mutate_config(&state, |config| {
-        ensure_provider_deletable(config, &id)?;
-        remove_provider(config, &id)
-    })?;
+pub async fn delete_provider(id: String, app: AppHandle) -> Result<(), AppError> {
+    let worker_id = id.clone();
+    mutate_config(app, move |config| {
+        ensure_provider_deletable(config, &worker_id)?;
+        remove_provider(config, &worker_id)
+    })
+    .await?;
     info!(provider_id = %id, "Deleted provider");
     // Provider changes don't affect tray menu, no refresh needed
     Ok(())
@@ -374,12 +384,9 @@ pub fn test_cli_command(command: String) -> Result<String, AppError> {
 
 #[cfg(not(test))]
 #[tauri::command]
-pub fn add_action(
-    action: Action,
-    state: State<ConfigState>,
-    app: AppHandle,
-) -> Result<Action, AppError> {
-    let (result, updated_config) = mutate_config(&state, |config| insert_action(config, action))?;
+pub async fn add_action(action: Action, app: AppHandle) -> Result<Action, AppError> {
+    let (result, updated_config) =
+        mutate_config(app.clone(), move |config| insert_action(config, action)).await?;
 
     if let Err(err) = crate::tray::refresh_tray_menu(&app, &updated_config) {
         warn!(error = %err, "Action was added but tray menu refresh failed");
@@ -395,15 +402,12 @@ pub fn add_action(
 
 #[cfg(not(test))]
 #[tauri::command]
-pub fn update_action(
-    action: Action,
-    state: State<ConfigState>,
-    app: AppHandle,
-) -> Result<(), AppError> {
+pub async fn update_action(action: Action, app: AppHandle) -> Result<(), AppError> {
     let action_id = action.id.clone();
     let action_name = action.name.clone();
     let provider_id = action.provider_id.clone();
-    let (_, updated_config) = mutate_config(&state, |config| replace_action(config, action))?;
+    let (_, updated_config) =
+        mutate_config(app.clone(), move |config| replace_action(config, action)).await?;
 
     if let Err(err) = crate::tray::refresh_tray_menu(&app, &updated_config) {
         warn!(error = %err, "Action was updated but tray menu refresh failed");
@@ -419,12 +423,10 @@ pub fn update_action(
 
 #[cfg(not(test))]
 #[tauri::command]
-pub fn delete_action(
-    id: String,
-    state: State<ConfigState>,
-    app: AppHandle,
-) -> Result<(), AppError> {
-    let (_, updated_config) = mutate_config(&state, |config| remove_action(config, &id))?;
+pub async fn delete_action(id: String, app: AppHandle) -> Result<(), AppError> {
+    let worker_id = id.clone();
+    let (_, updated_config) =
+        mutate_config(app.clone(), move |config| remove_action(config, &worker_id)).await?;
 
     if let Err(err) = crate::tray::refresh_tray_menu(&app, &updated_config) {
         warn!(error = %err, "Action was deleted but tray menu refresh failed");
@@ -435,12 +437,12 @@ pub fn delete_action(
 
 #[cfg(not(test))]
 #[tauri::command]
-pub fn reorder_actions(
-    ids: Vec<String>,
-    state: State<ConfigState>,
-    app: AppHandle,
-) -> Result<(), AppError> {
-    let (_, updated_config) = mutate_config(&state, |config| apply_action_reorder(config, &ids))?;
+pub async fn reorder_actions(ids: Vec<String>, app: AppHandle) -> Result<(), AppError> {
+    let worker_ids = ids.clone();
+    let (_, updated_config) = mutate_config(app.clone(), move |config| {
+        apply_action_reorder(config, &worker_ids)
+    })
+    .await?;
 
     if let Err(err) = crate::tray::refresh_tray_menu(&app, &updated_config) {
         warn!(error = %err, "Actions were reordered but tray menu refresh failed");
