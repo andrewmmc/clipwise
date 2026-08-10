@@ -3,6 +3,7 @@
 use crate::error::AppError;
 use crate::models::{AppConfig, Provider, ProviderType};
 
+#[cfg(target_os = "macos")]
 const KEYCHAIN_SERVICE: &str = "com.andrewmmc.clipwise.provider-api-key";
 const KEYCHAIN_REFERENCE_PREFIX: &str = "keychain:";
 
