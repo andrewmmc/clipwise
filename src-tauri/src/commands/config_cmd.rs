@@ -1,4 +1,4 @@
-use crate::config::validate_settings;
+use crate::config::{validate_action_fields, validate_provider_fields, validate_settings};
 #[cfg(not(test))]
 use crate::config::{save_config, ConfigState};
 #[cfg(test)]
@@ -11,7 +11,6 @@ use crate::models::{Action, AppConfig, Provider, ProviderType, APPLE_PROVIDER_ID
 #[cfg(feature = "cli-provider")]
 #[cfg(not(test))]
 use crate::providers::cli::validate_cli_command;
-use crate::providers::http::validate_provider_endpoint;
 #[cfg(not(test))]
 use tauri::{AppHandle, State};
 #[cfg(not(test))]
@@ -66,8 +65,8 @@ pub(crate) fn insert_provider(
     config: &mut AppConfig,
     provider: Provider,
 ) -> Result<Provider, AppError> {
+    validate_provider_fields(&provider)?;
     ensure_single_apple_provider(config, &provider)?;
-    validate_provider_endpoint(&provider)?;
     let mut provider = provider;
     provider.id = if provider.provider_type == ProviderType::Apple {
         APPLE_PROVIDER_ID.to_string()
@@ -99,8 +98,8 @@ fn ensure_apple_provider_type_is_immutable(
 }
 
 pub(crate) fn replace_provider(config: &mut AppConfig, provider: Provider) -> Result<(), AppError> {
+    validate_provider_fields(&provider)?;
     ensure_single_apple_provider(config, &provider)?;
-    validate_provider_endpoint(&provider)?;
     let pos = config
         .providers
         .iter()
@@ -152,6 +151,7 @@ fn ensure_action_provider_exists(config: &AppConfig, action: &Action) -> Result<
 }
 
 pub(crate) fn insert_action(config: &mut AppConfig, action: Action) -> Result<Action, AppError> {
+    validate_action_fields(&action)?;
     ensure_action_provider_exists(config, &action)?;
     let mut action = action;
     action.id = Uuid::new_v4().to_string();
@@ -160,6 +160,7 @@ pub(crate) fn insert_action(config: &mut AppConfig, action: Action) -> Result<Ac
 }
 
 pub(crate) fn replace_action(config: &mut AppConfig, action: Action) -> Result<(), AppError> {
+    validate_action_fields(&action)?;
     ensure_action_provider_exists(config, &action)?;
     let pos = config
         .actions

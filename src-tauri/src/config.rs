@@ -1,6 +1,6 @@
 use crate::error::AppError;
 use crate::json_store::{load_json_or_default, save_pretty_json};
-use crate::models::{AppConfig, AppSettings, ProviderType};
+use crate::models::{Action, AppConfig, AppSettings, Provider, ProviderType};
 use crate::paths::app_data_dir;
 use crate::providers::http::validate_provider_endpoint;
 use reqwest::header::{HeaderName, HeaderValue};
@@ -12,6 +12,28 @@ use tracing::info;
 /// Inclusive bounds for provider response limits accepted from settings.
 pub(crate) const MIN_MAX_TOKENS: u32 = 1;
 pub(crate) const MAX_MAX_TOKENS: u32 = 32_768;
+pub(crate) const MAX_NAME_CHARS: usize = 100;
+pub(crate) const MAX_USER_PROMPT_CHARS: usize = 2_000;
+pub(crate) const MAX_MODEL_CHARS: usize = 256;
+pub(crate) const MAX_ENDPOINT_CHARS: usize = 2_048;
+pub(crate) const MAX_API_KEY_CHARS: usize = 16_384;
+pub(crate) const MAX_HEADER_COUNT: usize = 50;
+pub(crate) const MAX_HEADER_NAME_CHARS: usize = 256;
+pub(crate) const MAX_HEADER_VALUE_CHARS: usize = 8_192;
+pub(crate) const MAX_CLI_COMMAND_CHARS: usize = 4_096;
+pub(crate) const MAX_CLI_ARGS: usize = 100;
+pub(crate) const MAX_CLI_ARG_CHARS: usize = 4_096;
+pub(crate) const MAX_SELECTED_TEXT_CHARS: usize = 1_000_000;
+
+fn validate_char_limit(label: &str, value: &str, max_chars: usize) -> Result<(), AppError> {
+    let actual = value.chars().count();
+    if actual > max_chars {
+        return Err(AppError::Config(format!(
+            "{label} must be {max_chars} characters or fewer (got {actual})"
+        )));
+    }
+    Ok(())
+}
 
 pub(crate) fn validate_settings(settings: &AppSettings) -> Result<(), AppError> {
     if !(MIN_MAX_TOKENS..=MAX_MAX_TOKENS).contains(&settings.max_tokens) {
@@ -21,6 +43,95 @@ pub(crate) fn validate_settings(settings: &AppSettings) -> Result<(), AppError> 
         )));
     }
     Ok(())
+}
+
+pub(crate) fn validate_provider_fields(provider: &Provider) -> Result<(), AppError> {
+    if provider.name.trim().is_empty() {
+        return Err(AppError::Config("Provider name cannot be empty".into()));
+    }
+    validate_char_limit("Provider name", &provider.name, MAX_NAME_CHARS)?;
+
+    if let Some(endpoint) = provider.endpoint.as_deref() {
+        validate_char_limit("Provider endpoint", endpoint, MAX_ENDPOINT_CHARS)?;
+    }
+    if let Some(api_key) = provider.api_key.as_deref() {
+        validate_char_limit("Provider API key", api_key, MAX_API_KEY_CHARS)?;
+    }
+    if let Some(model) = provider.default_model.as_deref() {
+        validate_char_limit("Provider default model", model, MAX_MODEL_CHARS)?;
+    }
+    if provider.headers.len() > MAX_HEADER_COUNT {
+        return Err(AppError::Config(format!(
+            "Provider headers must contain {MAX_HEADER_COUNT} entries or fewer"
+        )));
+    }
+    for (name, value) in &provider.headers {
+        validate_char_limit("Provider header name", name, MAX_HEADER_NAME_CHARS)?;
+        validate_char_limit("Provider header value", value, MAX_HEADER_VALUE_CHARS)?;
+        HeaderName::from_bytes(name.as_bytes())
+            .map_err(|_| AppError::Config(format!("Invalid provider header name {name:?}")))?;
+        HeaderValue::from_str(value).map_err(|_| {
+            AppError::Config(format!("Invalid value for provider header {name:?}"))
+        })?;
+    }
+    validate_provider_endpoint(provider)?;
+
+    match provider.provider_type {
+        ProviderType::OpenAI | ProviderType::Anthropic => {
+            if provider.api_key.as_deref().unwrap_or("").trim().is_empty() {
+                return Err(AppError::Config(
+                    "API providers require an API key".into(),
+                ));
+            }
+        }
+        ProviderType::Cli => {
+            let command = provider.command.as_deref().unwrap_or("");
+            if command.trim().is_empty() {
+                return Err(AppError::Config(
+                    "CLI providers require a command".into(),
+                ));
+            }
+            validate_char_limit("CLI command", command, MAX_CLI_COMMAND_CHARS)?;
+            if provider.args.len() > MAX_CLI_ARGS {
+                return Err(AppError::Config(format!(
+                    "CLI providers may have at most {MAX_CLI_ARGS} arguments"
+                )));
+            }
+            for arg in &provider.args {
+                validate_char_limit("CLI argument", arg, MAX_CLI_ARG_CHARS)?;
+            }
+        }
+        ProviderType::Apple => {}
+    }
+
+    Ok(())
+}
+
+pub(crate) fn validate_action_fields(action: &Action) -> Result<(), AppError> {
+    if action.name.trim().is_empty() {
+        return Err(AppError::Config("Action name cannot be empty".into()));
+    }
+    validate_char_limit("Action name", &action.name, MAX_NAME_CHARS)?;
+    if action.user_prompt.trim().is_empty() {
+        return Err(AppError::Config("Action prompt cannot be empty".into()));
+    }
+    validate_char_limit(
+        "Action prompt",
+        &action.user_prompt,
+        MAX_USER_PROMPT_CHARS,
+    )?;
+    if let Some(model) = action.model.as_deref() {
+        validate_char_limit("Action model", model, MAX_MODEL_CHARS)?;
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_selected_text(selected_text: &str) -> Result<(), AppError> {
+    validate_char_limit(
+        "Selected text",
+        selected_text,
+        MAX_SELECTED_TEXT_CHARS,
+    )
 }
 
 pub(crate) fn validate_config(config: &AppConfig) -> Result<(), AppError> {
@@ -38,46 +149,9 @@ pub(crate) fn validate_config(config: &AppConfig) -> Result<(), AppError> {
                 provider.id
             )));
         }
-        if provider.name.trim().is_empty() {
-            return Err(AppError::Config(format!(
-                "Provider {} has an empty name",
-                provider.id
-            )));
-        }
-        validate_provider_endpoint(provider)?;
-        for (name, value) in &provider.headers {
-            HeaderName::from_bytes(name.as_bytes()).map_err(|_| {
-                AppError::Config(format!(
-                    "Provider {} has invalid header name {name:?}",
-                    provider.id
-                ))
-            })?;
-            HeaderValue::from_str(value).map_err(|_| {
-                AppError::Config(format!(
-                    "Provider {} has an invalid value for header {name:?}",
-                    provider.id
-                ))
-            })?;
-        }
-
-        match provider.provider_type {
-            ProviderType::OpenAI | ProviderType::Anthropic => {
-                if provider.api_key.as_deref().unwrap_or("").trim().is_empty() {
-                    return Err(AppError::Config(format!(
-                        "API provider {} is missing an API key",
-                        provider.id
-                    )));
-                }
-            }
-            ProviderType::Cli => {
-                if provider.command.as_deref().unwrap_or("").trim().is_empty() {
-                    return Err(AppError::Config(format!(
-                        "CLI provider {} is missing a command",
-                        provider.id
-                    )));
-                }
-            }
-            ProviderType::Apple => apple_provider_count += 1,
+        validate_provider_fields(provider)?;
+        if provider.provider_type == ProviderType::Apple {
+            apple_provider_count += 1;
         }
     }
 
@@ -98,18 +172,7 @@ pub(crate) fn validate_config(config: &AppConfig) -> Result<(), AppError> {
                 action.id
             )));
         }
-        if action.name.trim().is_empty() {
-            return Err(AppError::Config(format!(
-                "Action {} has an empty name",
-                action.id
-            )));
-        }
-        if action.user_prompt.trim().is_empty() {
-            return Err(AppError::Config(format!(
-                "Action {} has an empty prompt",
-                action.id
-            )));
-        }
+        validate_action_fields(action)?;
         if !provider_ids.contains(action.provider_id.as_str()) {
             return Err(AppError::Config(format!(
                 "Action {} references missing provider {}",
@@ -451,6 +514,45 @@ mod tests {
 
         let result = load_config_from(&path);
         assert!(matches!(result, Err(AppError::Config(_))));
+    }
+
+    #[test]
+    fn test_provider_field_limits_are_enforced() {
+        let mut provider = make_test_config().providers.remove(0);
+        provider.name = "n".repeat(MAX_NAME_CHARS + 1);
+        assert!(matches!(
+            validate_provider_fields(&provider),
+            Err(AppError::Config(_))
+        ));
+
+        provider.name = "Provider".into();
+        provider.headers = (0..=MAX_HEADER_COUNT)
+            .map(|index| (format!("x-header-{index}"), "value".into()))
+            .collect();
+        assert!(matches!(
+            validate_provider_fields(&provider),
+            Err(AppError::Config(_))
+        ));
+    }
+
+    #[test]
+    fn test_action_field_limits_are_enforced() {
+        let mut action = make_test_config().actions.remove(0);
+        action.user_prompt = "p".repeat(MAX_USER_PROMPT_CHARS + 1);
+
+        assert!(matches!(
+            validate_action_fields(&action),
+            Err(AppError::Config(_))
+        ));
+    }
+
+    #[test]
+    fn test_selected_text_limit_is_enforced() {
+        assert!(validate_selected_text(&"t".repeat(MAX_SELECTED_TEXT_CHARS)).is_ok());
+        assert!(matches!(
+            validate_selected_text(&"t".repeat(MAX_SELECTED_TEXT_CHARS + 1)),
+            Err(AppError::Config(_))
+        ));
     }
 
     #[test]
