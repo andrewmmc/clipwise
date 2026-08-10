@@ -39,6 +39,9 @@ jobs:
       - name: Typecheck
         run: npx tsc --noEmit
 
+      - name: Rust production check
+        run: cargo check --manifest-path src-tauri/Cargo.toml --all-features
+
       - name: Rust clippy
         run: cargo clippy --manifest-path src-tauri/Cargo.toml --lib --all-targets -- -D warnings
 
