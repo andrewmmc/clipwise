@@ -12,8 +12,9 @@ pub(crate) fn is_transient_error(status: u16) -> bool {
     matches!(status, 429 | 500 | 502 | 503 | 504)
 }
 
-/// Executes an async operation with retry on transient HTTP errors.
-/// Retries on HTTP 429 (rate limited), 500, 502, 503, 504.
+/// Executes an async operation with retry on failures known to be safe.
+/// Retries connection-establishment failures and HTTP 429/5xx responses, but
+/// not ambiguous timeouts or response-processing failures.
 pub async fn with_http_retry<F, Fut, T>(mut operation: F) -> Result<T, AppError>
 where
     F: FnMut() -> Fut,
@@ -153,6 +154,22 @@ mod tests {
 
         assert!(result.is_err());
         assert_eq!(call_count.load(Ordering::SeqCst), 1); // Should not retry auth errors
+    }
+
+    #[tokio::test]
+    async fn test_with_http_retry_does_not_retry_ambiguous_timeouts() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        let call_count = AtomicUsize::new(0);
+        let cc = &call_count as &AtomicUsize;
+
+        let result = with_http_retry(move || async {
+            cc.fetch_add(1, Ordering::SeqCst);
+            Err::<String, _>(AppError::RequestTimeout)
+        })
+        .await;
+
+        assert!(matches!(result, Err(AppError::RequestTimeout)));
+        assert_eq!(call_count.load(Ordering::SeqCst), 1);
     }
 
     #[tokio::test]

@@ -17,6 +17,8 @@ pub enum AppError {
     RateLimited,
     #[error("Network error: could not reach the server.")]
     NetworkError,
+    #[error("Provider request timed out. It was not retried to avoid duplicate charges.")]
+    RequestTimeout,
     #[error("Authentication error: invalid API key or credentials.")]
     AuthError,
     #[error("LLM error: {0}")]
@@ -40,6 +42,7 @@ impl AppError {
             AppError::Http(_) => "http",
             AppError::RateLimited => "rate_limited",
             AppError::NetworkError => "network",
+            AppError::RequestTimeout => "request_timeout",
             AppError::AuthError => "auth",
             AppError::Llm(_) => "llm",
             AppError::InvalidResponse => "invalid_response",
@@ -62,23 +65,21 @@ impl AppError {
 
     /// Returns true if this error should trigger a retry (transient error).
     pub fn is_retryable(&self) -> bool {
-        matches!(
-            self,
-            AppError::RateLimited | AppError::NetworkError | AppError::Http(_)
-        ) || matches!(self, AppError::Llm(message) if message.starts_with("HTTP 5"))
+        matches!(self, AppError::RateLimited | AppError::NetworkError)
+            || matches!(self, AppError::Llm(message) if message.starts_with("HTTP 5"))
     }
 
     /// Classifies a `reqwest::Error` produced by a failed request.
     ///
-    /// Connection- and timeout-level failures (DNS resolution, connection
-    /// refused, TLS handshake failure, request timeout) mean the server was
-    /// never reached, so they map to the user-friendly `NetworkError`
-    /// ("could not reach the server"). Anything else (e.g. a body
-    /// encoding/decoding error) falls back to `Http`, which surfaces the
-    /// underlying reqwest error message.
+    /// Connection failures mean the request was not accepted and are safe to
+    /// retry. A timeout may happen after the provider accepted or billed the
+    /// request, so it receives a distinct non-retryable error. Anything else
+    /// (e.g. a body encoding error) falls back to non-retryable `Http`.
     pub fn from_request_error(err: reqwest::Error) -> Self {
-        if err.is_connect() || err.is_timeout() {
+        if err.is_connect() {
             AppError::NetworkError
+        } else if err.is_timeout() {
+            AppError::RequestTimeout
         } else {
             AppError::Http(err)
         }
@@ -160,6 +161,7 @@ mod tests {
         assert!(!AppError::AuthError.is_retryable());
         assert!(!AppError::Config("test".into()).is_retryable());
         assert!(!AppError::InvalidResponse.is_retryable());
+        assert!(!AppError::RequestTimeout.is_retryable());
         assert!(!AppError::ActionNotFound("test".into()).is_retryable());
         assert!(!AppError::ProviderNotFound("test".into()).is_retryable());
     }
@@ -170,7 +172,9 @@ mod tests {
     async fn test_from_request_error_classifies_connection_failure_as_network_error() {
         // Bind to an ephemeral port, then drop the listener so the port is
         // guaranteed to be closed and refuse the connection deterministically.
-        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let Ok(listener) = std::net::TcpListener::bind("127.0.0.1:0") else {
+            return;
+        };
         let port = listener.local_addr().unwrap().port();
         drop(listener);
 
@@ -198,5 +202,30 @@ mod tests {
     #[test]
     fn test_network_error_is_retryable() {
         assert!(AppError::NetworkError.is_retryable());
+    }
+
+    #[tokio::test]
+    async fn test_from_request_error_classifies_ambiguous_timeout() {
+        let Ok(listener) = tokio::net::TcpListener::bind("127.0.0.1:0").await else {
+            return;
+        };
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let _connection = listener.accept().await.unwrap();
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        });
+        let client = reqwest::Client::builder().no_proxy().build().unwrap();
+        let err = client
+            .get(format!("http://{address}"))
+            .timeout(std::time::Duration::from_millis(10))
+            .send()
+            .await
+            .expect_err("server should not respond before the request timeout");
+
+        assert!(matches!(
+            AppError::from_request_error(err),
+            AppError::RequestTimeout
+        ));
+        server.abort();
     }
 }
