@@ -14,7 +14,7 @@ export default function App() {
   const { config, error, loading, refresh, clearError } = useConfig();
   const [activeTab, setActiveTab] = useState<Tab>("actions");
 
-  if (error) {
+  if (error && !config) {
     return (
       <div className="app-shell flex items-center justify-center">
         <div className="card max-w-sm p-6 text-center">
@@ -94,6 +94,11 @@ export default function App() {
         </nav>
 
         <main className="flex-1 overflow-y-auto p-5">
+          {error && (
+            <div className="mb-4">
+              <ErrorBox title="Failed to refresh config" message={error} />
+            </div>
+          )}
           {visibleActiveTab === "actions" && (
             <ActionList config={config} onRefresh={refresh} />
           )}
