@@ -50,7 +50,8 @@ export default function ApiProviderForm({
     <>
       <p className="text-[12px] text-text-tertiary">
         Text from your clipboard will be sent to this provider&apos;s API for
-        processing. Your API key is stored in macOS Keychain.
+        processing. Your API key and custom header values are stored in macOS
+        Keychain.
       </p>
 
       <div className="rounded border border-border bg-surface-tertiary px-3 py-2">

@@ -56,6 +56,7 @@ pub(crate) async fn attach_apple_provider_async<R: Runtime>(app: AppHandle<R>) {
             return;
         }
 
+        let previous = config.clone();
         config.providers.insert(
             0,
             Provider {
@@ -72,10 +73,12 @@ pub(crate) async fn attach_apple_provider_async<R: Runtime>(app: AppHandle<R>) {
         );
 
         if let Err(err) = save_config(&config) {
+            *config = previous;
             warn!(error = %err, "Failed to persist auto-attached Apple Intelligence provider");
+            false
+        } else {
+            true
         }
-
-        true
     };
 
     if refresh_needed {

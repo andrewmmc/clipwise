@@ -204,7 +204,9 @@ mod tests {
         )
         .await;
         assert!(matches!(result, Err(AppError::Llm(_))));
-        assert!(result.unwrap_err().to_string().contains("Server Error"));
+        let message = result.unwrap_err().to_string();
+        assert!(message.contains("500"));
+        assert!(!message.contains("Server Error"));
     }
 
     #[tokio::test]

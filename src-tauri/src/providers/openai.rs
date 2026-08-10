@@ -200,10 +200,9 @@ mod tests {
         )
         .await;
         assert!(matches!(result, Err(AppError::Llm(_))));
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Internal Server Error"));
+        let message = result.unwrap_err().to_string();
+        assert!(message.contains("500"));
+        assert!(!message.contains("Internal Server Error"));
     }
 
     #[tokio::test]

@@ -21,6 +21,7 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
+    "audit:rust": "./scripts/audit-rust.sh",
     "validate:release-notes": "./scripts/validate-release-notes.sh",
     "bump": "./scripts/bump-version.sh",
     "bump:patch": "./scripts/bump-version.sh patch",

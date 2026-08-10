@@ -9,7 +9,7 @@ use tracing::{debug, warn};
 
 const REQUEST_TIMEOUT_SECS: u64 = 120;
 const MAX_RESPONSE_BODY_BYTES: usize = 4 * 1024 * 1024;
-const MAX_ERROR_BODY_BYTES: usize = 64 * 1024;
+const MAX_ERROR_BODY_BYTES: usize = 4 * 1024;
 
 async fn read_body_limited(
     mut response: reqwest::Response,
@@ -186,8 +186,11 @@ pub(crate) async fn send_json_and_normalize(
     )
     .await?;
 
-    let json: Value = serde_json::from_str(&body_text)
-        .map_err(|_| AppError::Llm(format!("Failed to parse response as JSON: {}", body_text)))?;
+    let json: Value = serde_json::from_str(&body_text).map_err(|_| {
+        AppError::Llm(format!(
+            "{provider_name} returned a response that was not valid JSON"
+        ))
+    })?;
     let content = extract_content(&json)?;
     normalize_response_str(content)
 }
@@ -336,7 +339,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_send_json_truncates_oversized_error_body() {
+    async fn test_send_json_does_not_expose_oversized_error_body() {
         let Some(server) = start_mock_server_or_skip().await else {
             return;
         };
@@ -361,7 +364,8 @@ mod tests {
         .unwrap_err()
         .to_string();
 
-        assert!(error.contains("[response truncated]"));
-        assert!(error.len() < MAX_ERROR_BODY_BYTES + 100);
+        assert!(error.contains("400"));
+        assert!(!error.contains("xxxxx"));
+        assert!(error.len() < 100);
     }
 }

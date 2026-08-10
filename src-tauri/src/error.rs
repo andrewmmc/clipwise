@@ -54,19 +54,21 @@ impl AppError {
 
     /// Create an HTTP error from a status code and body.
     /// Attempts to classify the error into more specific categories.
-    pub fn from_http_status(status: u16, body: &str) -> Self {
+    pub fn from_http_status(status: u16, _body: &str) -> Self {
         match status {
             401 | 403 => AppError::AuthError,
             429 => AppError::RateLimited,
-            code if is_transient_error(code) => AppError::Llm(format!("HTTP {}: {}", status, body)),
-            _ => AppError::Llm(format!("HTTP {}: {}", status, body)),
+            code if is_transient_error(code) => {
+                AppError::Llm(format!("Provider returned HTTP {status}"))
+            }
+            _ => AppError::Llm(format!("Provider returned HTTP {status}")),
         }
     }
 
     /// Returns true if this error should trigger a retry (transient error).
     pub fn is_retryable(&self) -> bool {
         matches!(self, AppError::RateLimited | AppError::NetworkError)
-            || matches!(self, AppError::Llm(message) if message.starts_with("HTTP 5"))
+            || matches!(self, AppError::Llm(message) if message.starts_with("Provider returned HTTP 5"))
     }
 
     /// Classifies a `reqwest::Error` produced by a failed request.
@@ -123,10 +125,11 @@ mod tests {
     }
 
     #[test]
-    fn test_from_http_status_preserves_server_error_body() {
+    fn test_from_http_status_does_not_expose_server_error_body() {
         let error = AppError::from_http_status(500, "Internal Server Error");
         assert!(matches!(error, AppError::Llm(_)));
-        assert!(error.to_string().contains("Internal Server Error"));
+        assert!(!error.to_string().contains("Internal Server Error"));
+        assert!(error.to_string().contains("500"));
     }
 
     #[test]
@@ -135,7 +138,7 @@ mod tests {
         assert!(matches!(error, AppError::Llm(_)));
         if let AppError::Llm(msg) = error {
             assert!(msg.contains("400"));
-            assert!(msg.contains("bad request"));
+            assert!(!msg.contains("bad request"));
         }
     }
 

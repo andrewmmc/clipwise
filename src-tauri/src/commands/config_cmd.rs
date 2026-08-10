@@ -349,6 +349,11 @@ pub async fn add_provider(provider: Provider, app: AppHandle) -> Result<Provider
             .expect("inserted provider must exist");
         if let Err(err) = secret_store::store_provider_secret(stored_provider) {
             *config = previous;
+            if let Err(cleanup_err) = secret_store::delete_provider_secret(&result.id) {
+                return Err(AppError::Service(format!(
+                    "Failed to store provider secrets ({err}) and clean up partial Keychain items ({cleanup_err})"
+                )));
+            }
             return Err(err);
         }
         if let Err(save_err) = save_config(config) {
@@ -408,6 +413,11 @@ pub async fn update_provider(provider: Provider, app: AppHandle) -> Result<(), A
 
         if let Err(secret_err) = secret_store::restore_provider_secret(&new_provider) {
             *config = previous;
+            if let Err(restore_err) = secret_store::restore_provider_secret(&old_provider) {
+                return Err(AppError::Service(format!(
+                    "Failed to update provider secrets ({secret_err}) and restore previous Keychain items ({restore_err})"
+                )));
+            }
             return Err(secret_err);
         }
         if let Err(save_err) = save_config(config) {
@@ -438,6 +448,12 @@ pub async fn delete_provider(id: String, app: AppHandle) -> Result<(), AppError>
     let worker_id = id.clone();
     run_config_worker(app, move |config| {
         let previous = config.clone();
+        let old_provider = config
+            .providers
+            .iter()
+            .find(|provider| provider.id == worker_id)
+            .cloned()
+            .ok_or_else(|| AppError::ProviderNotFound(worker_id.clone()))?;
         ensure_provider_deletable(config, &worker_id)?;
         remove_provider(config, &worker_id)?;
         if let Err(save_err) = save_config(config) {
@@ -446,6 +462,11 @@ pub async fn delete_provider(id: String, app: AppHandle) -> Result<(), AppError>
         }
         if let Err(delete_err) = secret_store::delete_provider_secret(&worker_id) {
             *config = previous.clone();
+            if let Err(restore_err) = secret_store::restore_provider_secret(&old_provider) {
+                return Err(AppError::Service(format!(
+                    "Failed to delete Keychain items ({delete_err}) and restore them ({restore_err})"
+                )));
+            }
             if let Err(rollback_err) = save_config(&previous) {
                 return Err(AppError::Service(format!(
                     "Failed to delete Keychain item ({delete_err}) and restore provider config ({rollback_err})"

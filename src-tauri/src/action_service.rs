@@ -1,4 +1,4 @@
-use crate::config::ConfigState;
+use crate::config::{validate_selected_text, ConfigState};
 use crate::error::AppError;
 use crate::history;
 use crate::models::{Action, AppConfig, LlmResult, Provider, ProviderType};
@@ -59,6 +59,9 @@ pub(crate) async fn run_action_with_context(
     context: &ActionContext,
     selected_text: &str,
 ) -> Result<String, AppError> {
+    // Keep the limit at the shared execution boundary so every caller,
+    // including tray actions, receives the same protection.
+    validate_selected_text(selected_text)?;
     let selected_text_chars = selected_text.chars().count();
     let user_message = format!("{}\n\n{}", context.action.user_prompt, selected_text);
     let model = context.action.model.as_deref();
@@ -384,5 +387,18 @@ mod tests {
         let context = ActionContext::from_state("a1", &state).unwrap();
 
         assert_eq!(context.action.model, Some("override-model".into()));
+    }
+
+    #[tokio::test]
+    async fn test_run_action_rejects_oversized_text_before_calling_provider() {
+        let state = make_test_config_state();
+        let context = ActionContext::from_state("action-with-provider", &state).unwrap();
+        let oversized = "x".repeat(crate::config::MAX_SELECTED_TEXT_CHARS + 1);
+
+        let result = run_action_with_context(&context, &oversized).await;
+
+        assert!(
+            matches!(result, Err(AppError::Config(message)) if message.contains("Selected text"))
+        );
     }
 }

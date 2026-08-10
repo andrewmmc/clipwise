@@ -1,5 +1,5 @@
 use crate::commands::{app_info_cmd::*, apple_cmd::*, config_cmd::*, history_cmd::*, llm_cmd::*};
-use crate::config::{load_config, quarantine_invalid_config, ConfigState};
+use crate::config::{load_config, quarantine_invalid_config, validate_config, ConfigState};
 use crate::models::AppConfig;
 use std::sync::Mutex;
 use tracing::{error, info, warn};
@@ -61,6 +61,11 @@ pub fn run() {
             error!(error = %err, "Failed to load provider API keys securely");
             panic!("provider API keys could not be loaded from secure storage: {err}");
         }
+    }
+
+    if let Err(err) = validate_config(&config) {
+        error!(error = %err, "Securely stored provider data failed validation");
+        panic!("provider data loaded from secure storage is invalid: {err}");
     }
 
     if let Err(err) = crate::history::purge_history_if_disabled(config.settings.history_enabled) {
