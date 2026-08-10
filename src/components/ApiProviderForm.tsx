@@ -9,6 +9,7 @@ import type { ProviderType } from "../types/config";
 
 interface Props {
   type: Exclude<ProviderType, "cli" | "apple">;
+  hasStoredApiKey: boolean;
   endpoint: string;
   apiKey: string;
   defaultModel: string;
@@ -28,6 +29,7 @@ interface Props {
 
 export default function ApiProviderForm({
   type,
+  hasStoredApiKey,
   endpoint,
   apiKey,
   defaultModel,
@@ -48,7 +50,7 @@ export default function ApiProviderForm({
     <>
       <p className="text-[12px] text-text-tertiary">
         Text from your clipboard will be sent to this provider&apos;s API for
-        processing. Your API key is stored locally on this device only.
+        processing. Your API key is stored in macOS Keychain.
       </p>
 
       <div className="rounded border border-border bg-surface-tertiary px-3 py-2">
@@ -89,14 +91,23 @@ export default function ApiProviderForm({
       </div>
 
       <div>
-        <label className="label label-required">API Key</label>
+        <label className={hasStoredApiKey ? "label" : "label label-required"}>
+          API Key
+        </label>
         <input
           type="password"
           value={apiKey}
           onChange={(e) => onApiKeyChange(e.target.value)}
-          placeholder="sk-..."
+          placeholder={
+            hasStoredApiKey ? "Leave blank to keep saved key" : "sk-..."
+          }
           className="input"
         />
+        {hasStoredApiKey && (
+          <p className="helper-text">
+            Enter a new key only if you want to replace the Keychain value.
+          </p>
+        )}
       </div>
 
       <div>

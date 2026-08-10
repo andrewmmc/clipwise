@@ -31,7 +31,7 @@ pub fn run() {
         None => warn!("File logging unavailable; continuing with stderr logging only"),
     }
 
-    let config = match load_config() {
+    let mut config = match load_config() {
         Ok(config) => config,
         Err(err) => {
             let backup_path = quarantine_invalid_config().unwrap_or_else(|backup_err| {
@@ -47,6 +47,21 @@ pub fn run() {
             AppConfig::default()
         }
     };
+
+    match crate::secret_store::hydrate_and_migrate_config(&mut config) {
+        Ok(true) => {
+            if let Err(err) = crate::config::save_config(&config) {
+                error!(error = %err, "Failed to remove migrated API keys from config");
+                panic!("API keys were copied to Keychain but config migration could not be saved: {err}");
+            }
+            info!("Migrated plaintext API keys to macOS Keychain");
+        }
+        Ok(false) => {}
+        Err(err) => {
+            error!(error = %err, "Failed to load provider API keys securely");
+            panic!("provider API keys could not be loaded from secure storage: {err}");
+        }
+    }
 
     if let Err(err) = crate::history::purge_history_if_disabled(config.settings.history_enabled) {
         error!(error = %err, "Failed to enforce disabled history setting");

@@ -79,6 +79,16 @@ describe("validateProviderForm", () => {
     ).toMatch(/API key is required/i);
   });
 
+  it("allows a blank API key when editing a provider with a stored key", () => {
+    expect(
+      validateProviderForm(
+        { name: "OpenAI", type: "openai", apiKey: "" },
+        false,
+        true,
+      ),
+    ).toBeNull();
+  });
+
   it("rejects an invalid endpoint for API providers", () => {
     expect(
       validateProviderForm(

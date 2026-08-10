@@ -225,6 +225,8 @@ Config is stored at `~/Library/Application Support/clipwise/config.json`:
 
 On Macs without Apple Intelligence support, `providers` may start as an empty array until you add one manually.
 
+API provider credentials are stored in macOS Keychain; `config.json` contains only a Keychain reference. Existing plaintext credentials are migrated automatically at startup.
+
 History is opt-in. When enabled, Clipwise keeps up to 100 transformations in an owner-readable local file, storing the first 500 input characters and 2,000 output characters for both successful and failed actions.
 
 ## Author

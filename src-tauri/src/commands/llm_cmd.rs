@@ -45,7 +45,23 @@ pub async fn test_action(
 /// Test an API provider's connection using the current form settings.
 #[cfg(not(test))]
 #[tauri::command]
-pub async fn test_provider(provider: Provider) -> Result<String, AppError> {
+pub async fn test_provider(
+    mut provider: Provider,
+    state: State<'_, ConfigState>,
+) -> Result<String, AppError> {
+    if matches!(
+        provider.provider_type,
+        ProviderType::OpenAI | ProviderType::Anthropic
+    ) && provider.api_key.as_deref().unwrap_or("").trim().is_empty()
+        && !provider.id.is_empty()
+    {
+        provider.api_key = state
+            .lock()?
+            .providers
+            .iter()
+            .find(|stored| stored.id == provider.id)
+            .and_then(|stored| stored.api_key.clone());
+    }
     validate_provider_fields(&provider)?;
     match provider.provider_type {
         ProviderType::OpenAI | ProviderType::Anthropic => {}

@@ -133,6 +133,7 @@ export default function ProviderForm({
         command: form.command,
       },
       appleProviderExists,
+      Boolean(initial && isApiProviderType(initial.type)),
     );
     if (validationError) {
       setError(validationError);
@@ -172,6 +173,7 @@ export default function ProviderForm({
         command: form.command,
       },
       appleProviderExists,
+      Boolean(initial && isApiProviderType(initial.type)),
     );
     if (validationError) {
       clearConnectionTestSuccess();
@@ -309,6 +311,9 @@ export default function ProviderForm({
         ) : isApiProviderType(form.type) ? (
           <ApiProviderForm
             type={form.type}
+            hasStoredApiKey={Boolean(
+              initial && isApiProviderType(initial.type),
+            )}
             endpoint={form.endpoint}
             apiKey={form.apiKey}
             defaultModel={form.defaultModel}

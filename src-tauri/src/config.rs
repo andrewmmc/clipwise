@@ -70,26 +70,21 @@ pub(crate) fn validate_provider_fields(provider: &Provider) -> Result<(), AppErr
         validate_char_limit("Provider header value", value, MAX_HEADER_VALUE_CHARS)?;
         HeaderName::from_bytes(name.as_bytes())
             .map_err(|_| AppError::Config(format!("Invalid provider header name {name:?}")))?;
-        HeaderValue::from_str(value).map_err(|_| {
-            AppError::Config(format!("Invalid value for provider header {name:?}"))
-        })?;
+        HeaderValue::from_str(value)
+            .map_err(|_| AppError::Config(format!("Invalid value for provider header {name:?}")))?;
     }
     validate_provider_endpoint(provider)?;
 
     match provider.provider_type {
         ProviderType::OpenAI | ProviderType::Anthropic => {
             if provider.api_key.as_deref().unwrap_or("").trim().is_empty() {
-                return Err(AppError::Config(
-                    "API providers require an API key".into(),
-                ));
+                return Err(AppError::Config("API providers require an API key".into()));
             }
         }
         ProviderType::Cli => {
             let command = provider.command.as_deref().unwrap_or("");
             if command.trim().is_empty() {
-                return Err(AppError::Config(
-                    "CLI providers require a command".into(),
-                ));
+                return Err(AppError::Config("CLI providers require a command".into()));
             }
             validate_char_limit("CLI command", command, MAX_CLI_COMMAND_CHARS)?;
             if provider.args.len() > MAX_CLI_ARGS {
@@ -115,11 +110,7 @@ pub(crate) fn validate_action_fields(action: &Action) -> Result<(), AppError> {
     if action.user_prompt.trim().is_empty() {
         return Err(AppError::Config("Action prompt cannot be empty".into()));
     }
-    validate_char_limit(
-        "Action prompt",
-        &action.user_prompt,
-        MAX_USER_PROMPT_CHARS,
-    )?;
+    validate_char_limit("Action prompt", &action.user_prompt, MAX_USER_PROMPT_CHARS)?;
     if let Some(model) = action.model.as_deref() {
         validate_char_limit("Action model", model, MAX_MODEL_CHARS)?;
     }
@@ -127,11 +118,7 @@ pub(crate) fn validate_action_fields(action: &Action) -> Result<(), AppError> {
 }
 
 pub(crate) fn validate_selected_text(selected_text: &str) -> Result<(), AppError> {
-    validate_char_limit(
-        "Selected text",
-        selected_text,
-        MAX_SELECTED_TEXT_CHARS,
-    )
+    validate_char_limit("Selected text", selected_text, MAX_SELECTED_TEXT_CHARS)
 }
 
 pub(crate) fn validate_config(config: &AppConfig) -> Result<(), AppError> {
@@ -220,7 +207,8 @@ pub fn load_config_from(path: &Path) -> Result<AppConfig, AppError> {
 /// Save config to an explicit path (used by tests).
 pub fn save_config_to(config: &AppConfig, path: &Path) -> Result<(), AppError> {
     validate_config(config)?;
-    save_pretty_json(config, path)?;
+    let persisted = crate::secret_store::config_for_persistence(config);
+    save_pretty_json(&persisted, path)?;
     info!(
         path = %path.display(),
         provider_count = config.providers.len(),
@@ -302,7 +290,7 @@ mod tests {
         let loaded = load_config_from(&path).unwrap();
         assert_eq!(loaded.providers.len(), 1);
         assert_eq!(loaded.providers[0].id, "p1");
-        assert_eq!(loaded.providers[0].api_key, Some("sk-test".into()));
+        assert_eq!(loaded.providers[0].api_key, Some("keychain:p1".into()));
         assert_eq!(loaded.actions.len(), 1);
         assert_eq!(loaded.actions[0].name, "Test Action");
         assert_eq!(loaded.settings.max_tokens, 4096);
@@ -334,6 +322,17 @@ mod tests {
             content.contains('\n'),
             "expected pretty-printed JSON with newlines"
         );
+    }
+
+    #[test]
+    fn test_save_config_never_persists_plaintext_api_keys() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("config.json");
+        save_config_to(&make_test_config(), &path).unwrap();
+
+        let content = std::fs::read_to_string(path).unwrap();
+        assert!(!content.contains("sk-test"));
+        assert!(content.contains("keychain:p1"));
     }
 
     #[test]

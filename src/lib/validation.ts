@@ -30,11 +30,16 @@ export function isApiProviderType(type: ProviderType): type is ApiProviderType {
 export function validateProviderForm(
   data: Pick<Provider, "name" | "type" | "endpoint" | "apiKey" | "command">,
   appleProviderExists: boolean,
+  hasStoredApiKey = false,
 ) {
   if (!data.name.trim()) {
     return "Provider name is required.";
   }
-  if (isApiProviderType(data.type) && !data.apiKey?.trim()) {
+  if (
+    isApiProviderType(data.type) &&
+    !data.apiKey?.trim() &&
+    !hasStoredApiKey
+  ) {
     return "API key is required for API providers.";
   }
   if (isApiProviderType(data.type)) {

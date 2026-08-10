@@ -17,6 +17,7 @@ pub(crate) mod notifications;
 pub mod paths;
 pub mod providers;
 pub mod retry;
+pub(crate) mod secret_store;
 pub mod service;
 #[cfg(not(test))]
 pub(crate) mod tray;

@@ -1113,7 +1113,9 @@ describe("ProviderForm", () => {
     await user.clear(nameInput);
     await user.type(nameInput, "Modified Name");
 
-    const keyInput = screen.getByPlaceholderText("sk-...");
+    const keyInput = screen.getByPlaceholderText(
+      "Leave blank to keep saved key",
+    );
     await user.clear(keyInput);
     await user.type(keyInput, "modified-key");
 

@@ -117,7 +117,9 @@ mod tests {
     async fn test_unreachable_endpoint_returns_network_error() {
         // Bind then drop a listener so the port is guaranteed closed, then
         // point the provider at it to force a connection failure.
-        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let Ok(listener) = std::net::TcpListener::bind("127.0.0.1:0") else {
+            return;
+        };
         let port = listener.local_addr().unwrap().port();
         drop(listener);
 

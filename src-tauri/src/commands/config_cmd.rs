@@ -12,6 +12,8 @@ use crate::models::{Action, AppConfig, Provider, ProviderType, APPLE_PROVIDER_ID
 #[cfg(not(test))]
 use crate::providers::cli::validate_cli_command;
 #[cfg(not(test))]
+use crate::secret_store;
+#[cfg(not(test))]
 use tauri::{AppHandle, Manager};
 #[cfg(not(test))]
 use tracing::{debug, info, warn};
@@ -278,7 +280,14 @@ where
 #[cfg(not(test))]
 #[tauri::command]
 pub async fn get_config(app: AppHandle) -> Result<AppConfig, AppError> {
-    let config = run_config_worker(app, |config| Ok(config.clone())).await?;
+    let config = run_config_worker(app, |config| {
+        let mut redacted = config.clone();
+        for provider in &mut redacted.providers {
+            provider.api_key = None;
+        }
+        Ok(redacted)
+    })
+    .await?;
     debug!(
         provider_count = config.providers.len(),
         action_count = config.actions.len(),
@@ -330,7 +339,32 @@ pub async fn save_settings(settings: AppSettings, app: AppHandle) -> Result<(), 
 #[tauri::command]
 pub async fn add_provider(provider: Provider, app: AppHandle) -> Result<Provider, AppError> {
     validate_provider_capability(&provider).await?;
-    let (result, _) = mutate_config(app, move |config| insert_provider(config, provider)).await?;
+    let result = run_config_worker(app, move |config| {
+        let previous = config.clone();
+        let result = insert_provider(config, provider)?;
+        let stored_provider = config
+            .providers
+            .iter()
+            .find(|candidate| candidate.id == result.id)
+            .expect("inserted provider must exist");
+        if let Err(err) = secret_store::store_provider_secret(stored_provider) {
+            *config = previous;
+            return Err(err);
+        }
+        if let Err(save_err) = save_config(config) {
+            *config = previous;
+            if let Err(cleanup_err) = secret_store::delete_provider_secret(&result.id) {
+                return Err(AppError::Service(format!(
+                    "Failed to save provider ({save_err}) and clean up its Keychain item ({cleanup_err})"
+                )));
+            }
+            return Err(save_err);
+        }
+        let mut redacted_result = result;
+        redacted_result.api_key = None;
+        Ok(redacted_result)
+    })
+    .await?;
     info!(
         provider_id = %result.id,
         provider_name = %result.name,
@@ -348,7 +382,46 @@ pub async fn update_provider(provider: Provider, app: AppHandle) -> Result<(), A
     let provider_id = provider.id.clone();
     let provider_name = provider.name.clone();
     let provider_type = provider.provider_type.clone();
-    mutate_config(app, move |config| replace_provider(config, provider)).await?;
+    run_config_worker(app, move |config| {
+        let previous = config.clone();
+        let old_provider = config
+            .providers
+            .iter()
+            .find(|candidate| candidate.id == provider.id)
+            .cloned()
+            .ok_or_else(|| AppError::ProviderNotFound(provider.id.clone()))?;
+        let mut provider = provider;
+        if matches!(
+            provider.provider_type,
+            ProviderType::OpenAI | ProviderType::Anthropic
+        ) && provider.api_key.as_deref().unwrap_or("").trim().is_empty()
+        {
+            provider.api_key = old_provider.api_key.clone();
+        }
+        replace_provider(config, provider)?;
+        let new_provider = config
+            .providers
+            .iter()
+            .find(|candidate| candidate.id == old_provider.id)
+            .cloned()
+            .expect("updated provider must exist");
+
+        if let Err(secret_err) = secret_store::restore_provider_secret(&new_provider) {
+            *config = previous;
+            return Err(secret_err);
+        }
+        if let Err(save_err) = save_config(config) {
+            *config = previous;
+            if let Err(restore_err) = secret_store::restore_provider_secret(&old_provider) {
+                return Err(AppError::Service(format!(
+                    "Failed to save provider ({save_err}) and restore its previous Keychain item ({restore_err})"
+                )));
+            }
+            return Err(save_err);
+        }
+        Ok(())
+    })
+    .await?;
     info!(
         provider_id = %provider_id,
         provider_name = %provider_name,
@@ -363,9 +436,24 @@ pub async fn update_provider(provider: Provider, app: AppHandle) -> Result<(), A
 #[tauri::command]
 pub async fn delete_provider(id: String, app: AppHandle) -> Result<(), AppError> {
     let worker_id = id.clone();
-    mutate_config(app, move |config| {
+    run_config_worker(app, move |config| {
+        let previous = config.clone();
         ensure_provider_deletable(config, &worker_id)?;
-        remove_provider(config, &worker_id)
+        remove_provider(config, &worker_id)?;
+        if let Err(save_err) = save_config(config) {
+            *config = previous;
+            return Err(save_err);
+        }
+        if let Err(delete_err) = secret_store::delete_provider_secret(&worker_id) {
+            *config = previous.clone();
+            if let Err(rollback_err) = save_config(&previous) {
+                return Err(AppError::Service(format!(
+                    "Failed to delete Keychain item ({delete_err}) and restore provider config ({rollback_err})"
+                )));
+            }
+            return Err(delete_err);
+        }
+        Ok(())
     })
     .await?;
     info!(provider_id = %id, "Deleted provider");
