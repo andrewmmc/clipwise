@@ -8,6 +8,28 @@ use std::time::Duration;
 use tracing::{debug, warn};
 
 const REQUEST_TIMEOUT_SECS: u64 = 120;
+const MAX_RESPONSE_BODY_BYTES: usize = 4 * 1024 * 1024;
+const MAX_ERROR_BODY_BYTES: usize = 64 * 1024;
+
+async fn read_body_limited(
+    mut response: reqwest::Response,
+    max_bytes: usize,
+) -> Result<(String, bool), AppError> {
+    let mut body = Vec::new();
+    let mut truncated = false;
+
+    while let Some(chunk) = response.chunk().await.map_err(AppError::Http)? {
+        let remaining = max_bytes.saturating_sub(body.len());
+        if chunk.len() > remaining {
+            body.extend_from_slice(&chunk[..remaining]);
+            truncated = true;
+            break;
+        }
+        body.extend_from_slice(&chunk);
+    }
+
+    Ok((String::from_utf8_lossy(&body).into_owned(), truncated))
+}
 
 /// Validates a provider endpoint URL before it is used to send credentials.
 ///
@@ -109,7 +131,12 @@ pub(crate) async fn send_json_with_retry(
                 provider = provider_name,
                 "Provider request failed"
             );
-            let error_body = response.text().await.unwrap_or_default();
+            let (mut error_body, truncated) = read_body_limited(response, MAX_ERROR_BODY_BYTES)
+                .await
+                .unwrap_or_default();
+            if truncated {
+                error_body.push_str("… [response truncated]");
+            }
             return Err(AppError::from_http_status(status.as_u16(), &error_body));
         }
 
@@ -119,7 +146,14 @@ pub(crate) async fn send_json_with_retry(
             provider = provider_name,
             "Provider request succeeded"
         );
-        response.text().await.map_err(AppError::Http)
+        let (body, truncated) = read_body_limited(response, MAX_RESPONSE_BODY_BYTES).await?;
+        if truncated {
+            return Err(AppError::Llm(format!(
+                "{provider_name} response exceeded the {} MiB limit",
+                MAX_RESPONSE_BODY_BYTES / (1024 * 1024)
+            )));
+        }
+        Ok(body)
     })
     .await?;
 
@@ -162,6 +196,9 @@ pub(crate) async fn send_json_and_normalize(
 mod tests {
     use super::*;
     use crate::models::{Provider, ProviderHeaders, ProviderType};
+    use crate::providers::test_helpers::{no_proxy_client, start_mock_server_or_skip};
+    use wiremock::matchers::method;
+    use wiremock::{Mock, ResponseTemplate};
 
     fn provider_with_endpoint(endpoint: Option<&str>) -> Provider {
         Provider {
@@ -264,5 +301,67 @@ mod tests {
             ),
             "https://custom.example/v1"
         );
+    }
+
+    #[tokio::test]
+    async fn test_send_json_rejects_oversized_success_body() {
+        let Some(server) = start_mock_server_or_skip().await else {
+            return;
+        };
+        Mock::given(method("POST"))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(vec![
+                b'x';
+                MAX_RESPONSE_BODY_BYTES
+                    + 1
+            ]))
+            .mount(&server)
+            .await;
+        let provider = provider_with_endpoint(Some(&server.uri()));
+        let client = no_proxy_client();
+
+        let result = send_json_with_retry(
+            &client,
+            &provider,
+            "Test",
+            &server.uri(),
+            &serde_json::json!({}),
+            |client, endpoint| client.post(endpoint),
+        )
+        .await;
+
+        assert!(matches!(
+            result,
+            Err(AppError::Llm(message)) if message.contains("response exceeded")
+        ));
+    }
+
+    #[tokio::test]
+    async fn test_send_json_truncates_oversized_error_body() {
+        let Some(server) = start_mock_server_or_skip().await else {
+            return;
+        };
+        Mock::given(method("POST"))
+            .respond_with(
+                ResponseTemplate::new(400).set_body_bytes(vec![b'x'; MAX_ERROR_BODY_BYTES + 1]),
+            )
+            .mount(&server)
+            .await;
+        let provider = provider_with_endpoint(Some(&server.uri()));
+        let client = no_proxy_client();
+
+        let error = send_json_with_retry(
+            &client,
+            &provider,
+            "Test",
+            &server.uri(),
+            &serde_json::json!({}),
+            |client, endpoint| client.post(endpoint),
+        )
+        .await
+        .unwrap_err()
+        .to_string();
+
+        assert!(error.contains("[response truncated]"));
+        assert!(error.len() < MAX_ERROR_BODY_BYTES + 100);
     }
 }
