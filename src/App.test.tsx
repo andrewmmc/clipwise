@@ -283,4 +283,30 @@ describe("App", () => {
       screen.queryByRole("button", { name: /actions/i }),
     ).not.toBeInTheDocument();
   });
+
+  it("keeps the app visible when a settings refresh fails", async () => {
+    mockInvoke.mockImplementation((cmd) => {
+      if (cmd === "get_config") {
+        return mockInvoke.mock.calls.filter(([name]) => name === "get_config")
+          .length === 1
+          ? Promise.resolve(mockConfig)
+          : Promise.reject(new Error("refresh failed"));
+      }
+      return Promise.resolve(undefined);
+    });
+    const user = userEvent.setup();
+    render(<App />);
+    await waitFor(() => screen.getByText("Clipwise"));
+
+    await user.click(screen.getByRole("button", { name: /settings/i }));
+    await user.click(
+      screen.getByRole("switch", { name: /show notification on complete/i }),
+    );
+
+    await waitFor(() =>
+      expect(screen.getByText("Failed to refresh config")).toBeInTheDocument(),
+    );
+    expect(screen.getByText("refresh failed")).toBeInTheDocument();
+    expect(screen.getByText("Clipwise")).toBeInTheDocument();
+  });
 });

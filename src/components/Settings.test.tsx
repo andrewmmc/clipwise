@@ -136,6 +136,37 @@ describe("SettingsPanel", () => {
     );
   });
 
+  it("cancels disabling history without saving", async () => {
+    const user = userEvent.setup();
+    render(<SettingsPanel config={mockConfig} onRefresh={onRefresh} />);
+
+    await user.click(screen.getByRole("switch", { name: "Enable history" }));
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(
+      screen.queryByLabelText("Confirm disabling history"),
+    ).not.toBeInTheDocument();
+    expect(mockInvoke).not.toHaveBeenCalled();
+  });
+
+  it("enables history immediately when it is disabled", async () => {
+    mockInvoke.mockResolvedValue(undefined);
+    const user = userEvent.setup();
+    const config = {
+      ...mockConfig,
+      settings: { ...mockConfig.settings, historyEnabled: false },
+    };
+    render(<SettingsPanel config={config} onRefresh={onRefresh} />);
+
+    await user.click(screen.getByRole("switch", { name: "Enable history" }));
+
+    await waitFor(() =>
+      expect(mockInvoke).toHaveBeenCalledWith("save_settings", {
+        settings: expect.objectContaining({ historyEnabled: true }),
+      }),
+    );
+  });
+
   it("auto-saves when changing max tokens", async () => {
     mockInvoke.mockResolvedValue(undefined);
     const user = userEvent.setup();

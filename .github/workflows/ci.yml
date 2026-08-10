@@ -47,6 +47,9 @@ jobs:
       - name: Typecheck
         run: npx tsc --noEmit
 
+      - name: Test build
+        run: npx vite build
+
       - name: Rust production check
         run: cargo check --manifest-path src-tauri/Cargo.toml --all-features
 
@@ -92,9 +95,6 @@ jobs:
           name: coverage-report
           path: coverage/
           if-no-files-found: ignore
-
-      - name: Test build
-        run: npx vite build
 
   release:
     needs: ci
