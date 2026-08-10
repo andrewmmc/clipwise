@@ -2,7 +2,7 @@ use crate::error::AppError;
 use crate::llm_response::normalize_response_str;
 use crate::models::Provider;
 use crate::retry::with_http_retry;
-use reqwest::{Client, RequestBuilder};
+use reqwest::{Client, ClientBuilder, RequestBuilder};
 use serde_json::Value;
 use std::time::Duration;
 use tracing::{debug, warn};
@@ -10,6 +10,23 @@ use tracing::{debug, warn};
 const REQUEST_TIMEOUT_SECS: u64 = 120;
 const MAX_RESPONSE_BODY_BYTES: usize = 4 * 1024 * 1024;
 const MAX_ERROR_BODY_BYTES: usize = 4 * 1024;
+
+fn provider_client_builder(https_only: bool) -> ClientBuilder {
+    Client::builder()
+        .https_only(https_only)
+        .redirect(reqwest::redirect::Policy::none())
+}
+
+/// Builds the client used for authenticated provider requests.
+///
+/// Provider API endpoints are expected to return JSON directly. Refusing all
+/// redirects prevents API keys and custom headers from being forwarded to a
+/// different origin or downgraded to plaintext HTTP.
+pub(crate) fn secure_provider_client() -> Result<Client, AppError> {
+    provider_client_builder(true)
+        .build()
+        .map_err(AppError::Http)
+}
 
 async fn read_body_limited(
     mut response: reqwest::Response,
@@ -304,6 +321,56 @@ mod tests {
             ),
             "https://custom.example/v1"
         );
+    }
+
+    #[tokio::test]
+    async fn test_provider_client_does_not_follow_redirects() {
+        let Some(source) = start_mock_server_or_skip().await else {
+            return;
+        };
+        let Some(target) = start_mock_server_or_skip().await else {
+            return;
+        };
+
+        Mock::given(method("POST"))
+            .respond_with(
+                ResponseTemplate::new(307).insert_header("Location", target.uri().as_str()),
+            )
+            .expect(1)
+            .mount(&source)
+            .await;
+        Mock::given(method("POST"))
+            .respond_with(ResponseTemplate::new(200))
+            .expect(0)
+            .mount(&target)
+            .await;
+
+        let mut provider = provider_with_endpoint(Some(&source.uri()));
+        provider
+            .headers
+            .insert("X-Private-Token".into(), "header-secret".into());
+        let client = provider_client_builder(false)
+            .no_proxy()
+            .build()
+            .expect("test client should build");
+
+        let result = send_json_with_retry(
+            &client,
+            &provider,
+            "Test",
+            &source.uri(),
+            &serde_json::json!({}),
+            |client, endpoint| {
+                client
+                    .post(endpoint)
+                    .header("Authorization", "Bearer api-secret")
+            },
+        )
+        .await;
+
+        assert!(matches!(result, Err(AppError::Llm(message)) if message.contains("307")));
+        source.verify().await;
+        target.verify().await;
     }
 
     #[tokio::test]

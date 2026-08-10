@@ -1,8 +1,8 @@
 use crate::error::AppError;
 use crate::models::{Provider, SYSTEM_PROMPT};
 use crate::providers::http::{
-    endpoint_or_default, model_or_default, provider_api_key, send_json_and_normalize,
-    validate_provider_endpoint,
+    endpoint_or_default, model_or_default, provider_api_key, secure_provider_client,
+    send_json_and_normalize, validate_provider_endpoint,
 };
 use reqwest::Client;
 use serde_json::json;
@@ -18,7 +18,8 @@ pub async fn call_openai(
     max_tokens: u32,
 ) -> Result<serde_json::Value, AppError> {
     validate_provider_endpoint(provider)?;
-    call_openai_with_client(provider, user_message, model, max_tokens, &Client::new()).await
+    let client = secure_provider_client()?;
+    call_openai_with_client(provider, user_message, model, max_tokens, &client).await
 }
 
 pub async fn call_openai_with_client(
