@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import useAsyncAction from "../hooks/useAsyncAction";
 import useTransientMessage from "../hooks/useTransientMessage";
 import { cx } from "../lib/classNames";
@@ -41,6 +41,23 @@ export default function HistoryList() {
     showMessage,
     clearMessage,
   } = useTransientMessage();
+  const activeMutations = useRef(0);
+
+  const beginMutation = () => {
+    activeMutations.current += 1;
+  };
+
+  const finishMutation = async () => {
+    activeMutations.current -= 1;
+    if (activeMutations.current !== 0) return;
+
+    try {
+      setHistory(await tauriCommands.getHistory());
+    } catch {
+      // The successful mutation is already reflected locally. A later
+      // mutation or tab reload will retry the authoritative refresh.
+    }
+  };
 
   const loadHistory = useCallback(async () => {
     setLoading(true);
@@ -80,6 +97,7 @@ export default function HistoryList() {
   };
 
   const handleToggleStar = (id: string) => {
+    beginMutation();
     setStarringIds((prev) => new Set(prev).add(id));
     clearError();
     clearMessage();
@@ -90,19 +108,6 @@ export default function HistoryList() {
         setHistory((prev) =>
           prev.map((e) => (e.id === id ? { ...e, starred: newStarred } : e)),
         );
-        try {
-          // Refetch to pick up backend side effects the optimistic update
-          // above can't know about (e.g. toggling star on the 21st entry
-          // auto-unstars the oldest starred entry to enforce the starred
-          // limit). Not wrapped in `run()`: a failure here shouldn't show
-          // an error for a toggle that actually succeeded, since the
-          // optimistic update already reflects the primary change.
-          const entries = await tauriCommands.getHistory();
-          setHistory(entries);
-        } catch {
-          // Keep the optimistic update; the next manual refresh will pick
-          // up any side effects we missed.
-        }
       } catch {
         // useAsyncAction captures the displayed error.
       } finally {
@@ -111,11 +116,13 @@ export default function HistoryList() {
           next.delete(id);
           return next;
         });
+        await finishMutation();
       }
     })();
   };
 
   const handleClearHistory = () => {
+    beginMutation();
     setClearing(true);
     clearError();
     clearMessage();
@@ -135,11 +142,13 @@ export default function HistoryList() {
         // useAsyncAction captures the displayed error.
       } finally {
         setClearing(false);
+        await finishMutation();
       }
     })();
   };
 
   const handleDeleteEntry = (id: string) => {
+    beginMutation();
     setDeletingIds((prev) => new Set(prev).add(id));
     clearError();
     clearMessage();
@@ -163,11 +172,13 @@ export default function HistoryList() {
           next.delete(id);
           return next;
         });
+        await finishMutation();
       }
     })();
   };
 
   const handlePurgeAll = () => {
+    beginMutation();
     setPurging(true);
     clearError();
     clearMessage();
@@ -183,6 +194,7 @@ export default function HistoryList() {
         // useAsyncAction captures the displayed error.
       } finally {
         setPurging(false);
+        await finishMutation();
       }
     })();
   };
