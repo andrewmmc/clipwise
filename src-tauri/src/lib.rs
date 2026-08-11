@@ -3,7 +3,6 @@ pub mod action_service;
 pub mod app;
 #[cfg(not(test))]
 pub(crate) mod apple_attach;
-#[cfg(not(test))]
 pub(crate) mod autostart;
 #[cfg(not(test))]
 pub(crate) mod clipboard;

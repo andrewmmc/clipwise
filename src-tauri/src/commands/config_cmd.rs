@@ -280,7 +280,7 @@ where
 #[cfg(not(test))]
 #[tauri::command]
 pub async fn get_config(app: AppHandle) -> Result<AppConfig, AppError> {
-    let config = run_config_worker(app, |config| {
+    let mut config = run_config_worker(app, |config| {
         let mut redacted = config.clone();
         for provider in &mut redacted.providers {
             provider.api_key = None;
@@ -288,6 +288,9 @@ pub async fn get_config(app: AppHandle) -> Result<AppConfig, AppError> {
         Ok(redacted)
     })
     .await?;
+    // Reflect changes made in System Settings (including revoked approval) in
+    // the UI without overwriting the user's saved preference during startup.
+    config.settings.start_at_login = crate::autostart::is_enabled()?;
     debug!(
         provider_count = config.providers.len(),
         action_count = config.actions.len(),
@@ -301,16 +304,14 @@ pub async fn get_config(app: AppHandle) -> Result<AppConfig, AppError> {
 pub async fn save_settings(settings: AppSettings, app: AppHandle) -> Result<(), AppError> {
     validate_settings(&settings)?;
 
-    // Apply the OS login item first. If config persistence fails, restore its
-    // prior state so the saved preference and the actual login item agree.
-    // Unrelated settings remain saveable even if the OS login-item service is
-    // temporarily unavailable.
-    let stored_start_at_login =
-        run_config_worker(app.clone(), |config| Ok(config.settings.start_at_login)).await?;
-    let previous_autostart = if stored_start_at_login != settings.start_at_login {
-        let previous = crate::autostart::is_enabled(&app)?;
-        crate::autostart::set_enabled(&app, settings.start_at_login)?;
-        Some(previous)
+    // Compare against the actual Service Management status rather than the
+    // saved preference. This lets users retry after approval was revoked in
+    // System Settings even when the previously saved preference was `true`.
+    // If config persistence fails, restore the prior operating-system state.
+    let actual_start_at_login = crate::autostart::is_enabled()?;
+    let previous_autostart = if actual_start_at_login != settings.start_at_login {
+        crate::autostart::set_enabled(settings.start_at_login)?;
+        Some(actual_start_at_login)
     } else {
         None
     };
@@ -345,8 +346,7 @@ pub async fn save_settings(settings: AppSettings, app: AppHandle) -> Result<(), 
         Ok(config) => config,
         Err(save_error) => {
             if let Some(previous_autostart) = previous_autostart {
-                if let Err(rollback_error) = crate::autostart::set_enabled(&app, previous_autostart)
-                {
+                if let Err(rollback_error) = crate::autostart::set_enabled(previous_autostart) {
                     return Err(AppError::Service(format!(
                         "Failed to save settings ({save_error}) and restore start at login ({rollback_error})"
                     )));
