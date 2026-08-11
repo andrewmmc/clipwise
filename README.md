@@ -21,6 +21,18 @@ Clipwise is a small menu bar app that helps you quickly rewrite, summarize, tran
 
 No browser. No context switching. Select text, run an action, get the result back in your clipboard.
 
+## Project Status
+
+Clipwise is available now and actively maintained. It is still an early `0.x` release, so configuration and provider behavior may evolve before `1.0`.
+
+|                           | Status                                                                                                                                                                                  |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Latest stable release** | [`v0.2.0`](https://github.com/andrewmmc/clipwise/releases/tag/v0.2.0), published May 24, 2026                                                                                           |
+| **Current development**   | `master` contains unreleased reliability, security, history, and provider improvements beyond `v0.2.0`                                                                                  |
+| **Distribution**          | [Mac App Store](https://apps.apple.com/us/app/clipwise-refine-text-with-ai/id6762086471) and signed, notarized [GitHub releases](https://github.com/andrewmmc/clipwise/releases/latest) |
+| **Platform**              | macOS 26 or later; Apple Silicon and Intel                                                                                                                                              |
+| **Build health**          | [`master` CI](https://github.com/andrewmmc/clipwise/actions/workflows/ci.yml)                                                                                                           |
+
 ## Screenshots
 
 <p align="center">
@@ -61,7 +73,7 @@ No browser. No context switching. Select text, run an action, get the result bac
 
 **[Get Clipwise on the Mac App Store](https://apps.apple.com/us/app/clipwise-refine-text-with-ai/id6762086471)** (Apple Intelligence, OpenAI, Anthropic) or **[download the latest release](https://github.com/andrewmmc/clipwise/releases/latest)** (includes CLI tool support)
 
-macOS builds are available for both Apple Silicon (M1+) and Intel.
+Clipwise requires macOS 26 or later. GitHub releases provide a universal build for both Apple Silicon and Intel Macs.
 
 ### From the Mac App Store
 
