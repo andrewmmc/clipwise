@@ -27,8 +27,8 @@ Clipwise is available now and actively maintained. It is still an early `0.x` re
 
 |                           | Status                                                                                                                                                                                  |
 | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Latest stable release** | [`v0.2.0`](https://github.com/andrewmmc/clipwise/releases/tag/v0.2.0), published May 24, 2026                                                                                           |
-| **Current development**   | `master` contains unreleased reliability, security, history, and provider improvements beyond `v0.2.0`                                                                                  |
+| **Latest stable release** | [`v0.3.0`](https://github.com/andrewmmc/clipwise/releases/tag/v0.3.0), published August 11, 2026                                                                                        |
+| **Current development**   | `master` is the active development branch for changes beyond `v0.3.0`                                                                                                                   |
 | **Distribution**          | [Mac App Store](https://apps.apple.com/us/app/clipwise-refine-text-with-ai/id6762086471) and signed, notarized [GitHub releases](https://github.com/andrewmmc/clipwise/releases/latest) |
 | **Platform**              | macOS 26 or later; Apple Silicon and Intel                                                                                                                                              |
 | **Build health**          | [`master` CI](https://github.com/andrewmmc/clipwise/actions/workflows/ci.yml)                                                                                                           |
