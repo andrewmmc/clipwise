@@ -7,4 +7,9 @@ export type AppSettings = {
   showNotificationOnComplete: boolean;
   maxTokens: number;
   historyEnabled: boolean;
+  /**
+   * Older saved configs predate onboarding and must not be interrupted.
+   * New configs use `Default`, which deliberately starts incomplete.
+   */
+  onboardingCompleted: boolean;
 };

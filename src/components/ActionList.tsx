@@ -17,15 +17,27 @@ import {
   Trash2,
   Zap,
 } from "lucide-react";
+import type { ActionPreset } from "../lib/actionPresets";
 
 interface Props {
   config: AppConfig;
   onRefresh: () => void;
+  startCreating?: boolean;
+  creationDraft?: ActionPreset;
+  onCreateComplete?: () => void;
+  onCreateCancel?: () => void;
 }
 
-export default function ActionList({ config, onRefresh }: Props) {
+export default function ActionList({
+  config,
+  onRefresh,
+  startCreating = false,
+  creationDraft,
+  onCreateComplete,
+  onCreateCancel,
+}: Props) {
   const [editing, setEditing] = useState<Action | null>(null);
-  const [creating, setCreating] = useState(false);
+  const [creating, setCreating] = useState(startCreating);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [reordering, setReordering] = useState(false);
   const [showProviderHint, setShowProviderHint] = useState(false);
@@ -90,15 +102,20 @@ export default function ActionList({ config, onRefresh }: Props) {
     return (
       <ActionForm
         config={config}
+        draft={creationDraft}
         onSave={async (data) => {
           await runMutation(async () => {
             await tauriCommands.addAction(data);
             onRefresh();
             showSuccessMessage("Action saved successfully.");
             setCreating(false);
+            onCreateComplete?.();
           });
         }}
-        onCancel={() => setCreating(false)}
+        onCancel={() => {
+          setCreating(false);
+          onCreateCancel?.();
+        }}
       />
     );
   }

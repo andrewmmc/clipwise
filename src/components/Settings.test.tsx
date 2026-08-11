@@ -37,6 +37,21 @@ describe("SettingsPanel", () => {
     expect(select).toHaveValue("4096");
   });
 
+  it("opens the getting started guide on request", async () => {
+    const onShowGuide = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <SettingsPanel
+        config={mockConfig}
+        onRefresh={onRefresh}
+        onShowGuide={onShowGuide}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Show Guide" }));
+    expect(onShowGuide).toHaveBeenCalledOnce();
+  });
+
   it("explains exactly what enabling history stores", () => {
     render(<SettingsPanel config={mockConfig} onRefresh={onRefresh} />);
 

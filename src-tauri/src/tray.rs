@@ -71,7 +71,7 @@ fn build_tray_menu<R: Runtime, M: Manager<R>>(
     };
 
     let open_settings =
-        MenuItem::with_id(app, "open_settings", "Open Settings...", true, None::<&str>)?;
+        MenuItem::with_id(app, "open_settings", "Open Clipwise...", true, None::<&str>)?;
     let separator = tauri::menu::PredefinedMenuItem::separator(app)?;
     let quit = MenuItem::with_id(app, "quit", "Quit Clipwise", true, None::<&str>)?;
     let mut menu_items: Vec<&dyn tauri::menu::IsMenuItem<R>> = action_items

@@ -114,6 +114,10 @@ pub struct AppSettings {
     pub max_tokens: u32,
     #[serde(default)]
     pub history_enabled: bool,
+    /// Older saved configs predate onboarding and must not be interrupted.
+    /// New configs use `Default`, which deliberately starts incomplete.
+    #[serde(default = "default_true")]
+    pub onboarding_completed: bool,
 }
 
 fn default_true() -> bool {
@@ -129,6 +133,7 @@ impl Default for AppSettings {
             show_notification_on_complete: true,
             max_tokens: 4096,
             history_enabled: false,
+            onboarding_completed: false,
         }
     }
 }
@@ -419,6 +424,7 @@ mod tests {
         assert!(s.show_notification_on_complete);
         assert_eq!(s.max_tokens, 4096);
         assert!(!s.history_enabled);
+        assert!(s.onboarding_completed);
     }
 
     #[test]
@@ -427,6 +433,7 @@ mod tests {
         assert!(s.show_notification_on_complete); // default preserved
         assert_eq!(s.max_tokens, 2048);
         assert!(!s.history_enabled); // privacy-preserving default
+        assert!(s.onboarding_completed); // existing installs are not interrupted
     }
 
     #[test]
@@ -435,6 +442,18 @@ mod tests {
         assert!(s.show_notification_on_complete);
         assert_eq!(s.max_tokens, 4096);
         assert!(!s.history_enabled);
+        assert!(!s.onboarding_completed);
+    }
+
+    #[test]
+    fn test_app_settings_onboarding_value_round_trips() {
+        let settings = AppSettings {
+            onboarding_completed: true,
+            ..Default::default()
+        };
+        let json = serde_json::to_string(&settings).unwrap();
+        let decoded: AppSettings = serde_json::from_str(&json).unwrap();
+        assert!(decoded.onboarding_completed);
     }
 
     #[test]

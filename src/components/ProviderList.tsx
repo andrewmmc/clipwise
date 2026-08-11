@@ -17,11 +17,20 @@ import { Plus, Pencil, Trash2, Server, Shield } from "lucide-react";
 interface Props {
   config: AppConfig;
   onRefresh: () => void;
+  startCreating?: boolean;
+  onCreateComplete?: () => void;
+  onCreateCancel?: () => void;
 }
 
-export default function ProviderList({ config, onRefresh }: Props) {
+export default function ProviderList({
+  config,
+  onRefresh,
+  startCreating = false,
+  onCreateComplete,
+  onCreateCancel,
+}: Props) {
   const [editing, setEditing] = useState<Provider | null>(null);
-  const [creating, setCreating] = useState(false);
+  const [creating, setCreating] = useState(startCreating);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const {
@@ -73,9 +82,13 @@ export default function ProviderList({ config, onRefresh }: Props) {
             onRefresh();
             showSuccessMessage("Provider saved successfully.");
             setCreating(false);
+            onCreateComplete?.();
           });
         }}
-        onCancel={() => setCreating(false)}
+        onCancel={() => {
+          setCreating(false);
+          onCreateCancel?.();
+        }}
       />
     );
   }

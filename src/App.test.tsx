@@ -47,6 +47,124 @@ describe("App", () => {
     expect(screen.getByText("No actions yet")).toBeInTheDocument();
   });
 
+  it("shows guided onboarding for an incomplete first-run config", async () => {
+    mockInvoke.mockImplementation((cmd) => {
+      if (cmd === "get_config") {
+        return Promise.resolve({
+          ...emptyConfig,
+          settings: {
+            ...emptyConfig.settings,
+            onboardingCompleted: false,
+          },
+        });
+      }
+      if (cmd === "prepare_apple_provider") {
+        return Promise.resolve({ available: false, reason: "not_supported" });
+      }
+      return Promise.resolve(undefined);
+    });
+
+    render(<App />);
+
+    await waitFor(() =>
+      expect(screen.getByText("Welcome to Clipwise")).toBeInTheDocument(),
+    );
+    expect(screen.getByText("1. Copy")).toBeInTheDocument();
+    expect(screen.getByText("2. Choose")).toBeInTheDocument();
+    expect(screen.getByText("3. Paste")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Finish Setup" })).toBeDisabled();
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: /set up provider/i }),
+      ).toBeInTheDocument(),
+    );
+  });
+
+  it("opens the existing action editor with the chosen onboarding template", async () => {
+    const config = {
+      ...mockConfig,
+      actions: [],
+      settings: { ...mockConfig.settings, onboardingCompleted: false },
+    };
+    mockInvoke.mockImplementation((cmd) => {
+      if (cmd === "get_config") return Promise.resolve(config);
+      if (cmd === "prepare_apple_provider") {
+        return Promise.resolve({ available: false, reason: "not_supported" });
+      }
+      return Promise.resolve(undefined);
+    });
+
+    render(<App />);
+    await waitFor(() => screen.getByText("Welcome to Clipwise"));
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Improve writing" }));
+
+    expect(screen.getByText("New Action")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Improve writing")).toBeInTheDocument();
+    expect(
+      screen.getByDisplayValue(
+        "Improve the writing quality, clarity, and flow of the following text.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("finishes onboarding only after provider and action prerequisites exist", async () => {
+    let config = {
+      ...mockConfig,
+      settings: { ...mockConfig.settings, onboardingCompleted: false },
+    };
+    mockInvoke.mockImplementation((cmd, args) => {
+      if (cmd === "get_config") return Promise.resolve(config);
+      if (cmd === "prepare_apple_provider") {
+        return Promise.resolve({ available: false, reason: "not_supported" });
+      }
+      if (cmd === "save_settings") {
+        const settings = (args as { settings: typeof config.settings })
+          .settings;
+        config = { ...config, settings };
+        return Promise.resolve(undefined);
+      }
+      return Promise.resolve(undefined);
+    });
+
+    render(<App />);
+    await waitFor(() => screen.getByText("Welcome to Clipwise"));
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Finish Setup" }));
+
+    await waitFor(() =>
+      expect(mockInvoke).toHaveBeenCalledWith("save_settings", {
+        settings: expect.objectContaining({ onboardingCompleted: true }),
+      }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("button", { name: "Getting Started" }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(screen.getAllByText("Actions").length).toBeGreaterThan(0);
+  });
+
+  it("reopens the guide from Settings without resetting completion", async () => {
+    mockInvoke.mockResolvedValue(mockConfig);
+    render(<App />);
+    await waitFor(() => screen.getByText("Clipwise"));
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole("button", { name: /settings/i }));
+    await user.click(screen.getByRole("button", { name: "Show Guide" }));
+    expect(screen.getByText("Welcome to Clipwise")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Done" }));
+
+    expect(mockInvoke).not.toHaveBeenCalledWith(
+      "save_settings",
+      expect.anything(),
+    );
+    expect(
+      screen.queryByRole("button", { name: "Getting Started" }),
+    ).not.toBeInTheDocument();
+  });
+
   // ── Default tab state ─────────────────────────────────────────────────────────
 
   it("defaults to the Actions tab", async () => {

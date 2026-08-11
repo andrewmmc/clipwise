@@ -4,13 +4,19 @@ import { tauriCommands } from "../lib/tauri";
 import type { AppConfig, AppSettings } from "../types/config";
 import ConfirmDeleteActions from "./ConfirmDeleteActions";
 import ErrorBox from "./ErrorBox";
+import { BookOpen } from "lucide-react";
 
 interface Props {
   config: AppConfig;
   onRefresh: () => void;
+  onShowGuide?: () => void;
 }
 
-export default function SettingsPanel({ config, onRefresh }: Props) {
+export default function SettingsPanel({
+  config,
+  onRefresh,
+  onShowGuide,
+}: Props) {
   const [settingsState, setSettingsState] = useState({
     source: config.settings,
     settings: { ...config.settings },
@@ -148,6 +154,27 @@ export default function SettingsPanel({ config, onRefresh }: Props) {
               <option value={32768}>32768</option>
             </select>
           </div>
+
+          {onShowGuide && (
+            <div className="flex items-center justify-between border-t border-border pt-4">
+              <div>
+                <p className="text-[13px] font-medium text-text-primary">
+                  Getting started guide
+                </p>
+                <p className="text-[12px] text-text-tertiary">
+                  Review how to configure and use Clipwise.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={onShowGuide}
+                className="btn btn-secondary"
+              >
+                <BookOpen size={14} />
+                Show Guide
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

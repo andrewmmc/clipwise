@@ -23,9 +23,19 @@ describe("tauriCommands", () => {
       showNotificationOnComplete: false,
       maxTokens: 2048,
       historyEnabled: true,
+      onboardingCompleted: true,
     };
     await tauriCommands.saveSettings(settings);
     expect(mockInvoke).toHaveBeenCalledWith("save_settings", { settings });
+  });
+
+  it("prepareAppleProvider calls onboarding attachment command", async () => {
+    const availability = { available: true, reason: null };
+    mockInvoke.mockResolvedValue(availability);
+    await expect(tauriCommands.prepareAppleProvider()).resolves.toEqual(
+      availability,
+    );
+    expect(mockInvoke).toHaveBeenCalledWith("prepare_apple_provider");
   });
 
   it("addProvider calls invoke with 'add_provider'", async () => {

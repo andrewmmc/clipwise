@@ -23,6 +23,7 @@ const baseConfig: AppConfig = {
     showNotificationOnComplete: true,
     maxTokens: 1000,
     historyEnabled: true,
+    onboardingCompleted: true,
   },
 };
 

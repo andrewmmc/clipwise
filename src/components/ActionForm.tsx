@@ -2,6 +2,7 @@ import { useState } from "react";
 import { cx } from "../lib/classNames";
 import { getErrorMessage } from "../lib/errors";
 import { tauriCommands } from "../lib/tauri";
+import { ACTION_PRESETS, type ActionPreset } from "../lib/actionPresets";
 import { MAX_USER_PROMPT_LENGTH, validateActionForm } from "../lib/validation";
 import type { Action, AppConfig } from "../types/config";
 import { ChevronDown, FlaskConical } from "lucide-react";
@@ -12,53 +13,27 @@ import FormFooter from "./FormFooter";
 interface Props {
   config: AppConfig;
   initial?: Action;
+  draft?: ActionPreset;
   onSave: (data: Omit<Action, "id">) => Promise<void>;
   onCancel: () => void;
 }
 
 const DEFAULT_TEST_INPUT = "The quick brown fox jumps over the lazy dog.";
 
-const PROMPT_PRESETS = [
-  {
-    label: "Improve writing",
-    name: "Improve writing",
-    userPrompt:
-      "Improve the writing quality, clarity, and flow of the following text.",
-  },
-  {
-    label: "Make concise",
-    name: "Make concise",
-    userPrompt:
-      "Make the following text more concise without losing important meaning.",
-  },
-  {
-    label: "Summarize",
-    name: "Summarize",
-    userPrompt: "Summarize the following text clearly and briefly.",
-  },
-  {
-    label: "Translate to English",
-    name: "Translate to English",
-    userPrompt: "Translate the following text to English.",
-  },
-  {
-    label: "Fix grammar",
-    name: "Fix grammar",
-    userPrompt: "Fix grammar, spelling, and punctuation in the following text.",
-  },
-] as const;
-
 export default function ActionForm({
   config,
   initial,
+  draft,
   onSave,
   onCancel,
 }: Props) {
-  const [name, setName] = useState(initial?.name ?? "");
+  const [name, setName] = useState(initial?.name ?? draft?.name ?? "");
   const [providerId, setProviderId] = useState(
     initial?.providerId ?? config.providers[0]?.id ?? "",
   );
-  const [userPrompt, setUserPrompt] = useState(initial?.userPrompt ?? "");
+  const [userPrompt, setUserPrompt] = useState(
+    initial?.userPrompt ?? draft?.userPrompt ?? "",
+  );
   const [model, setModel] = useState(initial?.model ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -179,7 +154,7 @@ export default function ActionForm({
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
             <label className="label label-required mb-0">User Prompt</label>
             <div className="flex flex-wrap gap-1">
-              {PROMPT_PRESETS.map((preset) => (
+              {ACTION_PRESETS.map((preset) => (
                 <button
                   key={preset.label}
                   type="button"
@@ -246,9 +221,9 @@ export default function ActionForm({
           saving={saving}
           onCancel={onCancel}
           onReset={() => {
-            setName(initial?.name ?? "");
+            setName(initial?.name ?? draft?.name ?? "");
             setProviderId(initial?.providerId ?? config.providers[0]?.id ?? "");
-            setUserPrompt(initial?.userPrompt ?? "");
+            setUserPrompt(initial?.userPrompt ?? draft?.userPrompt ?? "");
             setModel(initial?.model ?? "");
             setError(null);
           }}

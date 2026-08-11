@@ -47,6 +47,8 @@ export const tauriCommands = {
   // Apple Intelligence
   checkAppleModelAvailability: (): Promise<AppleModelAvailability> =>
     invoke("check_apple_model_availability"),
+  prepareAppleProvider: (): Promise<AppleModelAvailability> =>
+    invoke("prepare_apple_provider"),
 
   // History
   getHistory: (): Promise<HistoryEntry[]> => invoke("get_history"),

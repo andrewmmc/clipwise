@@ -1,5 +1,7 @@
 use crate::providers::apple;
 use serde::Serialize;
+#[cfg(not(test))]
+use tauri::AppHandle;
 
 #[cfg(feature = "ts")]
 use ts_rs::TS;
@@ -21,4 +23,12 @@ pub async fn check_apple_model_availability() -> AppleModelAvailability {
             reason: Some("not_supported".to_string()),
         },
     }
+}
+
+/// Runs the idempotent startup attachment and resolves only when onboarding
+/// can refresh its config and show a definitive provider state.
+#[cfg(not(test))]
+#[tauri::command]
+pub async fn prepare_apple_provider(app: AppHandle) -> AppleModelAvailability {
+    crate::apple_attach::attach_apple_provider_async(app).await
 }

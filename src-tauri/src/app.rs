@@ -78,6 +78,7 @@ pub fn run() {
         action_count = config.actions.len(),
         "Starting Clipwise"
     );
+    let show_onboarding = crate::window::should_show_on_launch(&config);
 
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
@@ -106,6 +107,7 @@ pub fn run() {
             delete_history_entry,
             toggle_star_entry,
             check_apple_model_availability,
+            prepare_apple_provider,
             is_cli_provider_enabled,
         ])
         .setup(move |app| {
@@ -116,10 +118,14 @@ pub fn run() {
             crate::window::setup_settings_window(app)?;
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+            if show_onboarding {
+                info!("Showing first-run onboarding window");
+                crate::window::show_settings_window(app.handle());
+            }
 
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
-                crate::apple_attach::attach_apple_provider_async(handle).await;
+                let _ = crate::apple_attach::attach_apple_provider_async(handle).await;
             });
 
             Ok(())

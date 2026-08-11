@@ -41,6 +41,7 @@ export const mockConfig: AppConfig = {
     showNotificationOnComplete: true,
     maxTokens: 4096,
     historyEnabled: true,
+    onboardingCompleted: true,
   },
 };
 
@@ -51,5 +52,6 @@ export const emptyConfig: AppConfig = {
     showNotificationOnComplete: true,
     maxTokens: 4096,
     historyEnabled: true,
+    onboardingCompleted: true,
   },
 };

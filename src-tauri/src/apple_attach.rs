@@ -1,9 +1,12 @@
+use crate::commands::apple_cmd::AppleModelAvailability;
 use crate::config::{save_config, ConfigState};
 use crate::models::{Provider, ProviderHeaders, ProviderType, APPLE_PROVIDER_ID};
 use tauri::{AppHandle, Manager, Runtime};
 use tracing::{debug, error, info, warn};
 
-pub(crate) async fn attach_apple_provider_async<R: Runtime>(app: AppHandle<R>) {
+pub(crate) async fn attach_apple_provider_async<R: Runtime>(
+    app: AppHandle<R>,
+) -> AppleModelAvailability {
     let already_has_apple = {
         let config_state = app.state::<ConfigState>();
         config_state
@@ -17,15 +20,25 @@ pub(crate) async fn attach_apple_provider_async<R: Runtime>(app: AppHandle<R>) {
     };
 
     if already_has_apple {
-        return;
+        return AppleModelAvailability {
+            available: true,
+            reason: None,
+        };
     }
 
     let (available, reason) = match crate::providers::apple::check_availability().await {
         Ok(result) => result,
         Err(err) => {
             debug!(error = %err, "Apple Intelligence availability check failed");
-            return;
+            return AppleModelAvailability {
+                available: false,
+                reason: Some("unknown".to_string()),
+            };
         }
+    };
+    let availability = AppleModelAvailability {
+        available,
+        reason: reason.clone(),
     };
 
     if !available {
@@ -33,7 +46,7 @@ pub(crate) async fn attach_apple_provider_async<R: Runtime>(app: AppHandle<R>) {
             reason = reason.as_deref().unwrap_or("unknown"),
             "Apple Intelligence not available; skipping auto-attach"
         );
-        return;
+        return availability;
     }
 
     info!("Auto-attaching Apple Intelligence provider");
@@ -44,7 +57,7 @@ pub(crate) async fn attach_apple_provider_async<R: Runtime>(app: AppHandle<R>) {
             Ok(c) => c,
             Err(e) => {
                 error!(error = %e, "Failed to lock config for Apple provider attach");
-                return;
+                return availability;
             }
         };
 
@@ -53,7 +66,7 @@ pub(crate) async fn attach_apple_provider_async<R: Runtime>(app: AppHandle<R>) {
             .iter()
             .any(|p| p.provider_type == ProviderType::Apple)
         {
-            return;
+            return availability;
         }
 
         let previous = config.clone();
@@ -88,4 +101,6 @@ pub(crate) async fn attach_apple_provider_async<R: Runtime>(app: AppHandle<R>) {
             }
         }
     }
+
+    availability
 }
