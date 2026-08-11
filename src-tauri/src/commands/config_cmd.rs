@@ -301,7 +301,21 @@ pub async fn get_config(app: AppHandle) -> Result<AppConfig, AppError> {
 pub async fn save_settings(settings: AppSettings, app: AppHandle) -> Result<(), AppError> {
     validate_settings(&settings)?;
 
-    let updated_config = run_config_worker(app, move |config| {
+    // Apply the OS login item first. If config persistence fails, restore its
+    // prior state so the saved preference and the actual login item agree.
+    // Unrelated settings remain saveable even if the OS login-item service is
+    // temporarily unavailable.
+    let stored_start_at_login =
+        run_config_worker(app.clone(), |config| Ok(config.settings.start_at_login)).await?;
+    let previous_autostart = if stored_start_at_login != settings.start_at_login {
+        let previous = crate::autostart::is_enabled(&app)?;
+        crate::autostart::set_enabled(&app, settings.start_at_login)?;
+        Some(previous)
+    } else {
+        None
+    };
+
+    let save_result = run_config_worker(app.clone(), move |config| {
         let previous = config.clone();
         let history_being_disabled = config.settings.history_enabled && !settings.history_enabled;
         config.settings = settings;
@@ -325,10 +339,26 @@ pub async fn save_settings(settings: AppSettings, app: AppHandle) -> Result<(), 
         }
         Ok(updated_config)
     })
-    .await?;
+    .await;
+
+    let updated_config = match save_result {
+        Ok(config) => config,
+        Err(save_error) => {
+            if let Some(previous_autostart) = previous_autostart {
+                if let Err(rollback_error) = crate::autostart::set_enabled(&app, previous_autostart)
+                {
+                    return Err(AppError::Service(format!(
+                        "Failed to save settings ({save_error}) and restore start at login ({rollback_error})"
+                    )));
+                }
+            }
+            return Err(save_error);
+        }
+    };
     info!(
         max_tokens = updated_config.settings.max_tokens,
         show_notification_on_complete = updated_config.settings.show_notification_on_complete,
+        start_at_login = updated_config.settings.start_at_login,
         "Saved app settings"
     );
     // Settings changes don't affect tray menu, no refresh needed

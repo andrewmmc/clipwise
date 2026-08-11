@@ -79,8 +79,13 @@ pub fn run() {
         "Starting Clipwise"
     );
     let show_onboarding = crate::window::should_show_on_launch(&config);
+    let start_at_login = config.settings.start_at_login;
 
     let app = tauri::Builder::default()
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            None,
+        ))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_dialog::init())
@@ -114,6 +119,9 @@ pub fn run() {
             info!("Setting up Tauri application");
             #[cfg(target_os = "macos")]
             set_app_icon();
+            if let Err(err) = crate::autostart::set_enabled(app.handle(), start_at_login) {
+                warn!(error = %err, "Failed to synchronize start-at-login preference");
+            }
             crate::tray::setup_tray(app)?;
             crate::window::setup_settings_window(app)?;
             #[cfg(target_os = "macos")]

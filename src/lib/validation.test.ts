@@ -21,6 +21,7 @@ const baseConfig: AppConfig = {
   actions: [],
   settings: {
     showNotificationOnComplete: true,
+    startAtLogin: false,
     maxTokens: 1000,
     historyEnabled: true,
     onboardingCompleted: true,

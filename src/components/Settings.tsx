@@ -82,6 +82,30 @@ export default function SettingsPanel({
           <div className="flex items-center justify-between">
             <div>
               <p className="text-[13px] font-medium text-text-primary">
+                Start at login
+              </p>
+              <p className="text-[12px] text-text-tertiary">
+                Open Clipwise automatically when you log in to your Mac.
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={settings.startAtLogin}
+              aria-label="Start at login"
+              disabled={pending}
+              onClick={() =>
+                updateSettings({ startAtLogin: !settings.startAtLogin })
+              }
+              className="toggle"
+            >
+              <span className="toggle-thumb" aria-hidden="true" />
+            </button>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[13px] font-medium text-text-primary">
                 Enable history
               </p>
               <p className="text-[12px] text-text-tertiary">

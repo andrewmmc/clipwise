@@ -22,13 +22,17 @@ describe("SettingsPanel", () => {
     cleanup();
   });
 
-  it("renders the notification toggle in correct initial state", () => {
+  it("renders toggles in their configured initial states", () => {
     render(<SettingsPanel config={mockConfig} onRefresh={onRefresh} />);
-    const toggles = screen.getAllByRole("switch");
-    // First toggle is showNotificationOnComplete
-    expect(toggles[0]).toHaveAttribute("aria-checked", "true");
-    // Second toggle is historyEnabled
-    expect(toggles[1]).toHaveAttribute("aria-checked", "true");
+    expect(
+      screen.getByRole("switch", { name: "Show notification on complete" }),
+    ).toHaveAttribute("aria-checked", "true");
+    expect(
+      screen.getByRole("switch", { name: "Start at login" }),
+    ).toHaveAttribute("aria-checked", "false");
+    expect(
+      screen.getByRole("switch", { name: "Enable history" }),
+    ).toHaveAttribute("aria-checked", "true");
   });
 
   it("renders max tokens select with current value", () => {
@@ -65,9 +69,11 @@ describe("SettingsPanel", () => {
     mockInvoke.mockResolvedValue(undefined);
     const user = userEvent.setup();
     render(<SettingsPanel config={mockConfig} onRefresh={onRefresh} />);
-    const toggles = screen.getAllByRole("switch");
-    await user.click(toggles[0]);
-    expect(toggles[0]).toHaveAttribute("aria-checked", "false");
+    const toggle = screen.getByRole("switch", {
+      name: "Show notification on complete",
+    });
+    await user.click(toggle);
+    expect(toggle).toHaveAttribute("aria-checked", "false");
     await waitFor(() =>
       expect(mockInvoke).toHaveBeenCalledWith("save_settings", {
         settings: expect.objectContaining({
@@ -92,17 +98,24 @@ describe("SettingsPanel", () => {
 
     rerender(<SettingsPanel config={updatedConfig} onRefresh={onRefresh} />);
 
-    const toggles = screen.getAllByRole("switch");
-    expect(toggles[0]).toHaveAttribute("aria-checked", "false");
-    expect(toggles[1]).toHaveAttribute("aria-checked", "true");
+    expect(
+      screen.getByRole("switch", { name: "Show notification on complete" }),
+    ).toHaveAttribute("aria-checked", "false");
+    expect(
+      screen.getByRole("switch", { name: "Start at login" }),
+    ).toHaveAttribute("aria-checked", "false");
+    expect(
+      screen.getByRole("switch", { name: "Enable history" }),
+    ).toHaveAttribute("aria-checked", "true");
   });
 
   it("calls onRefresh after successful auto-save", async () => {
     mockInvoke.mockResolvedValue(undefined);
     const user = userEvent.setup();
     render(<SettingsPanel config={mockConfig} onRefresh={onRefresh} />);
-    const toggles = screen.getAllByRole("switch");
-    await user.click(toggles[0]);
+    await user.click(
+      screen.getByRole("switch", { name: "Show notification on complete" }),
+    );
     await waitFor(() => expect(onRefresh).toHaveBeenCalledOnce());
   });
 
@@ -110,12 +123,14 @@ describe("SettingsPanel", () => {
     mockInvoke.mockRejectedValue(new Error("write error"));
     const user = userEvent.setup();
     render(<SettingsPanel config={mockConfig} onRefresh={onRefresh} />);
-    const toggles = screen.getAllByRole("switch");
-    await user.click(toggles[0]);
+    const toggle = screen.getByRole("switch", {
+      name: "Show notification on complete",
+    });
+    await user.click(toggle);
     await waitFor(() =>
       expect(screen.getByText(/write error/)).toBeInTheDocument(),
     );
-    expect(toggles[0]).toHaveAttribute("aria-checked", "true");
+    expect(toggle).toHaveAttribute("aria-checked", "true");
   });
 
   it("shows non-Error save failures", async () => {
@@ -123,7 +138,9 @@ describe("SettingsPanel", () => {
     const user = userEvent.setup();
     render(<SettingsPanel config={mockConfig} onRefresh={onRefresh} />);
 
-    await user.click(screen.getAllByRole("switch")[0]);
+    await user.click(
+      screen.getByRole("switch", { name: "Show notification on complete" }),
+    );
 
     await waitFor(() =>
       expect(screen.getByText("write error")).toBeInTheDocument(),
@@ -134,8 +151,7 @@ describe("SettingsPanel", () => {
     mockInvoke.mockResolvedValue(undefined);
     const user = userEvent.setup();
     render(<SettingsPanel config={mockConfig} onRefresh={onRefresh} />);
-    const toggles = screen.getAllByRole("switch");
-    await user.click(toggles[1]);
+    await user.click(screen.getByRole("switch", { name: "Enable history" }));
     expect(mockInvoke).not.toHaveBeenCalledWith(
       "save_settings",
       expect.anything(),
@@ -147,6 +163,22 @@ describe("SettingsPanel", () => {
           showNotificationOnComplete: true,
           historyEnabled: false,
         }),
+      }),
+    );
+  });
+
+  it("enables start at login and auto-saves the preference", async () => {
+    mockInvoke.mockResolvedValue(undefined);
+    const user = userEvent.setup();
+    render(<SettingsPanel config={mockConfig} onRefresh={onRefresh} />);
+
+    const toggle = screen.getByRole("switch", { name: "Start at login" });
+    await user.click(toggle);
+
+    expect(toggle).toHaveAttribute("aria-checked", "true");
+    await waitFor(() =>
+      expect(mockInvoke).toHaveBeenCalledWith("save_settings", {
+        settings: expect.objectContaining({ startAtLogin: true }),
       }),
     );
   });

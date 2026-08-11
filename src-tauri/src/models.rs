@@ -110,6 +110,9 @@ pub struct HistoryEntry {
 pub struct AppSettings {
     #[serde(default = "default_true")]
     pub show_notification_on_complete: bool,
+    /// Whether Clipwise should be registered as a macOS login item.
+    #[serde(default)]
+    pub start_at_login: bool,
     #[serde(default = "default_max_tokens")]
     pub max_tokens: u32,
     #[serde(default)]
@@ -131,6 +134,7 @@ impl Default for AppSettings {
     fn default() -> Self {
         Self {
             show_notification_on_complete: true,
+            start_at_login: false,
             max_tokens: 4096,
             history_enabled: false,
             onboarding_completed: false,
@@ -422,6 +426,7 @@ mod tests {
     fn test_app_settings_all_defaults_from_empty_json() {
         let s: AppSettings = serde_json::from_str("{}").unwrap();
         assert!(s.show_notification_on_complete);
+        assert!(!s.start_at_login);
         assert_eq!(s.max_tokens, 4096);
         assert!(!s.history_enabled);
         assert!(s.onboarding_completed);
@@ -431,6 +436,7 @@ mod tests {
     fn test_app_settings_partial_json_fills_defaults() {
         let s: AppSettings = serde_json::from_str(r#"{"maxTokens": 2048}"#).unwrap();
         assert!(s.show_notification_on_complete); // default preserved
+        assert!(!s.start_at_login); // login items require explicit opt-in
         assert_eq!(s.max_tokens, 2048);
         assert!(!s.history_enabled); // privacy-preserving default
         assert!(s.onboarding_completed); // existing installs are not interrupted
@@ -440,6 +446,7 @@ mod tests {
     fn test_app_settings_default_impl() {
         let s = AppSettings::default();
         assert!(s.show_notification_on_complete);
+        assert!(!s.start_at_login);
         assert_eq!(s.max_tokens, 4096);
         assert!(!s.history_enabled);
         assert!(!s.onboarding_completed);
@@ -461,6 +468,17 @@ mod tests {
         let s: AppSettings = serde_json::from_str(r#"{"historyEnabled": false}"#).unwrap();
         assert!(!s.history_enabled);
         assert!(s.show_notification_on_complete); // other defaults preserved
+    }
+
+    #[test]
+    fn test_app_settings_start_at_login_round_trips() {
+        let settings = AppSettings {
+            start_at_login: true,
+            ..Default::default()
+        };
+        let json = serde_json::to_string(&settings).unwrap();
+        let decoded: AppSettings = serde_json::from_str(&json).unwrap();
+        assert!(decoded.start_at_login);
     }
 
     // ── AppConfig ─────────────────────────────────────────────────────────────

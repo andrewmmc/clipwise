@@ -5,6 +5,10 @@
  */
 export type AppSettings = {
   showNotificationOnComplete: boolean;
+  /**
+   * Whether Clipwise should be registered as a macOS login item.
+   */
+  startAtLogin: boolean;
   maxTokens: number;
   historyEnabled: boolean;
   /**

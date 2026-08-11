@@ -39,6 +39,7 @@ export const mockConfig: AppConfig = {
   actions: [mockAction],
   settings: {
     showNotificationOnComplete: true,
+    startAtLogin: false,
     maxTokens: 4096,
     historyEnabled: true,
     onboardingCompleted: true,
@@ -50,6 +51,7 @@ export const emptyConfig: AppConfig = {
   actions: [],
   settings: {
     showNotificationOnComplete: true,
+    startAtLogin: false,
     maxTokens: 4096,
     historyEnabled: true,
     onboardingCompleted: true,

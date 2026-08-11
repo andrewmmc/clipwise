@@ -21,6 +21,7 @@ describe("tauriCommands", () => {
     mockInvoke.mockResolvedValue(undefined);
     const settings = {
       showNotificationOnComplete: false,
+      startAtLogin: false,
       maxTokens: 2048,
       historyEnabled: true,
       onboardingCompleted: true,
