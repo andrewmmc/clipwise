@@ -1,10 +1,13 @@
 use crate::error::AppError;
 
+#[cfg(any(target_os = "macos", test))]
 const APPROVAL_REQUIRED: &str =
     "Start at login requires approval in System Settings > General > Login Items.";
+#[cfg(any(target_os = "macos", test))]
 const SERVICE_NOT_FOUND: &str =
     "Start at login is unavailable because macOS could not find the signed Clipwise app bundle.";
 
+#[cfg(any(target_os = "macos", test))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ServiceStatus {
     NotRegistered,
@@ -14,6 +17,7 @@ enum ServiceStatus {
     Unknown,
 }
 
+#[cfg(any(target_os = "macos", test))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ServiceAction {
     None,
@@ -21,6 +25,7 @@ enum ServiceAction {
     Unregister,
 }
 
+#[cfg(any(target_os = "macos", test))]
 fn desired_action(status: ServiceStatus, should_enable: bool) -> Result<ServiceAction, AppError> {
     match (status, should_enable) {
         (ServiceStatus::Enabled, true)
