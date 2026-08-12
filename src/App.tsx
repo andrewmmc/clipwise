@@ -14,8 +14,7 @@ import type { ActionPreset } from "./lib/actionPresets";
 type Tab = "actions" | "providers" | "history" | "settings" | "about";
 type View = Tab | "getting-started";
 type SetupEditor =
-  | { type: "provider" }
-  | { type: "action"; preset: ActionPreset };
+  { type: "provider" } | { type: "action"; preset: ActionPreset };
 
 export default function App() {
   const { config, error, loading, refresh, clearError } = useConfig();

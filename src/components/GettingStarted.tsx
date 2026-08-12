@@ -55,6 +55,8 @@ export default function GettingStarted({
 
   useEffect(() => {
     if (hasAppleProvider) {
+      // The provider prop is authoritative, so synchronize the derived status.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setAppleStatus({ available: true, reason: null });
       setCheckingApple(false);
       return;

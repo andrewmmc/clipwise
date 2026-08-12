@@ -31,6 +31,8 @@ export default function useConfig() {
   const clearError = useCallback(() => setError(null), []);
 
   useEffect(() => {
+    // The initial request owns the hook's loading and error state.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void refresh();
   }, [refresh]);
 

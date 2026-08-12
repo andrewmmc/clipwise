@@ -72,7 +72,9 @@ export default function HistoryList() {
   }, [run]);
 
   useEffect(() => {
-    loadHistory();
+    // Loading starts immediately so the initial render cannot show stale data.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void loadHistory();
   }, [loadHistory]);
 
   const toggleExpanded = (id: string) => {
