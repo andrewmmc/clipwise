@@ -16,6 +16,7 @@ import EditorHeader from "./EditorHeader";
 import ErrorBox from "./ErrorBox";
 import FormFooter from "./FormFooter";
 import useTransientMessage from "../hooks/useTransientMessage";
+import { useI18n } from "../lib/i18n";
 import {
   AppleProviderSection,
   ProviderTypeOption,
@@ -34,6 +35,7 @@ export default function ProviderForm({
   onSave,
   onCancel,
 }: Props) {
+  const { locale, t } = useI18n();
   const [form, dispatch] = useProviderFormState(initial);
   const [saving, setSaving] = useState(false);
   const [testingCommand, setTestingCommand] = useState(false);
@@ -99,14 +101,14 @@ export default function ProviderForm({
   const appleUnavailableMessage =
     form.type === "apple"
       ? appleAvailability === null
-        ? "Checking Apple Intelligence availability…"
-        : getAppleAvailabilityMessage(appleAvailability)
+        ? t("Checking Apple Intelligence availability…")
+        : getAppleAvailabilityMessage(appleAvailability, locale)
       : null;
   const appleProviderExists = existingProviders.some(
     (provider) => provider.type === "apple" && provider.id !== initial?.id,
   );
   const appleDuplicateMessage = appleProviderExists
-    ? "Only one Apple Intelligence provider can be configured."
+    ? t("Only one Apple Intelligence provider can be configured.")
     : null;
   const appleOptionDisabled =
     appleAvailability?.available !== true || appleProviderExists;
@@ -116,12 +118,12 @@ export default function ProviderForm({
     if (form.type === "apple" && appleAvailability?.available !== true) {
       setError(
         appleUnavailableMessage ??
-          "Apple Intelligence is currently unavailable on this Mac.",
+          t("Apple Intelligence is currently unavailable on this Mac."),
       );
       return;
     }
     if (form.type === "cli" && !cliEnabled) {
-      setError("CLI providers are not available in this build.");
+      setError(t("CLI providers are not available in this build."));
       return;
     }
     const validationError = validateProviderForm(
@@ -134,6 +136,7 @@ export default function ProviderForm({
       },
       appleProviderExists,
       Boolean(initial && isApiProviderType(initial.type)),
+      locale,
     );
     if (validationError) {
       setError(validationError);
@@ -174,6 +177,7 @@ export default function ProviderForm({
       },
       appleProviderExists,
       Boolean(initial && isApiProviderType(initial.type)),
+      locale,
     );
     if (validationError) {
       clearConnectionTestSuccess();
@@ -208,7 +212,7 @@ export default function ProviderForm({
   const handleTestCommand = async () => {
     if (!form.command.trim()) {
       clearCommandTestSuccess();
-      setCommandTestError("Enter a command before testing.");
+      setCommandTestError(t("Enter a command before testing."));
       return;
     }
     setTestingCommand(true);
@@ -227,7 +231,7 @@ export default function ProviderForm({
   return (
     <div className="space-y-4">
       <EditorHeader
-        title={initial ? "Edit Provider" : "New Provider"}
+        title={initial ? t("Edit Provider") : t("New Provider")}
         onBack={onCancel}
       />
 
@@ -236,7 +240,7 @@ export default function ProviderForm({
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="label label-required">Name</label>
+            <label className="label label-required">{t("Name")}</label>
             <input
               type="text"
               value={form.name}
@@ -248,12 +252,12 @@ export default function ProviderForm({
                 });
                 clearFormFeedback();
               }}
-              placeholder="e.g. Anthropic Claude"
+              placeholder={t("e.g. Anthropic Claude")}
               className="input"
             />
           </div>
           <div>
-            <label className="label label-required">Type</label>
+            <label className="label label-required">{t("Type")}</label>
             <div className="relative">
               <select
                 value={form.type}
@@ -271,21 +275,21 @@ export default function ProviderForm({
               >
                 <ProviderTypeOption
                   type="apple"
-                  label={PROVIDER_OPTION_LABELS.apple}
+                  label={t(PROVIDER_OPTION_LABELS.apple)}
                   disabled={appleOptionDisabled}
                 />
                 <ProviderTypeOption
                   type="anthropic"
-                  label={PROVIDER_OPTION_LABELS.anthropic}
+                  label={t(PROVIDER_OPTION_LABELS.anthropic)}
                 />
                 <ProviderTypeOption
                   type="openai"
-                  label={PROVIDER_OPTION_LABELS.openai}
+                  label={t(PROVIDER_OPTION_LABELS.openai)}
                 />
                 {cliEnabled && (
                   <ProviderTypeOption
                     type="cli"
-                    label={PROVIDER_OPTION_LABELS.cli}
+                    label={t(PROVIDER_OPTION_LABELS.cli)}
                   />
                 )}
               </select>
@@ -297,7 +301,7 @@ export default function ProviderForm({
             {appleOptionDisabled && (
               <p className="mt-1 text-[12px] text-text-tertiary">
                 {appleDuplicateMessage ??
-                  getAppleAvailabilityMessage(appleAvailability)}
+                  getAppleAvailabilityMessage(appleAvailability, locale)}
               </p>
             )}
           </div>

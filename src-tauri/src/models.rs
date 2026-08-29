@@ -103,11 +103,25 @@ pub struct HistoryEntry {
 }
 
 /// Global application settings.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "ts", ts(export))]
+pub enum AppLanguage {
+    #[default]
+    #[serde(rename = "en")]
+    English,
+    #[serde(rename = "zh-TW")]
+    TraditionalChinese,
+}
+
+/// Global application settings.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[cfg_attr(feature = "ts", ts(export))]
 #[serde(rename_all = "camelCase")]
 pub struct AppSettings {
+    #[serde(default)]
+    pub language: AppLanguage,
     #[serde(default = "default_true")]
     pub show_notification_on_complete: bool,
     /// Whether Clipwise should be registered as a macOS login item.
@@ -133,6 +147,7 @@ fn default_max_tokens() -> u32 {
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
+            language: AppLanguage::default(),
             show_notification_on_complete: true,
             start_at_login: false,
             max_tokens: 4096,
@@ -425,6 +440,7 @@ mod tests {
     #[test]
     fn test_app_settings_all_defaults_from_empty_json() {
         let s: AppSettings = serde_json::from_str("{}").unwrap();
+        assert_eq!(s.language, AppLanguage::English);
         assert!(s.show_notification_on_complete);
         assert!(!s.start_at_login);
         assert_eq!(s.max_tokens, 4096);
@@ -445,6 +461,7 @@ mod tests {
     #[test]
     fn test_app_settings_default_impl() {
         let s = AppSettings::default();
+        assert_eq!(s.language, AppLanguage::English);
         assert!(s.show_notification_on_complete);
         assert!(!s.start_at_login);
         assert_eq!(s.max_tokens, 4096);
@@ -479,6 +496,18 @@ mod tests {
         let json = serde_json::to_string(&settings).unwrap();
         let decoded: AppSettings = serde_json::from_str(&json).unwrap();
         assert!(decoded.start_at_login);
+    }
+
+    #[test]
+    fn test_app_settings_language_round_trips() {
+        let settings = AppSettings {
+            language: AppLanguage::TraditionalChinese,
+            ..Default::default()
+        };
+        let json = serde_json::to_string(&settings).unwrap();
+        assert!(json.contains(r#""language":"zh-TW""#));
+        let decoded: AppSettings = serde_json::from_str(&json).unwrap();
+        assert_eq!(decoded.language, AppLanguage::TraditionalChinese);
     }
 
     // ── AppConfig ─────────────────────────────────────────────────────────────

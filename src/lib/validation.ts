@@ -4,22 +4,24 @@ import type {
   Provider,
   ProviderType,
 } from "../types/config";
+import type { AppLanguage } from "../types/config";
+import { translate } from "./i18n";
 
 export const MAX_USER_PROMPT_LENGTH = 2000;
 
 type ApiProviderType = Exclude<ProviderType, "cli" | "apple">;
 
-export function validateEndpoint(endpoint: string) {
+export function validateEndpoint(endpoint: string, locale: AppLanguage = "en") {
   const trimmed = endpoint.trim();
   if (!trimmed) return null;
   if (!trimmed.startsWith("https://")) {
-    return "Endpoint URL must be a valid https:// URL.";
+    return translate(locale, "Endpoint URL must be a valid https:// URL.");
   }
   try {
     new URL(trimmed);
     return null;
   } catch {
-    return "Endpoint URL must be a valid https:// URL.";
+    return translate(locale, "Endpoint URL must be a valid https:// URL.");
   }
 }
 
@@ -31,26 +33,30 @@ export function validateProviderForm(
   data: Pick<Provider, "name" | "type" | "endpoint" | "apiKey" | "command">,
   appleProviderExists: boolean,
   hasStoredApiKey = false,
+  locale: AppLanguage = "en",
 ) {
   if (!data.name.trim()) {
-    return "Provider name is required.";
+    return translate(locale, "Provider name is required.");
   }
   if (
     isApiProviderType(data.type) &&
     !data.apiKey?.trim() &&
     !hasStoredApiKey
   ) {
-    return "API key is required for API providers.";
+    return translate(locale, "API key is required for API providers.");
   }
   if (isApiProviderType(data.type)) {
-    const endpointError = validateEndpoint(data.endpoint ?? "");
+    const endpointError = validateEndpoint(data.endpoint ?? "", locale);
     if (endpointError) return endpointError;
   }
   if (data.type === "cli" && !data.command?.trim()) {
-    return "Command is required for CLI providers.";
+    return translate(locale, "Command is required for CLI providers.");
   }
   if (data.type === "apple" && appleProviderExists) {
-    return "Only one Apple Intelligence provider can be configured.";
+    return translate(
+      locale,
+      "Only one Apple Intelligence provider can be configured.",
+    );
   }
   return null;
 }
@@ -58,15 +64,22 @@ export function validateProviderForm(
 export function validateActionForm(
   data: Pick<Action, "name" | "providerId" | "userPrompt">,
   config: AppConfig,
+  locale: AppLanguage = "en",
 ) {
   if (!data.name.trim() || !data.userPrompt.trim() || !data.providerId) {
-    return "Name, provider, and prompt are required.";
+    return translate(locale, "Name, provider, and prompt are required.");
   }
   if (!config.providers.some((provider) => provider.id === data.providerId)) {
-    return "Selected provider does not exist.";
+    return translate(locale, "Selected provider does not exist.");
   }
   if (data.userPrompt.length > MAX_USER_PROMPT_LENGTH) {
-    return `User prompt must be ${MAX_USER_PROMPT_LENGTH} characters or fewer.`;
+    return translate(
+      locale,
+      "User prompt must be {{count}} characters or fewer.",
+      {
+        count: MAX_USER_PROMPT_LENGTH,
+      },
+    );
   }
   return null;
 }

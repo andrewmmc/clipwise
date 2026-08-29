@@ -38,6 +38,7 @@ export const mockConfig: AppConfig = {
   providers: [mockProvider],
   actions: [mockAction],
   settings: {
+    language: "en",
     showNotificationOnComplete: true,
     startAtLogin: false,
     maxTokens: 4096,
@@ -50,6 +51,7 @@ export const emptyConfig: AppConfig = {
   providers: [],
   actions: [],
   settings: {
+    language: "en",
     showNotificationOnComplete: true,
     startAtLogin: false,
     maxTokens: 4096,

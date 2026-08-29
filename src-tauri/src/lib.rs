@@ -10,6 +10,7 @@ pub mod commands;
 pub mod config;
 pub mod error;
 pub mod history;
+pub(crate) mod i18n;
 pub(crate) mod json_store;
 pub mod llm_response;
 pub mod logging;

@@ -9,6 +9,7 @@ import {
   Trash2,
   XCircle,
 } from "lucide-react";
+import { useI18n } from "../lib/i18n";
 
 interface Props {
   entry: HistoryEntry;
@@ -33,6 +34,7 @@ export default function HistoryEntryCard({
   onDelete,
   onCopy,
 }: Props) {
+  const { t } = useI18n();
   return (
     <div className="card">
       <div className="flex w-full items-start transition-colors hover:bg-surface-hover">
@@ -79,7 +81,7 @@ export default function HistoryEntryCard({
               "btn-icon",
               entry.starred ? "text-warning" : "btn-icon-muted",
             )}
-            title={entry.starred ? "Unstar entry" : "Star entry"}
+            title={entry.starred ? t("Unstar entry") : t("Star entry")}
           >
             <Star size={14} className={entry.starred ? "fill-current" : ""} />
           </button>
@@ -90,7 +92,7 @@ export default function HistoryEntryCard({
               onClick={onDelete}
               disabled={deleting}
               className="btn-icon btn-icon-danger"
-              title="Delete entry"
+              title={t("Delete entry")}
             >
               <Trash2 size={14} />
             </button>
@@ -101,12 +103,12 @@ export default function HistoryEntryCard({
       {expanded && (
         <div className="space-y-3 border-t border-border p-3">
           <HistoryTextBlock
-            label="Input"
+            label={t("Input")}
             text={entry.inputText}
             onCopy={() => onCopy(entry.inputText, "input")}
           />
           <HistoryTextBlock
-            label={entry.success ? "Output" : "Error"}
+            label={entry.success ? t("Output") : t("Error")}
             text={entry.outputText}
             error={!entry.success}
             onCopy={() =>
@@ -132,6 +134,7 @@ function HistoryTextBlock({
   error,
   onCopy,
 }: HistoryTextBlockProps) {
+  const { t } = useI18n();
   return (
     <div>
       <div className="mb-1 flex items-center justify-between">
@@ -140,7 +143,7 @@ function HistoryTextBlock({
         </span>
         <button type="button" onClick={onCopy} className="btn btn-ghost">
           <Copy size={14} />
-          Copy
+          {t("Copy")}
         </button>
       </div>
       <pre

@@ -18,6 +18,7 @@ import {
   Zap,
 } from "lucide-react";
 import type { ActionPreset } from "../lib/actionPresets";
+import { useI18n } from "../lib/i18n";
 
 interface Props {
   config: AppConfig;
@@ -36,6 +37,7 @@ export default function ActionList({
   onCreateComplete,
   onCreateCancel,
 }: Props) {
+  const { t } = useI18n();
   const [editing, setEditing] = useState<Action | null>(null);
   const [creating, setCreating] = useState(startCreating);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
@@ -96,7 +98,7 @@ export default function ActionList({
   };
 
   const providerName = (id: string) =>
-    config.providers.find((p) => p.id === id)?.name ?? "Unknown provider";
+    config.providers.find((p) => p.id === id)?.name ?? t("Unknown provider");
 
   if (creating) {
     return (
@@ -107,7 +109,7 @@ export default function ActionList({
           await runMutation(async () => {
             await tauriCommands.addAction(data);
             onRefresh();
-            showSuccessMessage("Action saved successfully.");
+            showSuccessMessage(t("Action saved successfully."));
             setCreating(false);
             onCreateComplete?.();
           });
@@ -129,7 +131,7 @@ export default function ActionList({
           await runMutation(async () => {
             await tauriCommands.updateAction({ ...data, id: editing.id });
             onRefresh();
-            showSuccessMessage("Action saved successfully.");
+            showSuccessMessage(t("Action saved successfully."));
             setEditing(null);
           });
         }}
@@ -141,8 +143,8 @@ export default function ActionList({
   return (
     <div className="space-y-4">
       <SectionHeader
-        title="Actions"
-        description="Transform clipboard text via menu bar."
+        title={t("Actions")}
+        description={t("Transform clipboard text via menu bar.")}
         actions={
           <button
             onClick={() => {
@@ -156,7 +158,7 @@ export default function ActionList({
             className="btn btn-primary"
           >
             <Plus size={14} />
-            Add Action
+            {t("Add Action")}
           </button>
         }
       />
@@ -164,14 +166,16 @@ export default function ActionList({
       {successMessage && <SuccessBox message={successMessage} />}
       {mutationError && <ErrorBox message={mutationError} />}
       {showProviderHint && (
-        <ErrorBox message="Please add a provider first before creating an action." />
+        <ErrorBox
+          message={t("Please add a provider first before creating an action.")}
+        />
       )}
 
       {config.actions.length === 0 ? (
         <EmptyState
           icon={<Zap size={18} />}
-          title="No actions yet"
-          description="Add an action to get started."
+          title={t("No actions yet")}
+          description={t("Add an action to get started.")}
         />
       ) : (
         <div className="space-y-2">
@@ -184,7 +188,7 @@ export default function ActionList({
                     onClick={() => handleReorder(index, "up")}
                     disabled={index === 0 || reordering}
                     className="btn-icon"
-                    title="Move up"
+                    title={t("Move up")}
                   >
                     <ChevronUp size={14} />
                   </button>
@@ -193,7 +197,7 @@ export default function ActionList({
                     onClick={() => handleReorder(index, "down")}
                     disabled={index === config.actions.length - 1 || reordering}
                     className="btn-icon"
-                    title="Move down"
+                    title={t("Move down")}
                   >
                     <ChevronDown size={14} />
                   </button>
@@ -225,7 +229,7 @@ export default function ActionList({
                           setEditing(action);
                         }}
                         className="btn-icon"
-                        title="Edit"
+                        title={t("Edit")}
                       >
                         <Pencil size={14} />
                       </button>
@@ -236,7 +240,7 @@ export default function ActionList({
                           setPendingDeleteId(action.id);
                         }}
                         className="btn-icon btn-icon-danger"
-                        title="Delete"
+                        title={t("Delete")}
                       >
                         <Trash2 size={14} />
                       </button>

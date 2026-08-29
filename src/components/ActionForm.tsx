@@ -2,7 +2,8 @@ import { useState } from "react";
 import { cx } from "../lib/classNames";
 import { getErrorMessage } from "../lib/errors";
 import { tauriCommands } from "../lib/tauri";
-import { ACTION_PRESETS, type ActionPreset } from "../lib/actionPresets";
+import { getActionPresets, type ActionPreset } from "../lib/actionPresets";
+import { useI18n } from "../lib/i18n";
 import { MAX_USER_PROMPT_LENGTH, validateActionForm } from "../lib/validation";
 import type { Action, AppConfig } from "../types/config";
 import { ChevronDown, FlaskConical } from "lucide-react";
@@ -27,6 +28,8 @@ export default function ActionForm({
   onSave,
   onCancel,
 }: Props) {
+  const { locale, t } = useI18n();
+  const actionPresets = getActionPresets(locale);
   const [name, setName] = useState(initial?.name ?? draft?.name ?? "");
   const [providerId, setProviderId] = useState(
     initial?.providerId ?? config.providers[0]?.id ?? "",
@@ -39,6 +42,7 @@ export default function ActionForm({
   const [error, setError] = useState<string | null>(null);
   const [testInput, setTestInput] = useState("");
   const [testResult, setTestResult] = useState<string | null>(null);
+  const [testFailed, setTestFailed] = useState(false);
   const [testing, setTesting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -46,6 +50,7 @@ export default function ActionForm({
     const validationError = validateActionForm(
       { name, providerId, userPrompt },
       config,
+      locale,
     );
     if (validationError) {
       setError(validationError);
@@ -72,13 +77,16 @@ export default function ActionForm({
     const validationError = validateActionForm(
       { name, providerId, userPrompt },
       config,
+      locale,
     );
     if (validationError) {
-      setTestResult(`Error: ${validationError}`);
+      setTestFailed(true);
+      setTestResult(t("Error: {{message}}", { message: validationError }));
       return;
     }
     const input = testInput || DEFAULT_TEST_INPUT;
     setTesting(true);
+    setTestFailed(false);
     setTestResult(null);
     try {
       const result = await tauriCommands.testAction(
@@ -94,7 +102,8 @@ export default function ActionForm({
       setTestResult(result);
     } catch (e) {
       const message = getErrorMessage(e);
-      setTestResult(`Error: ${message}`);
+      setTestFailed(true);
+      setTestResult(t("Error: {{message}}", { message }));
     } finally {
       setTesting(false);
     }
@@ -103,7 +112,7 @@ export default function ActionForm({
   return (
     <div className="space-y-4">
       <EditorHeader
-        title={initial ? "Edit Action" : "New Action"}
+        title={initial ? t("Edit Action") : t("New Action")}
         onBack={onCancel}
       />
 
@@ -111,7 +120,7 @@ export default function ActionForm({
         {error && <ErrorBox message={error} />}
 
         <div>
-          <label className="label label-required">Action Name</label>
+          <label className="label label-required">{t("Action Name")}</label>
           <input
             type="text"
             value={name}
@@ -119,14 +128,14 @@ export default function ActionForm({
               setName(e.target.value);
               setError(null);
             }}
-            placeholder="e.g. Refine wording"
+            placeholder={t("e.g. Refine wording")}
             className="input"
           />
-          <p className="helper-text">Shown in the menu bar popup.</p>
+          <p className="helper-text">{t("Shown in the menu bar popup.")}</p>
         </div>
 
         <div>
-          <label className="label label-required">Provider</label>
+          <label className="label label-required">{t("Provider")}</label>
           <div className="relative">
             <select
               value={providerId}
@@ -136,7 +145,7 @@ export default function ActionForm({
               }}
               className="input select"
             >
-              <option value="">Select a provider…</option>
+              <option value="">{t("Select a provider…")}</option>
               {config.providers.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name} ({p.type})
@@ -152,9 +161,11 @@ export default function ActionForm({
 
         <div>
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-            <label className="label label-required mb-0">User Prompt</label>
+            <label className="label label-required mb-0">
+              {t("User Prompt")}
+            </label>
             <div className="flex flex-wrap gap-1">
-              {ACTION_PRESETS.map((preset) => (
+              {actionPresets.map((preset) => (
                 <button
                   key={preset.label}
                   type="button"
@@ -180,12 +191,14 @@ export default function ActionForm({
             }}
             rows={3}
             maxLength={MAX_USER_PROMPT_LENGTH}
-            placeholder="e.g. Refine this text, improve clarity and grammar"
+            placeholder={t(
+              "e.g. Refine this text, improve clarity and grammar",
+            )}
             className="input"
           />
           <div className="mt-1 flex items-center justify-between gap-3">
             <p className="helper-text">
-              Selected text appended to this prompt.
+              {t("Selected text appended to this prompt.")}
             </p>
             <span
               className={cx(
@@ -202,8 +215,10 @@ export default function ActionForm({
 
         <div>
           <label className="label">
-            Model Override{" "}
-            <span className="font-normal text-text-tertiary">(optional)</span>
+            {t("Model Override")}{" "}
+            <span className="font-normal text-text-tertiary">
+              {t("(optional)")}
+            </span>
           </label>
           <input
             type="text"
@@ -212,7 +227,7 @@ export default function ActionForm({
               setModel(e.target.value);
               setError(null);
             }}
-            placeholder="Leave blank for provider default"
+            placeholder={t("Leave blank for provider default")}
             className="input"
           />
         </div>
@@ -233,12 +248,12 @@ export default function ActionForm({
       {initial && (
         <div className="card space-y-3 p-4">
           <h3 className="text-[12px] font-medium text-text-secondary">
-            Test Action
+            {t("Test Action")}
           </h3>
           <div className="flex gap-2">
             <input
               type="text"
-              placeholder="Test input text…"
+              placeholder={t("Test input text…")}
               value={testInput}
               onChange={(e) => setTestInput(e.target.value)}
               className="input input-sm flex-1"
@@ -249,19 +264,17 @@ export default function ActionForm({
               className="btn btn-secondary px-2.5 py-1.5 text-[12px]"
             >
               <FlaskConical size={12} />
-              {testing ? "Testing…" : "Test"}
+              {testing ? t("Testing…") : t("Test")}
             </button>
           </div>
           {testResult !== null && (
             <div
               className={cx(
                 "feedback-box text-[12px]",
-                testResult.startsWith("Error:")
-                  ? "feedback-error"
-                  : "feedback-success",
+                testFailed ? "feedback-error" : "feedback-success",
               )}
             >
-              {testResult || "(empty result)"}
+              {testResult || t("(empty result)")}
             </div>
           )}
         </div>

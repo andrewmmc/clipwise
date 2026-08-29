@@ -361,7 +361,9 @@ pub async fn save_settings(settings: AppSettings, app: AppHandle) -> Result<(), 
         start_at_login = updated_config.settings.start_at_login,
         "Saved app settings"
     );
-    // Settings changes don't affect tray menu, no refresh needed
+    if let Err(err) = crate::tray::refresh_tray_menu(&app, &updated_config) {
+        warn!(error = %err, "Settings were saved but tray menu refresh failed");
+    }
     Ok(())
 }
 

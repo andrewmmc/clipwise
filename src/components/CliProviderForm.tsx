@@ -2,6 +2,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { buildCommandPreview } from "../lib/cliPreview";
 import ErrorBox from "./ErrorBox";
 import SuccessBox from "./SuccessBox";
+import { useI18n } from "../lib/i18n";
 
 interface Props {
   command: string;
@@ -34,13 +35,14 @@ export default function CliProviderForm({
   onRemoveArg,
   onTestCommand,
 }: Props) {
+  const { t } = useI18n();
   const commandPreview = buildCommandPreview(command, args);
   return (
     <>
       <div>
-        <label className="label label-required">Command</label>
+        <label className="label label-required">{t("Command")}</label>
         <p className="helper-text mb-2">
-          Find the binary path with{" "}
+          {t("Find the binary path with")}{" "}
           <code className="rounded bg-surface-tertiary px-1 py-0.5">
             which claude
           </code>
@@ -50,7 +52,7 @@ export default function CliProviderForm({
             type="text"
             value={command}
             onChange={(e) => onCommandChange(e.target.value)}
-            placeholder="e.g. claude"
+            placeholder={t("e.g. claude")}
             className="input flex-1 font-mono"
             {...CLI_INPUT_PROPS}
           />
@@ -60,7 +62,7 @@ export default function CliProviderForm({
             disabled={testingCommand}
             className="btn btn-secondary"
           >
-            {testingCommand ? "Testing…" : "Test"}
+            {testingCommand ? t("Testing…") : t("Test")}
           </button>
         </div>
         {commandTestError && (
@@ -73,18 +75,18 @@ export default function CliProviderForm({
 
       <div>
         <div className="mb-2 flex items-center justify-between">
-          <label className="label mb-0">Arguments</label>
+          <label className="label mb-0">{t("Arguments")}</label>
           <button
             type="button"
             onClick={onAddArg}
             className="btn btn-ghost py-1 text-[12px]"
           >
             <Plus size={12} />
-            Add arg
+            {t("Add arg")}
           </button>
         </div>
         <p className="helper-text mb-2">
-          Configure headless mode to capture stdout (e.g. -p).
+          {t("Configure headless mode to capture stdout (e.g. -p).")}
         </p>
         <div className="space-y-2">
           {args.map((arg, index) => (
@@ -93,7 +95,7 @@ export default function CliProviderForm({
                 type="text"
                 value={arg}
                 onChange={(e) => onArgChange(index, e.target.value)}
-                placeholder="e.g. --print"
+                placeholder={t("e.g. --print")}
                 className="input input-sm flex-1 font-mono"
                 {...CLI_INPUT_PROPS}
               />
@@ -108,20 +110,21 @@ export default function CliProviderForm({
           ))}
           {args.length === 0 && (
             <p className="helper-text">
-              No arguments. Common: --print -m sonnet
+              {t("No arguments. Common: --print -m sonnet")}
             </p>
           )}
         </div>
       </div>
 
       <div>
-        <label className="label mb-2">Command preview</label>
+        <label className="label mb-2">{t("Command preview")}</label>
         <pre className="overflow-x-auto whitespace-pre-wrap break-all rounded bg-surface-tertiary px-3 py-2 font-mono text-[12px]">
           {commandPreview}
         </pre>
         <p className="helper-text mt-2">
-          The system prompt and copied text are sent through standard input so
-          they are not exposed in the process argument list.
+          {t(
+            "The system prompt and copied text are sent through standard input so they are not exposed in the process argument list.",
+          )}
         </p>
       </div>
     </>

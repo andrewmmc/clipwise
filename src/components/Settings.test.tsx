@@ -37,7 +37,7 @@ describe("SettingsPanel", () => {
 
   it("renders max tokens select with current value", () => {
     render(<SettingsPanel config={mockConfig} onRefresh={onRefresh} />);
-    const select = screen.getByRole("combobox");
+    const select = screen.getByRole("combobox", { name: "Max tokens" });
     expect(select).toHaveValue("4096");
   });
 
@@ -219,11 +219,31 @@ describe("SettingsPanel", () => {
     const user = userEvent.setup();
     render(<SettingsPanel config={mockConfig} onRefresh={onRefresh} />);
 
-    await user.selectOptions(screen.getByRole("combobox"), "8192");
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "Max tokens" }),
+      "8192",
+    );
 
     await waitFor(() =>
       expect(mockInvoke).toHaveBeenCalledWith("save_settings", {
         settings: expect.objectContaining({ maxTokens: 8192 }),
+      }),
+    );
+  });
+
+  it("auto-saves the selected language", async () => {
+    mockInvoke.mockResolvedValue(undefined);
+    const user = userEvent.setup();
+    render(<SettingsPanel config={mockConfig} onRefresh={onRefresh} />);
+
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "Language" }),
+      "zh-TW",
+    );
+
+    await waitFor(() =>
+      expect(mockInvoke).toHaveBeenCalledWith("save_settings", {
+        settings: expect.objectContaining({ language: "zh-TW" }),
       }),
     );
   });

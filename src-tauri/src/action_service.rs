@@ -1,7 +1,7 @@
 use crate::config::{validate_selected_text, ConfigState};
 use crate::error::AppError;
 use crate::history;
-use crate::models::{Action, AppConfig, LlmResult, Provider, ProviderType};
+use crate::models::{Action, AppConfig, AppLanguage, LlmResult, Provider, ProviderType};
 #[cfg(feature = "cli-provider")]
 use crate::providers::cli;
 use crate::providers::{anthropic, apple, openai};
@@ -16,6 +16,7 @@ pub(crate) struct ActionContext {
     pub history_enabled: bool,
     pub history_generation: u64,
     pub show_notification_on_complete: bool,
+    pub language: AppLanguage,
 }
 
 impl ActionContext {
@@ -50,6 +51,7 @@ impl ActionContext {
             history_enabled: config.settings.history_enabled,
             history_generation: history::current_generation(),
             show_notification_on_complete: config.settings.show_notification_on_complete,
+            language: config.settings.language,
         })
     }
 }

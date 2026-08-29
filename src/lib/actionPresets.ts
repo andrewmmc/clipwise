@@ -1,3 +1,6 @@
+import type { AppLanguage } from "../types/config";
+import { translate } from "./i18n";
+
 export interface ActionPreset {
   label: string;
   name: string;
@@ -33,3 +36,11 @@ export const ACTION_PRESETS: ActionPreset[] = [
     userPrompt: "Fix grammar, spelling, and punctuation in the following text.",
   },
 ];
+
+export function getActionPresets(locale: AppLanguage) {
+  return ACTION_PRESETS.map((preset) => ({
+    label: translate(locale, preset.label),
+    name: translate(locale, preset.name),
+    userPrompt: translate(locale, preset.userPrompt),
+  }));
+}

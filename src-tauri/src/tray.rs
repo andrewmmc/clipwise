@@ -46,11 +46,12 @@ fn build_tray_menu<R: Runtime, M: Manager<R>>(
     config: &AppConfig,
 ) -> tauri::Result<Menu<R>> {
     debug!(action_count = config.actions.len(), "Building tray menu");
+    let messages = crate::i18n::tray_messages(config.settings.language);
     let action_items: Vec<MenuItem<R>> = if config.actions.is_empty() {
         vec![MenuItem::with_id(
             app,
             "tray_no_actions",
-            "(No custom actions)",
+            messages.no_actions,
             false,
             None::<&str>,
         )?]
@@ -70,10 +71,15 @@ fn build_tray_menu<R: Runtime, M: Manager<R>>(
             .collect::<tauri::Result<Vec<_>>>()?
     };
 
-    let open_settings =
-        MenuItem::with_id(app, "open_settings", "Open Clipwise...", true, None::<&str>)?;
+    let open_settings = MenuItem::with_id(
+        app,
+        "open_settings",
+        messages.open_clipwise,
+        true,
+        None::<&str>,
+    )?;
     let separator = tauri::menu::PredefinedMenuItem::separator(app)?;
-    let quit = MenuItem::with_id(app, "quit", "Quit Clipwise", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", messages.quit_clipwise, true, None::<&str>)?;
     let mut menu_items: Vec<&dyn tauri::menu::IsMenuItem<R>> = action_items
         .iter()
         .map(|item| item as &dyn tauri::menu::IsMenuItem<R>)
@@ -97,12 +103,18 @@ fn set_tray_icon<R: Runtime>(app: &AppHandle<R>, bytes: &[u8]) {
 
 fn run_tray_action<R: Runtime>(app: AppHandle<R>, action_id: String) {
     tauri::async_runtime::spawn(async move {
+        let language = app
+            .state::<ConfigState>()
+            .lock()
+            .map(|config| config.settings.language)
+            .unwrap_or_default();
+        let messages = crate::i18n::tray_messages(language);
         let Some(_guard) = TrayActionGuard::acquire() else {
             let _ = app
                 .notification()
                 .builder()
                 .title("Clipwise")
-                .body("Another transformation is already in progress.")
+                .body(messages.already_running)
                 .show();
             return;
         };
@@ -117,7 +129,7 @@ fn run_tray_action<R: Runtime>(app: AppHandle<R>, action_id: String) {
                     .notification()
                     .builder()
                     .title("Clipwise")
-                    .body("Clipboard does not contain any text to transform.")
+                    .body(messages.empty_clipboard)
                     .show();
                 return;
             }
@@ -127,7 +139,10 @@ fn run_tray_action<R: Runtime>(app: AppHandle<R>, action_id: String) {
                     .notification()
                     .builder()
                     .title("Clipwise")
-                    .body(format!("Could not read the clipboard: {err}"))
+                    .body(crate::i18n::read_clipboard_error(
+                        language,
+                        &err.to_string(),
+                    ))
                     .show();
                 return;
             }
@@ -140,7 +155,7 @@ fn run_tray_action<R: Runtime>(app: AppHandle<R>, action_id: String) {
                 Err(err) => {
                     error!(action_id = %action_id, error = %err, "Failed to prepare tray action");
                     let body = if matches!(err, crate::error::AppError::ActionNotFound(_)) {
-                        "That action could not be found.".to_string()
+                        messages.action_not_found.to_string()
                     } else {
                         err.to_string()
                     };
@@ -155,6 +170,7 @@ fn run_tray_action<R: Runtime>(app: AppHandle<R>, action_id: String) {
             }
         };
         let show_notification_on_complete = action_context.show_notification_on_complete;
+        let language = action_context.language;
 
         let action_name = action_context.action.name.clone();
         let provider_name = action_context.provider.name.clone();
@@ -173,7 +189,7 @@ fn run_tray_action<R: Runtime>(app: AppHandle<R>, action_id: String) {
             .notification()
             .builder()
             .title("Clipwise")
-            .body(format!("Processing \"{}\"...", action_name))
+            .body(crate::i18n::processing(language, &action_name))
             .show();
 
         set_tray_icon(&app, include_bytes!("../icons/tray-icon-loading-0.png"));
@@ -198,7 +214,10 @@ fn run_tray_action<R: Runtime>(app: AppHandle<R>, action_id: String) {
                         .notification()
                         .builder()
                         .title("Clipwise")
-                        .body(format!("Could not write the clipboard: {err}"))
+                        .body(crate::i18n::write_clipboard_error(
+                            language,
+                            &err.to_string(),
+                        ))
                         .show();
                     return;
                 }
@@ -223,9 +242,7 @@ fn run_tray_action<R: Runtime>(app: AppHandle<R>, action_id: String) {
                         .notification()
                         .builder()
                         .title("Clipwise")
-                        .body(format!(
-                            "\"{action_name}\" finished. Copied to clipboard: {preview}"
-                        ))
+                        .body(crate::i18n::completed(language, &action_name, &preview))
                         .show();
                 }
             }

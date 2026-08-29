@@ -20,6 +20,7 @@ describe("tauriCommands", () => {
   it("saveSettings calls invoke with correct args", async () => {
     mockInvoke.mockResolvedValue(undefined);
     const settings = {
+      language: "en" as const,
       showNotificationOnComplete: false,
       startAtLogin: false,
       maxTokens: 2048,

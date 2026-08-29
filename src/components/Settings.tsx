@@ -5,6 +5,7 @@ import type { AppConfig, AppSettings } from "../types/config";
 import ConfirmDeleteActions from "./ConfirmDeleteActions";
 import ErrorBox from "./ErrorBox";
 import { BookOpen } from "lucide-react";
+import { useI18n } from "../lib/i18n";
 
 interface Props {
   config: AppConfig;
@@ -17,6 +18,7 @@ export default function SettingsPanel({
   onRefresh,
   onShowGuide,
 }: Props) {
+  const { t } = useI18n();
   const [settingsState, setSettingsState] = useState({
     source: config.settings,
     settings: { ...config.settings },
@@ -55,17 +57,17 @@ export default function SettingsPanel({
           <div className="flex items-center justify-between">
             <div>
               <p className="text-[13px] font-medium text-text-primary">
-                Show notification on complete
+                {t("Show notification on complete")}
               </p>
               <p className="text-[12px] text-text-tertiary">
-                Display a macOS notification after text is replaced.
+                {t("Display a macOS notification after text is replaced.")}
               </p>
             </div>
             <button
               type="button"
               role="switch"
               aria-checked={settings.showNotificationOnComplete}
-              aria-label="Show notification on complete"
+              aria-label={t("Show notification on complete")}
               disabled={pending}
               onClick={() =>
                 updateSettings({
@@ -82,17 +84,17 @@ export default function SettingsPanel({
           <div className="flex items-center justify-between">
             <div>
               <p className="text-[13px] font-medium text-text-primary">
-                Start at login
+                {t("Start at login")}
               </p>
               <p className="text-[12px] text-text-tertiary">
-                Open Clipwise automatically when you log in to your Mac.
+                {t("Open Clipwise automatically when you log in to your Mac.")}
               </p>
             </div>
             <button
               type="button"
               role="switch"
               aria-checked={settings.startAtLogin}
-              aria-label="Start at login"
+              aria-label={t("Start at login")}
               disabled={pending}
               onClick={() =>
                 updateSettings({ startAtLogin: !settings.startAtLogin })
@@ -106,24 +108,24 @@ export default function SettingsPanel({
           <div className="flex items-center justify-between">
             <div>
               <p className="text-[13px] font-medium text-text-primary">
-                Enable history
+                {t("Enable history")}
               </p>
               <p className="text-[12px] text-text-tertiary">
-                Store up to 100 transformations in plaintext on this Mac,
-                including failures (first 500 input and 2,000 output
-                characters).
+                {t(
+                  "Store up to 100 transformations in plaintext on this Mac, including failures (first 500 input and 2,000 output characters).",
+                )}
               </p>
             </div>
             {confirmingHistoryDisable ? (
               <div
                 className="flex items-center gap-1"
-                aria-label="Confirm disabling history"
+                aria-label={t("Confirm disabling history")}
               >
                 <span className="mr-1 text-[11px] text-error">
-                  Deletes all saved history.
+                  {t("Deletes all saved history.")}
                 </span>
                 <ConfirmDeleteActions
-                  confirmLabel="Disable"
+                  confirmLabel={t("Disable")}
                   onConfirm={() => {
                     setConfirmingHistoryDisable(false);
                     updateSettings({ historyEnabled: false });
@@ -136,7 +138,7 @@ export default function SettingsPanel({
                 type="button"
                 role="switch"
                 aria-checked={settings.historyEnabled}
-                aria-label="Enable history"
+                aria-label={t("Enable history")}
                 disabled={pending}
                 onClick={() => {
                   if (settings.historyEnabled) {
@@ -155,14 +157,15 @@ export default function SettingsPanel({
           <div className="flex items-center justify-between">
             <div>
               <p className="text-[13px] font-medium text-text-primary">
-                Max tokens
+                {t("Max tokens")}
               </p>
               <p className="text-[12px] text-text-tertiary">
-                Maximum tokens in LLM responses (default: 4096).
+                {t("Maximum tokens in LLM responses (default: 4096).")}
               </p>
             </div>
             <select
               value={settings.maxTokens}
+              aria-label={t("Max tokens")}
               disabled={pending}
               onChange={(e) =>
                 updateSettings({ maxTokens: parseInt(e.target.value, 10) })
@@ -179,14 +182,36 @@ export default function SettingsPanel({
             </select>
           </div>
 
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[13px] font-medium text-text-primary">
+                {t("Language")}
+              </p>
+            </div>
+            <select
+              value={settings.language}
+              aria-label={t("Language")}
+              disabled={pending}
+              onChange={(e) =>
+                updateSettings({
+                  language: e.target.value as AppSettings["language"],
+                })
+              }
+              className="input select !w-48"
+            >
+              <option value="en">{t("English")}</option>
+              <option value="zh-TW">{t("Traditional Chinese")}</option>
+            </select>
+          </div>
+
           {onShowGuide && (
             <div className="flex items-center justify-between border-t border-border pt-4">
               <div>
                 <p className="text-[13px] font-medium text-text-primary">
-                  Getting started guide
+                  {t("Getting started guide")}
                 </p>
                 <p className="text-[12px] text-text-tertiary">
-                  Review how to configure and use Clipwise.
+                  {t("Review how to configure and use Clipwise.")}
                 </p>
               </div>
               <button
@@ -195,7 +220,7 @@ export default function SettingsPanel({
                 className="btn btn-secondary"
               >
                 <BookOpen size={14} />
-                Show Guide
+                {t("Show Guide")}
               </button>
             </div>
           )}

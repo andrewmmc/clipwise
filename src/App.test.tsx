@@ -47,6 +47,20 @@ describe("App", () => {
     expect(screen.getByText("No actions yet")).toBeInTheDocument();
   });
 
+  it("renders the interface in Traditional Chinese", async () => {
+    mockInvoke.mockResolvedValue({
+      ...emptyConfig,
+      settings: { ...emptyConfig.settings, language: "zh-TW" },
+    });
+    render(<App />);
+
+    await waitFor(() =>
+      expect(screen.getByText("尚未有操作")).toBeInTheDocument(),
+    );
+    expect(screen.getByRole("button", { name: "操作" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "設定" })).toBeInTheDocument();
+  });
+
   it("shows guided onboarding for an incomplete first-run config", async () => {
     mockInvoke.mockImplementation((cmd) => {
       if (cmd === "get_config") {

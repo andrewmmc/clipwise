@@ -20,8 +20,10 @@ import ErrorBox from "./ErrorBox";
 import HistoryEntryCard from "./HistoryEntryCard";
 import SectionHeader from "./SectionHeader";
 import SuccessBox from "./SuccessBox";
+import { useI18n } from "../lib/i18n";
 
 export default function HistoryList() {
+  const { locale, t } = useI18n();
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const { error, run, setError, clearError } = useAsyncAction();
@@ -92,7 +94,7 @@ export default function HistoryList() {
   const copyToClipboard = async (text: string, label: string) => {
     try {
       await navigator.clipboard.writeText(text);
-      showMessage(`Copied ${label} to clipboard.`);
+      showMessage(t("Copied {{label}} to clipboard.", { label: t(label) }));
     } catch (e) {
       setError(getErrorMessage(e));
     }
@@ -106,7 +108,7 @@ export default function HistoryList() {
     void (async () => {
       try {
         const newStarred = await run(() => tauriCommands.toggleStarEntry(id));
-        showMessage(newStarred ? "Entry starred." : "Star removed.");
+        showMessage(newStarred ? t("Entry starred.") : t("Star removed."));
         setHistory((prev) =>
           prev.map((e) => (e.id === id ? { ...e, starred: newStarred } : e)),
         );
@@ -134,10 +136,15 @@ export default function HistoryList() {
         const starredCount = history.filter((e) => e.starred).length;
         if (starredCount > 0) {
           showMessage(
-            `Cleared non-starred entries. ${starredCount} starred item${starredCount === 1 ? "" : "s"} preserved.`,
+            t(
+              starredCount === 1
+                ? "Cleared non-starred entries. {{count}} starred item preserved."
+                : "Cleared non-starred entries. {{count}} starred items preserved.",
+              { count: starredCount },
+            ),
           );
         } else {
-          showMessage("History cleared.");
+          showMessage(t("History cleared."));
         }
         setHistory((prev) => prev.filter((e) => e.starred));
       } catch {
@@ -158,7 +165,7 @@ export default function HistoryList() {
       try {
         const deleted = await run(() => tauriCommands.deleteHistoryEntry(id));
         if (deleted) {
-          showMessage("Entry deleted.");
+          showMessage(t("Entry deleted."));
           setHistory((prev) => prev.filter((e) => e.id !== id));
           setExpandedIds((prev) => {
             const next = new Set(prev);
@@ -187,7 +194,7 @@ export default function HistoryList() {
     void (async () => {
       try {
         await run(() => tauriCommands.purgeHistory());
-        showMessage("All history deleted, including starred entries.");
+        showMessage(t("All history deleted, including starred entries."));
         setHistory([]);
         setExpandedIds(new Set());
         setShowStarredOnly(false);
@@ -232,7 +239,7 @@ export default function HistoryList() {
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center">
-        <span className="text-[13px] text-text-tertiary">Loading…</span>
+        <span className="text-[13px] text-text-tertiary">{t("Loading…")}</span>
       </div>
     );
   }
@@ -240,11 +247,16 @@ export default function HistoryList() {
   return (
     <div className="space-y-4">
       <SectionHeader
-        title="History"
+        title={t("History")}
         description={
           history.length === 0
-            ? "No transformations recorded."
-            : `${history.length} transformation${history.length === 1 ? "" : "s"}`
+            ? t("No transformations recorded.")
+            : t(
+                history.length === 1
+                  ? "{{count}} transformation"
+                  : "{{count}} transformations",
+                { count: history.length },
+              )
         }
         actions={
           <div className="flex items-center gap-2">
@@ -257,7 +269,9 @@ export default function HistoryList() {
                   showStarredOnly ? "btn-primary" : "btn-ghost",
                 )}
                 title={
-                  showStarredOnly ? "Show all entries" : "Show starred only"
+                  showStarredOnly
+                    ? t("Show all entries")
+                    : t("Show starred only")
                 }
               >
                 <Star
@@ -274,10 +288,10 @@ export default function HistoryList() {
                   onClick={handleClearHistory}
                   disabled={clearing || purging}
                   className="btn btn-danger"
-                  title="Clear non-starred entries"
+                  title={t("Clear non-starred entries")}
                 >
                   <Trash2 size={14} />
-                  {clearing ? "Clearing…" : "Clear"}
+                  {clearing ? t("Clearing…") : t("Clear")}
                 </button>
                 {pendingPurgeAll ? (
                   <ConfirmDeleteActions
@@ -294,10 +308,10 @@ export default function HistoryList() {
                     }}
                     disabled={clearing || purging}
                     className="btn btn-danger"
-                    title="Delete all history including starred entries"
+                    title={t("Delete all history including starred entries")}
                   >
                     <Trash2 size={14} />
-                    {purging ? "Deleting…" : "Delete All"}
+                    {purging ? t("Deleting…") : t("Delete All")}
                   </button>
                 )}
               </>
@@ -317,7 +331,7 @@ export default function HistoryList() {
               type="search"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search action, provider, input, or output…"
+              placeholder={t("Search action, provider, input, or output…")}
               className="input input-sm w-full pl-8"
             />
           </div>
@@ -330,7 +344,7 @@ export default function HistoryList() {
                 statusFilter === "all" && "btn-primary",
               )}
             >
-              All
+              {t("All")}
             </button>
             <button
               type="button"
@@ -339,10 +353,10 @@ export default function HistoryList() {
                 "btn btn-ghost px-2 py-1 text-[12px]",
                 statusFilter === "success" && "btn-primary",
               )}
-              title="Show successful entries"
+              title={t("Show successful entries")}
             >
               <CircleCheck size={12} />
-              Success
+              {t("Success")}
             </button>
             <button
               type="button"
@@ -351,10 +365,10 @@ export default function HistoryList() {
                 "btn btn-ghost px-2 py-1 text-[12px]",
                 statusFilter === "failure" && "btn-primary",
               )}
-              title="Show failed entries"
+              title={t("Show failed entries")}
             >
               <CircleX size={12} />
-              Failed
+              {t("Failed")}
             </button>
           </div>
         </div>
@@ -368,21 +382,21 @@ export default function HistoryList() {
           icon={<History size={18} />}
           title={
             history.length === 0
-              ? "No history yet"
+              ? t("No history yet")
               : showStarredOnly
-                ? "No starred entries"
+                ? t("No starred entries")
                 : searchQuery || statusFilter !== "all"
-                  ? "No matching entries"
-                  : "No history yet"
+                  ? t("No matching entries")
+                  : t("No history yet")
           }
           description={
             history.length === 0
-              ? "Transformations will appear here when you run actions."
+              ? t("Transformations will appear here when you run actions.")
               : showStarredOnly
-                ? "Star entries to keep them safe from clearing."
+                ? t("Star entries to keep them safe from clearing.")
                 : searchQuery || statusFilter !== "all"
-                  ? "Try adjusting your search or filters."
-                  : "Transformations will appear here when you run actions."
+                  ? t("Try adjusting your search or filters.")
+                  : t("Transformations will appear here when you run actions.")
           }
         />
       ) : (
@@ -396,7 +410,7 @@ export default function HistoryList() {
                 expanded={isExpanded}
                 deleting={deletingIds.has(entry.id)}
                 starring={starringIds.has(entry.id)}
-                timestamp={formatHistoryTimestamp(entry.timestamp)}
+                timestamp={formatHistoryTimestamp(entry.timestamp, locale)}
                 onToggleExpanded={() => toggleExpanded(entry.id)}
                 onToggleStar={() => handleToggleStar(entry.id)}
                 onDelete={() => handleDeleteEntry(entry.id)}

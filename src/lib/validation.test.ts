@@ -20,6 +20,7 @@ const baseConfig: AppConfig = {
   ],
   actions: [],
   settings: {
+    language: "en",
     showNotificationOnComplete: true,
     startAtLogin: false,
     maxTokens: 1000,

@@ -9,12 +9,13 @@ import {
   Sparkles,
 } from "lucide-react";
 import type { ActionPreset } from "../lib/actionPresets";
-import { ACTION_PRESETS } from "../lib/actionPresets";
+import { getActionPresets } from "../lib/actionPresets";
 import { getAppleAvailabilityMessage } from "../lib/appleAvailability";
 import { getErrorMessage } from "../lib/errors";
 import { tauriCommands } from "../lib/tauri";
 import type { AppleModelAvailability, AppConfig } from "../types/config";
 import ErrorBox from "./ErrorBox";
+import { useI18n } from "../lib/i18n";
 
 interface Props {
   config: AppConfig;
@@ -26,12 +27,6 @@ interface Props {
   onDone: () => void;
 }
 
-const WORKFLOW = [
-  { icon: Copy, label: "Copy", detail: "text in any app" },
-  { icon: Menu, label: "Choose", detail: "a menu bar action" },
-  { icon: ClipboardPaste, label: "Paste", detail: "the transformed text" },
-] as const;
-
 export default function GettingStarted({
   config,
   reviewMode,
@@ -41,6 +36,17 @@ export default function GettingStarted({
   onFinish,
   onDone,
 }: Props) {
+  const { locale, t } = useI18n();
+  const workflow = [
+    { icon: Copy, label: t("Copy"), detail: t("text in any app") },
+    { icon: Menu, label: t("Choose"), detail: t("a menu bar action") },
+    {
+      icon: ClipboardPaste,
+      label: t("Paste"),
+      detail: t("the transformed text"),
+    },
+  ];
+  const actionPresets = getActionPresets(locale);
   const hasProvider = config.providers.length > 0;
   const hasAction = config.actions.length > 0;
   const hasAppleProvider = config.providers.some(
@@ -98,7 +104,7 @@ export default function GettingStarted({
     }
   };
 
-  const unavailableMessage = getAppleAvailabilityMessage(appleStatus);
+  const unavailableMessage = getAppleAvailabilityMessage(appleStatus, locale);
 
   return (
     <div className="mx-auto max-w-[760px] space-y-4">
@@ -108,21 +114,22 @@ export default function GettingStarted({
             <Sparkles size={18} />
           </div>
           <p className="text-[12px] font-semibold tracking-[0.14em] text-accent uppercase">
-            Getting started
+            {t("Getting started")}
           </p>
           <h2 className="mt-1 text-[25px] font-semibold tracking-[-0.025em] text-text-primary">
-            Welcome to Clipwise
+            {t("Welcome to Clipwise")}
           </h2>
           <p className="mt-2 max-w-[520px] text-[13px] leading-5 text-text-secondary">
-            Transform copied text with AI, directly from your Mac&apos;s menu
-            bar. Set up two things, then Clipwise is ready anywhere you write.
+            {t(
+              "Transform copied text with AI, directly from your Mac's menu bar. Set up two things, then Clipwise is ready anywhere you write.",
+            )}
           </p>
         </div>
       </section>
 
-      <section className="card p-4" aria-label="How Clipwise works">
+      <section className="card p-4" aria-label={t("How Clipwise works")}>
         <div className="grid grid-cols-3">
-          {WORKFLOW.map(({ icon: Icon, label, detail }, index) => (
+          {workflow.map(({ icon: Icon, label, detail }, index) => (
             <div
               key={label}
               className="relative flex items-center gap-3 px-3 first:pl-1 last:pr-1"
@@ -136,7 +143,7 @@ export default function GettingStarted({
                 </p>
                 <p className="text-[11px] text-text-tertiary">{detail}</p>
               </div>
-              {index < WORKFLOW.length - 1 && (
+              {index < workflow.length - 1 && (
                 <ArrowRight
                   size={13}
                   className="absolute top-3.5 -right-1 text-text-tertiary"
@@ -157,15 +164,19 @@ export default function GettingStarted({
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <h3 className="text-[13px] font-semibold text-text-primary">
-                    Choose an AI provider
+                    {t("Choose an AI provider")}
                   </h3>
                   <p className="mt-0.5 text-[12px] leading-5 text-text-tertiary">
                     {hasProvider
-                      ? `${config.providers[0].name} is ready to use.`
+                      ? t("{{name}} is ready to use.", {
+                          name: config.providers[0].name,
+                        })
                       : checkingApple
-                        ? "Checking Apple Intelligence on this Mac…"
+                        ? t("Checking Apple Intelligence on this Mac…")
                         : (unavailableMessage ??
-                          "Connect Apple Intelligence, an API, or a local CLI.")}
+                          t(
+                            "Connect Apple Intelligence, an API, or a local CLI.",
+                          ))}
                   </p>
                 </div>
                 {!hasProvider && !checkingApple && (
@@ -175,7 +186,7 @@ export default function GettingStarted({
                     className="btn btn-primary shrink-0"
                   >
                     <Cpu size={14} />
-                    Set Up Provider
+                    {t("Set Up Provider")}
                   </button>
                 )}
               </div>
@@ -188,18 +199,24 @@ export default function GettingStarted({
             <StepMarker complete={hasAction} number={2} />
             <div className="min-w-0 flex-1">
               <h3 className="text-[13px] font-semibold text-text-primary">
-                Create your first action
+                {t("Create your first action")}
               </h3>
               <p className="mt-0.5 text-[12px] leading-5 text-text-tertiary">
                 {hasAction
-                  ? `“${config.actions[0].name}” is available in the menu bar.`
+                  ? t("“{{name}}” is available in the menu bar.", {
+                      name: config.actions[0].name,
+                    })
                   : hasProvider
-                    ? "Start from a useful template, then adjust it before saving."
-                    : "Choose a provider first, then select an action template."}
+                    ? t(
+                        "Start from a useful template, then adjust it before saving.",
+                      )
+                    : t(
+                        "Choose a provider first, then select an action template.",
+                      )}
               </p>
               {!hasAction && hasProvider && (
                 <div className="mt-3 grid grid-cols-3 gap-2">
-                  {ACTION_PRESETS.map((preset) => (
+                  {actionPresets.map((preset) => (
                     <button
                       key={preset.label}
                       type="button"
@@ -221,11 +238,12 @@ export default function GettingStarted({
             <StepMarker complete={hasProvider && hasAction} number={3} />
             <div className="min-w-0 flex-1">
               <h3 className="text-[13px] font-semibold text-text-primary">
-                Use Clipwise anywhere
+                {t("Use Clipwise anywhere")}
               </h3>
               <p className="mt-0.5 text-[12px] leading-5 text-text-tertiary">
-                Copy some text, click the Clipwise icon in the menu bar, choose
-                your action, then paste the transformed result.
+                {t(
+                  "Copy some text, click the Clipwise icon in the menu bar, choose your action, then paste the transformed result.",
+                )}
               </p>
             </div>
           </div>
@@ -235,12 +253,12 @@ export default function GettingStarted({
       <div className="flex items-center justify-between pt-1">
         <p className="text-[11px] text-text-tertiary">
           {hasProvider && hasAction
-            ? "Everything is ready."
-            : "Complete the provider and action steps to finish."}
+            ? t("Everything is ready.")
+            : t("Complete the provider and action steps to finish.")}
         </p>
         {reviewMode ? (
           <button type="button" onClick={onDone} className="btn btn-primary">
-            Done
+            {t("Done")}
           </button>
         ) : (
           <button
@@ -249,7 +267,7 @@ export default function GettingStarted({
             onClick={() => void finish()}
             className="btn btn-primary"
           >
-            {finishing ? "Finishing…" : "Finish Setup"}
+            {finishing ? t("Finishing…") : t("Finish Setup")}
             {!finishing && <ArrowRight size={14} />}
           </button>
         )}
@@ -265,6 +283,7 @@ function StepMarker({
   complete: boolean;
   number: number;
 }) {
+  const { t } = useI18n();
   return (
     <div
       className={
@@ -272,7 +291,11 @@ function StepMarker({
           ? "flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-success text-white"
           : "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-border-strong bg-surface-tertiary text-[11px] font-semibold text-text-tertiary"
       }
-      aria-label={complete ? `Step ${number} complete` : `Step ${number}`}
+      aria-label={
+        complete
+          ? t("Step {{number}} complete", { number })
+          : t("Step {{number}}", { number })
+      }
     >
       {complete ? <Check size={13} strokeWidth={3} /> : number}
     </div>

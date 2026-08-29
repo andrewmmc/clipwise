@@ -13,6 +13,7 @@ import ProviderForm from "./ProviderForm";
 import SectionHeader from "./SectionHeader";
 import SuccessBox from "./SuccessBox";
 import { Plus, Pencil, Trash2, Server, Shield } from "lucide-react";
+import { useI18n } from "../lib/i18n";
 
 interface Props {
   config: AppConfig;
@@ -29,6 +30,7 @@ export default function ProviderList({
   onCreateComplete,
   onCreateCancel,
 }: Props) {
+  const { t } = useI18n();
   const [editing, setEditing] = useState<Provider | null>(null);
   const [creating, setCreating] = useState(startCreating);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
@@ -55,7 +57,12 @@ export default function ProviderList({
     const usedBy = config.actions.filter((a) => a.providerId === id);
     if (usedBy.length > 0) {
       setDeleteError(
-        `Cannot delete: ${usedBy.length} action(s) use this provider. Remove them first.`,
+        t(
+          "Cannot delete: {{count}} action(s) use this provider. Remove them first.",
+          {
+            count: usedBy.length,
+          },
+        ),
       );
       setPendingDeleteId(null);
       return;
@@ -80,7 +87,7 @@ export default function ProviderList({
           await runMutation(async () => {
             await tauriCommands.addProvider(data);
             onRefresh();
-            showSuccessMessage("Provider saved successfully.");
+            showSuccessMessage(t("Provider saved successfully."));
             setCreating(false);
             onCreateComplete?.();
           });
@@ -102,7 +109,7 @@ export default function ProviderList({
           await runMutation(async () => {
             await tauriCommands.updateProvider({ ...data, id: editing.id });
             onRefresh();
-            showSuccessMessage("Provider saved successfully.");
+            showSuccessMessage(t("Provider saved successfully."));
             setEditing(null);
           });
         }}
@@ -114,8 +121,12 @@ export default function ProviderList({
   return (
     <div className="space-y-4">
       <SectionHeader
-        title="Providers"
-        description={`Configure LLM API${cliEnabled ? " or CLI" : ""} providers.`}
+        title={t("Providers")}
+        description={t(
+          cliEnabled
+            ? "Configure LLM API or CLI providers."
+            : "Configure LLM API providers.",
+        )}
         actions={
           <button
             onClick={() => {
@@ -125,7 +136,7 @@ export default function ProviderList({
             className="btn btn-primary"
           >
             <Plus size={14} />
-            Add Provider
+            {t("Add Provider")}
           </button>
         }
       />
@@ -138,20 +149,20 @@ export default function ProviderList({
         <Shield size={14} className="mt-0.5 shrink-0" />
         <div>
           <p>
-            When you use an API provider (OpenAI, Anthropic), your clipboard
-            text is sent to that provider&apos;s servers for processing. Apple
-            Intelligence runs entirely on-device and does not send data
-            externally.
+            {t(
+              "When you use an API provider (OpenAI, Anthropic), your clipboard text is sent to that provider's servers for processing. Apple Intelligence runs entirely on-device and does not send data externally.",
+            )}
           </p>
           <p className="mt-1 text-text-tertiary">
-            API keys are stored locally and never shared with Clipwise or any
-            third party.{" "}
+            {t(
+              "API keys are stored locally and never shared with Clipwise or any third party.",
+            )}{" "}
             <button
               type="button"
               onClick={() => openUrl("https://clipwise.mmc.dev/privacy")}
               className="cursor-pointer underline hover:text-text-secondary"
             >
-              Privacy Policy
+              {t("Privacy Policy")}
             </button>
           </p>
         </div>
@@ -160,8 +171,8 @@ export default function ProviderList({
       {config.providers.length === 0 ? (
         <EmptyState
           icon={<Server size={18} />}
-          title="No providers configured"
-          description="Add an API key to start."
+          title={t("No providers configured")}
+          description={t("Add an API key to start.")}
         />
       ) : (
         <div className="space-y-2">
@@ -177,7 +188,7 @@ export default function ProviderList({
                     {provider.name}
                   </p>
                   <p className="mt-0.5 text-[12px] text-text-secondary">
-                    {PROVIDER_TYPE_LABELS[provider.type]}
+                    {t(PROVIDER_TYPE_LABELS[provider.type])}
                     {provider.defaultModel && ` · ${provider.defaultModel}`}
                     {provider.command && ` · ${provider.command}`}
                   </p>
@@ -203,7 +214,7 @@ export default function ProviderList({
                             setEditing(provider);
                           }}
                           className="btn-icon"
-                          title="Edit"
+                          title={t("Edit")}
                         >
                           <Pencil size={14} />
                         </button>
@@ -214,7 +225,7 @@ export default function ProviderList({
                             setPendingDeleteId(provider.id);
                           }}
                           className="btn-icon btn-icon-danger"
-                          title="Delete"
+                          title={t("Delete")}
                         >
                           <Trash2 size={14} />
                         </button>

@@ -3,8 +3,10 @@ import { useEffect, useState } from "react";
 import useCliProviderEnabled from "../hooks/useCliProviderEnabled";
 import { tauriCommands } from "../lib/tauri";
 import type { AppInfo } from "../types/config";
+import { useI18n } from "../lib/i18n";
 
 export default function AboutPanel() {
+  const { t } = useI18n();
   const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
   const cliEnabled = useCliProviderEnabled();
 
@@ -30,17 +32,21 @@ export default function AboutPanel() {
               <strong>Clipwise</strong> {versionString}
             </p>
             <p>
-              macOS text transformation via LLM APIs
-              {cliEnabled && <> &amp; CLI tools</>}.
+              {t(
+                cliEnabled
+                  ? "macOS text transformation via LLM APIs & CLI tools."
+                  : "macOS text transformation via LLM APIs.",
+              )}
             </p>
             {!cliEnabled && (
-              <p className="text-text-tertiary">Mac App Store version</p>
+              <p className="text-text-tertiary">{t("Mac App Store version")}</p>
             )}
           </div>
         </div>
         <p className="mt-2 text-[12px] text-text-tertiary">
-          Copy text, open the menu bar icon, choose an action. The result is
-          copied to your clipboard.
+          {t(
+            "Copy text, open the menu bar icon, choose an action. The result is copied to your clipboard.",
+          )}
         </p>
         <div className="mt-3 flex items-center gap-3 border-t border-border pt-3">
           <button
@@ -48,7 +54,7 @@ export default function AboutPanel() {
             onClick={() => openUrl("https://clipwise.mmc.dev")}
             className="btn btn-secondary text-[12px]"
           >
-            Website
+            {t("Website")}
           </button>
           <button
             type="button"
@@ -64,7 +70,7 @@ export default function AboutPanel() {
             onClick={() => openUrl("https://clipwise.mmc.dev/privacy")}
             className="cursor-pointer text-text-tertiary underline hover:text-text-secondary"
           >
-            Privacy Policy
+            {t("Privacy Policy")}
           </button>
         </div>
       </div>
