@@ -66,8 +66,20 @@ pub(crate) async fn run_command(
                 let mut writer = child_stdin.ok_or_else(|| {
                     std::io::Error::other(format!("{process_name} stdin was unavailable"))
                 })?;
-                writer.write_all(input).await?;
-                writer.shutdown().await?;
+                // The child may exit without reading stdin; a broken pipe there
+                // is not itself a failure — let the exit status and stdout
+                // decide the outcome.
+                if let Err(err) = writer.write_all(input).await {
+                    if err.kind() != std::io::ErrorKind::BrokenPipe {
+                        return Err(err);
+                    }
+                    return Ok(());
+                }
+                if let Err(err) = writer.shutdown().await {
+                    if err.kind() != std::io::ErrorKind::BrokenPipe {
+                        return Err(err);
+                    }
+                }
             }
             Ok::<_, std::io::Error>(())
         };
