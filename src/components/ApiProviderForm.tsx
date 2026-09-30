@@ -27,6 +27,7 @@ interface Props {
   onHeaderValueChange: (index: number, value: string) => void;
   onRemoveHeader: (index: number) => void;
   onTestConnection: () => void;
+  keepBlankHeaderValues?: boolean;
 }
 
 export default function ApiProviderForm({
@@ -47,6 +48,7 @@ export default function ApiProviderForm({
   onHeaderValueChange,
   onRemoveHeader,
   onTestConnection,
+  keepBlankHeaderValues = false,
 }: Props) {
   const { t } = useI18n();
   const endpointId = useId();
@@ -174,7 +176,11 @@ export default function ApiProviderForm({
                 type="text"
                 value={value}
                 onChange={(e) => onHeaderValueChange(index, e.target.value)}
-                placeholder={t("Value")}
+                placeholder={
+                  keepBlankHeaderValues && key.trim() && !value.trim()
+                    ? t("Leave blank to keep saved value")
+                    : t("Value")
+                }
                 aria-label={t("Value")}
                 className="input input-sm flex-1"
               />

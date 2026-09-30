@@ -344,6 +344,7 @@ export default function ProviderForm({
             apiKey={form.apiKey}
             defaultModel={form.defaultModel}
             headers={form.headers}
+            keepBlankHeaderValues={Boolean(initial)}
             testingConnection={testingConnection}
             connectionTestError={connectionTestError}
             connectionTestSuccess={connectionTestSuccess}

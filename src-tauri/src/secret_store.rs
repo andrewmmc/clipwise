@@ -84,6 +84,7 @@ fn headers_keychain_reference(provider_id: &str) -> String {
 
 fn is_keychain_reference(value: &str) -> bool {
     value.starts_with(KEYCHAIN_REFERENCE_PREFIX)
+        && !value.starts_with(KEYCHAIN_HEADERS_REFERENCE_PREFIX)
 }
 
 pub(crate) fn store_provider_secret(provider: &Provider) -> Result<(), AppError> {
@@ -404,5 +405,12 @@ mod tests {
             config.providers[0].headers.get("X-New").map(String::as_str),
             Some("new-secret")
         );
+    }
+
+    #[test]
+    fn api_key_reference_does_not_match_headers_prefix() {
+        assert!(is_keychain_reference("keychain:provider-1"));
+        assert!(!is_keychain_reference("keychain-headers:provider-1"));
+        assert!(!is_keychain_reference("sk-secret"));
     }
 }

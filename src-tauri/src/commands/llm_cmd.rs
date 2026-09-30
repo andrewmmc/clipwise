@@ -49,18 +49,16 @@ pub async fn test_provider(
     mut provider: Provider,
     state: State<'_, ConfigState>,
 ) -> Result<String, AppError> {
-    if matches!(
-        provider.provider_type,
-        ProviderType::OpenAI | ProviderType::Anthropic
-    ) && provider.api_key.as_deref().unwrap_or("").trim().is_empty()
-        && !provider.id.is_empty()
-    {
-        provider.api_key = state
+    if !provider.id.is_empty() {
+        if let Some(stored) = state
             .lock()?
             .providers
             .iter()
             .find(|stored| stored.id == provider.id)
-            .and_then(|stored| stored.api_key.clone());
+            .cloned()
+        {
+            crate::commands::config_cmd::merge_preserved_provider_secrets(&mut provider, &stored);
+        }
     }
     validate_provider_fields(&provider)?;
     match provider.provider_type {

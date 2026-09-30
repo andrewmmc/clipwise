@@ -99,6 +99,44 @@ fn ensure_apple_provider_type_is_immutable(
     Ok(())
 }
 
+pub(crate) fn redact_config_secrets(config: &AppConfig) -> AppConfig {
+    let mut redacted = config.clone();
+    for provider in &mut redacted.providers {
+        redact_provider_secrets(provider);
+    }
+    redacted
+}
+
+pub(crate) fn redact_provider_secrets(provider: &mut Provider) {
+    provider.api_key = None;
+    for value in provider.headers.values_mut() {
+        value.clear();
+    }
+}
+
+pub(crate) fn merge_preserved_provider_secrets(provider: &mut Provider, stored: &Provider) {
+    if matches!(
+        provider.provider_type,
+        ProviderType::OpenAI | ProviderType::Anthropic
+    ) && provider.api_key.as_deref().unwrap_or("").trim().is_empty()
+    {
+        provider.api_key = stored.api_key.clone();
+    }
+
+    let mut merged = crate::models::ProviderHeaders::new();
+    for (name, value) in &provider.headers {
+        let trimmed = value.trim();
+        if trimmed.is_empty() {
+            if let Some(stored_value) = stored.headers.get(name) {
+                merged.insert(name.clone(), stored_value.clone());
+            }
+        } else {
+            merged.insert(name.clone(), value.clone());
+        }
+    }
+    provider.headers = merged;
+}
+
 pub(crate) fn replace_provider(config: &mut AppConfig, provider: Provider) -> Result<(), AppError> {
     validate_provider_fields(&provider)?;
     ensure_single_apple_provider(config, &provider)?;
@@ -281,11 +319,7 @@ where
 #[tauri::command]
 pub async fn get_config(app: AppHandle) -> Result<AppConfig, AppError> {
     let mut config = run_config_worker(app, |config| {
-        let mut redacted = config.clone();
-        for provider in &mut redacted.providers {
-            provider.api_key = None;
-        }
-        Ok(redacted)
+        Ok(redact_config_secrets(config))
     })
     .await?;
     // Reflect changes made in System Settings (including revoked approval) in
@@ -398,7 +432,7 @@ pub async fn add_provider(provider: Provider, app: AppHandle) -> Result<Provider
             return Err(save_err);
         }
         let mut redacted_result = result;
-        redacted_result.api_key = None;
+        redact_provider_secrets(&mut redacted_result);
         Ok(redacted_result)
     })
     .await?;
@@ -428,13 +462,7 @@ pub async fn update_provider(provider: Provider, app: AppHandle) -> Result<(), A
             .cloned()
             .ok_or_else(|| AppError::ProviderNotFound(provider.id.clone()))?;
         let mut provider = provider;
-        if matches!(
-            provider.provider_type,
-            ProviderType::OpenAI | ProviderType::Anthropic
-        ) && provider.api_key.as_deref().unwrap_or("").trim().is_empty()
-        {
-            provider.api_key = old_provider.api_key.clone();
-        }
+        merge_preserved_provider_secrets(&mut provider, &old_provider);
         replace_provider(config, provider)?;
         let new_provider = config
             .providers
@@ -1103,5 +1131,56 @@ mod tests {
             "pre-existing provider p1 should remain"
         );
         assert_eq!(config.providers[0].id, "p1");
+    }
+
+    #[test]
+    fn test_redact_config_secrets_clears_api_key_and_header_values() {
+        let mut provider = stub_provider("p1");
+        provider
+            .headers
+            .insert("X-Private-Token".into(), "header-secret".into());
+        let config = AppConfig {
+            providers: vec![provider],
+            ..AppConfig::default()
+        };
+
+        let redacted = redact_config_secrets(&config);
+        assert!(redacted.providers[0].api_key.is_none());
+        assert_eq!(
+            redacted.providers[0]
+                .headers
+                .get("X-Private-Token")
+                .map(String::as_str),
+            Some("")
+        );
+        assert_eq!(
+            config.providers[0].api_key.as_deref(),
+            Some("key"),
+            "in-memory config should keep secrets"
+        );
+    }
+
+    #[test]
+    fn test_merge_preserved_provider_secrets_keeps_blank_header_values() {
+        let mut stored = stub_provider("p1");
+        stored
+            .headers
+            .insert("X-Private-Token".into(), "header-secret".into());
+        stored.headers.insert("X-Keep".into(), "keep-me".into());
+
+        let mut updated = stored.clone();
+        updated.api_key = None;
+        updated.headers.insert("X-Private-Token".into(), "  ".into());
+        updated.headers.insert("X-New".into(), "fresh".into());
+        updated.headers.remove("X-Keep");
+
+        merge_preserved_provider_secrets(&mut updated, &stored);
+        assert_eq!(updated.api_key.as_deref(), Some("key"));
+        assert_eq!(
+            updated.headers.get("X-Private-Token").map(String::as_str),
+            Some("header-secret")
+        );
+        assert_eq!(updated.headers.get("X-New").map(String::as_str), Some("fresh"));
+        assert!(updated.headers.get("X-Keep").is_none());
     }
 }
