@@ -471,9 +471,9 @@ pub async fn update_provider(provider: Provider, app: AppHandle) -> Result<(), A
             .cloned()
             .expect("updated provider must exist");
 
-        if let Err(secret_err) = secret_store::restore_provider_secret(&new_provider) {
+        if let Err(secret_err) = secret_store::persist_provider_secrets(&new_provider) {
             *config = previous;
-            if let Err(restore_err) = secret_store::restore_provider_secret(&old_provider) {
+            if let Err(restore_err) = secret_store::persist_provider_secrets(&old_provider) {
                 return Err(AppError::Service(format!(
                     "Failed to update provider secrets ({secret_err}) and restore previous Keychain items ({restore_err})"
                 )));
@@ -482,7 +482,7 @@ pub async fn update_provider(provider: Provider, app: AppHandle) -> Result<(), A
         }
         if let Err(save_err) = save_config(config) {
             *config = previous;
-            if let Err(restore_err) = secret_store::restore_provider_secret(&old_provider) {
+            if let Err(restore_err) = secret_store::persist_provider_secrets(&old_provider) {
                 return Err(AppError::Service(format!(
                     "Failed to save provider ({save_err}) and restore its previous Keychain item ({restore_err})"
                 )));
@@ -522,7 +522,7 @@ pub async fn delete_provider(id: String, app: AppHandle) -> Result<(), AppError>
         }
         if let Err(delete_err) = secret_store::delete_provider_secret(&worker_id) {
             *config = previous.clone();
-            if let Err(restore_err) = secret_store::restore_provider_secret(&old_provider) {
+            if let Err(restore_err) = secret_store::persist_provider_secrets(&old_provider) {
                 return Err(AppError::Service(format!(
                     "Failed to delete Keychain items ({delete_err}) and restore them ({restore_err})"
                 )));

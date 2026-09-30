@@ -113,7 +113,7 @@ pub(crate) fn delete_provider_secret(provider_id: &str) -> Result<(), AppError> 
     PlatformSecretBackend.delete(&headers_keychain_reference(provider_id))
 }
 
-pub(crate) fn restore_provider_secret(provider: &Provider) -> Result<(), AppError> {
+pub(crate) fn persist_provider_secrets(provider: &Provider) -> Result<(), AppError> {
     store_provider_secret(provider)
 }
 
