@@ -115,6 +115,10 @@ const zhTW: Record<string, string> = {
   "Add header": "新增標頭",
   "Header name": "標頭名稱",
   Value: "值",
+  "Header name {{name}} is reserved.": "標頭名稱 {{name}} 為保留名稱。",
+  "Duplicate header names are not allowed: {{name}}.":
+    "不可使用重複的標頭名稱：{{name}}。",
+  "Leave blank to keep saved value": "留空以保留已儲存的值",
   Command: "指令",
   "Find the binary path with": "使用以下指令尋找執行檔路徑：",
   "e.g. claude": "例如：claude",

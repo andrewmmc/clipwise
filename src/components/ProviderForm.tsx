@@ -7,7 +7,7 @@ import { getAppleAvailabilityMessage } from "../lib/appleAvailability";
 import { getErrorMessage } from "../lib/errors";
 import { PROVIDER_OPTION_LABELS } from "../lib/providers";
 import { tauriCommands } from "../lib/tauri";
-import { isApiProviderType, validateProviderForm } from "../lib/validation";
+import { isApiProviderType, isProviderType, validateProviderForm, validateProviderHeaders } from "../lib/validation";
 import type { AppleModelAvailability, Provider } from "../types/config";
 import { ChevronDown } from "lucide-react";
 import ApiProviderForm from "./ApiProviderForm";
@@ -142,6 +142,13 @@ export default function ProviderForm({
       setError(validationError);
       return;
     }
+    const headersError = isApiProviderType(form.type)
+      ? validateProviderHeaders(form.headers, locale)
+      : null;
+    if (headersError) {
+      setError(headersError);
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -182,6 +189,12 @@ export default function ProviderForm({
     if (validationError) {
       clearConnectionTestSuccess();
       setConnectionTestError(validationError);
+      return;
+    }
+    const headersError = validateProviderHeaders(form.headers, locale);
+    if (headersError) {
+      clearConnectionTestSuccess();
+      setConnectionTestError(headersError);
       return;
     }
 
@@ -262,7 +275,8 @@ export default function ProviderForm({
               <select
                 value={form.type}
                 onChange={(e) => {
-                  const nextType = e.target.value as Provider["type"];
+                  const nextType = e.target.value;
+                  if (!isProviderType(nextType)) return;
                   clearAllFeedback();
                   dispatch({
                     type: "setType",

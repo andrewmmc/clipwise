@@ -35,6 +35,10 @@ fn validate_char_limit(label: &str, value: &str, max_chars: usize) -> Result<(),
     Ok(())
 }
 
+pub(crate) fn is_reserved_provider_header(name: &str) -> bool {
+    name.eq_ignore_ascii_case("authorization") || name.eq_ignore_ascii_case("x-api-key")
+}
+
 pub(crate) fn validate_settings(settings: &AppSettings) -> Result<(), AppError> {
     if !(MIN_MAX_TOKENS..=MAX_MAX_TOKENS).contains(&settings.max_tokens) {
         return Err(AppError::Config(format!(
@@ -70,6 +74,11 @@ pub(crate) fn validate_provider_fields(provider: &Provider) -> Result<(), AppErr
         validate_char_limit("Provider header value", value, MAX_HEADER_VALUE_CHARS)?;
         HeaderName::from_bytes(name.as_bytes())
             .map_err(|_| AppError::Config(format!("Invalid provider header name {name:?}")))?;
+        if is_reserved_provider_header(name) {
+            return Err(AppError::Config(format!(
+                "Provider header {name:?} is reserved and cannot override authentication"
+            )));
+        }
         HeaderValue::from_str(value)
             .map_err(|_| AppError::Config(format!("Invalid value for provider header {name:?}")))?;
     }
@@ -531,6 +540,18 @@ mod tests {
         assert!(matches!(
             validate_provider_fields(&provider),
             Err(AppError::Config(_))
+        ));
+    }
+
+    #[test]
+    fn test_reserved_provider_headers_are_rejected() {
+        let mut provider = make_test_config().providers.remove(0);
+        provider
+            .headers
+            .insert("Authorization".into(), "Bearer stolen".into());
+        assert!(matches!(
+            validate_provider_fields(&provider),
+            Err(AppError::Config(message)) if message.contains("reserved")
         ));
     }
 

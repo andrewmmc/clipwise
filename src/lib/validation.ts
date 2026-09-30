@@ -29,6 +29,43 @@ export function isApiProviderType(type: ProviderType): type is ApiProviderType {
   return type !== "cli" && type !== "apple";
 }
 
+export const PROVIDER_TYPES: ProviderType[] = [
+  "apple",
+  "anthropic",
+  "openai",
+  "cli",
+];
+
+export function isProviderType(value: string): value is ProviderType {
+  return (PROVIDER_TYPES as string[]).includes(value);
+}
+
+const RESERVED_HEADER_NAMES = new Set(["authorization", "x-api-key"]);
+
+export function validateProviderHeaders(
+  headers: [string, string][],
+  locale: AppLanguage = "en",
+) {
+  const seen = new Set<string>();
+  for (const [rawName] of headers) {
+    const name = rawName.trim();
+    if (!name) continue;
+    const normalized = name.toLowerCase();
+    if (RESERVED_HEADER_NAMES.has(normalized)) {
+      return translate(locale, "Header name {{name}} is reserved.", {
+        name,
+      });
+    }
+    if (seen.has(normalized)) {
+      return translate(locale, "Duplicate header names are not allowed: {{name}}.", {
+        name,
+      });
+    }
+    seen.add(normalized);
+  }
+  return null;
+}
+
 export function validateProviderForm(
   data: Pick<Provider, "name" | "type" | "endpoint" | "apiKey" | "command">,
   appleProviderExists: boolean,

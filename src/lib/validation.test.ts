@@ -2,9 +2,11 @@ import { describe, it, expect } from "vitest";
 import {
   MAX_USER_PROMPT_LENGTH,
   isApiProviderType,
+  isProviderType,
   validateActionForm,
   validateEndpoint,
   validateProviderForm,
+  validateProviderHeaders,
 } from "./validation";
 import type { AppConfig, Provider } from "../types/config";
 
@@ -57,6 +59,55 @@ describe("isApiProviderType", () => {
   it("treats cli and apple as non-API types", () => {
     expect(isApiProviderType("cli")).toBe(false);
     expect(isApiProviderType("apple")).toBe(false);
+  });
+});
+
+describe("isProviderType", () => {
+  it("accepts known provider types", () => {
+    expect(isProviderType("openai")).toBe(true);
+    expect(isProviderType("apple")).toBe(true);
+  });
+
+  it("rejects unknown values", () => {
+    expect(isProviderType("unknown")).toBe(false);
+  });
+});
+
+describe("validateProviderHeaders", () => {
+  it("accepts unique header names", () => {
+    expect(
+      validateProviderHeaders([
+        ["X-Org", "a"],
+        ["X-Trace", "b"],
+      ]),
+    ).toBeNull();
+  });
+
+  it("rejects duplicate header names", () => {
+    expect(
+      validateProviderHeaders([
+        ["X-Org", "a"],
+        ["x-org", "b"],
+      ]),
+    ).toMatch(/Duplicate header names/);
+  });
+
+  it("rejects reserved auth header names", () => {
+    expect(validateProviderHeaders([["Authorization", "Bearer x"]])).toMatch(
+      /reserved/i,
+    );
+    expect(validateProviderHeaders([["x-api-key", "secret"]])).toMatch(
+      /reserved/i,
+    );
+  });
+
+  it("ignores empty header names", () => {
+    expect(
+      validateProviderHeaders([
+        ["", "value"],
+        ["X-Org", "a"],
+      ]),
+    ).toBeNull();
   });
 });
 

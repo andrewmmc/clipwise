@@ -116,6 +116,9 @@ pub(crate) fn apply_custom_headers(
     headers: &crate::models::ProviderHeaders,
 ) -> RequestBuilder {
     for (key, value) in headers {
+        if crate::config::is_reserved_provider_header(key) {
+            continue;
+        }
         request = request.header(key.as_str(), value);
     }
 

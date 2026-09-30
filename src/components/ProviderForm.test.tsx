@@ -702,6 +702,43 @@ describe("ProviderForm", () => {
     );
   });
 
+  it("rejects duplicate custom header names", async () => {
+    onSave.mockResolvedValue(undefined);
+    const user = userEvent.setup();
+    render(<ProviderForm onSave={onSave} onCancel={onCancel} />);
+
+    await user.click(screen.getByRole("button", { name: /add header/i }));
+    await user.click(screen.getByRole("button", { name: /add header/i }));
+    const headerNames = screen.getAllByPlaceholderText("Header name");
+    await user.type(headerNames[0], "X-Org");
+    await user.type(headerNames[1], "x-org");
+    await user.type(screen.getByPlaceholderText("e.g. Anthropic Claude"), "P");
+    await user.type(screen.getByPlaceholderText("sk-..."), "k");
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+    expect(
+      screen.getByText("Duplicate header names are not allowed: x-org."),
+    ).toBeInTheDocument();
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it("rejects reserved auth header names", async () => {
+    onSave.mockResolvedValue(undefined);
+    const user = userEvent.setup();
+    render(<ProviderForm onSave={onSave} onCancel={onCancel} />);
+
+    await user.click(screen.getByRole("button", { name: /add header/i }));
+    await user.type(screen.getByPlaceholderText("Header name"), "Authorization");
+    await user.type(screen.getByPlaceholderText("e.g. Anthropic Claude"), "P");
+    await user.type(screen.getByPlaceholderText("sk-..."), "k");
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+    expect(
+      screen.getByText("Header name Authorization is reserved."),
+    ).toBeInTheDocument();
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
   // ── Args (CLI mode) ───────────────────────────────────────────────────────
 
   it("Add arg button adds an argument row in CLI mode", async () => {
