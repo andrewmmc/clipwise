@@ -62,8 +62,37 @@ fn try_extract_embedded_json(input: &str) -> Result<String, AppError> {
 
 fn extract_json_object(raw: &str) -> Option<&str> {
     let start = raw.find('{')?;
-    let end = raw.rfind('}')?;
-    (end >= start).then_some(&raw[start..=end])
+    let bytes = raw.as_bytes();
+    let mut depth = 0usize;
+    let mut in_string = false;
+    let mut escaped = false;
+
+    for (index, &byte) in bytes.iter().enumerate().skip(start) {
+        if in_string {
+            if escaped {
+                escaped = false;
+            } else if byte == b'\\' {
+                escaped = true;
+            } else if byte == b'"' {
+                in_string = false;
+            }
+            continue;
+        }
+
+        match byte {
+            b'"' => in_string = true,
+            b'{' => depth += 1,
+            b'}' => {
+                depth = depth.saturating_sub(1);
+                if depth == 0 {
+                    return Some(&raw[start..=index]);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    None
 }
 
 fn extract_result_from_value(parsed: Value) -> Result<String, AppError> {
@@ -205,6 +234,21 @@ mod tests {
             normalize_response_str(raw).unwrap(),
             json!({ "result": "cleaned up" })
         );
+    }
+
+    #[test]
+    fn test_embedded_json_ignores_braces_in_strings_and_trailing_text() {
+        let raw = r#"note: {"result":"ok } still"} leftover {not json}"#;
+        assert_eq!(
+            normalize_response_str(raw).unwrap(),
+            json!({ "result": "ok } still" })
+        );
+    }
+
+    #[test]
+    fn test_extract_json_object_uses_the_first_complete_object() {
+        let raw = r#"prefix {"result":"first"} {"result":"second"}"#;
+        assert_eq!(extract_json_object(raw), Some(r#"{"result":"first"}"#));
     }
 
     #[test]
