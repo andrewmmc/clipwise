@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import useAsyncAction from "../hooks/useAsyncAction";
 import { tauriCommands } from "../lib/tauri";
 import type { AppConfig, AppSettings } from "../types/config";
@@ -26,13 +26,15 @@ export default function SettingsPanel({
   const [confirmingHistoryDisable, setConfirmingHistoryDisable] =
     useState(false);
   const { error, pending, run } = useAsyncAction();
+  const savingRef = useRef(false);
   const settings =
     settingsState.source === config.settings
       ? settingsState.settings
       : config.settings;
 
   const updateSettings = (nextSettings: Partial<AppSettings>) => {
-    if (pending) return;
+    if (pending || savingRef.current) return;
+    savingRef.current = true;
     const previous = settings;
     const updated = { ...settings, ...nextSettings };
     setSettingsState({ source: config.settings, settings: updated });
@@ -44,6 +46,8 @@ export default function SettingsPanel({
         });
       } catch {
         setSettingsState({ source: config.settings, settings: previous });
+      } finally {
+        savingRef.current = false;
       }
     })();
   };
