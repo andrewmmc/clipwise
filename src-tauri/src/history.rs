@@ -6,7 +6,7 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{LazyLock, Mutex, MutexGuard};
-use tracing::info;
+use tracing::{info, warn};
 use uuid::Uuid;
 
 const MAX_HISTORY_ENTRIES: usize = 100;
@@ -47,14 +47,51 @@ pub fn history_path() -> Result<PathBuf, AppError> {
 pub fn load_history_from(path: &Path) -> Result<Vec<HistoryEntry>, AppError> {
     if !path.exists() {
         info!(path = %path.display(), "History file missing; returning empty history");
+        return Ok(Vec::new());
     }
-    let history: Vec<HistoryEntry> = load_json_or_default(path)?;
-    info!(
-        path = %path.display(),
-        entry_count = history.len(),
-        "Loaded history"
-    );
-    Ok(history)
+
+    match load_json_or_default(path) {
+        Ok(history) => {
+            info!(
+                path = %path.display(),
+                entry_count = history.len(),
+                "Loaded history"
+            );
+            Ok(history)
+        }
+        Err(err) => match quarantine_invalid_history_at(path) {
+            Ok(backup_path) => {
+                warn!(
+                    error = %err,
+                    path = %path.display(),
+                    backup = %backup_path.display(),
+                    "Quarantined unreadable history file; starting with empty history"
+                );
+                Ok(Vec::new())
+            }
+            Err(quarantine_err) => {
+                warn!(
+                    error = %quarantine_err,
+                    path = %path.display(),
+                    "Failed to quarantine unreadable history file"
+                );
+                Err(err)
+            }
+        },
+    }
+}
+
+fn quarantine_invalid_history_at(path: &Path) -> Result<PathBuf, AppError> {
+    if !path.exists() {
+        return Err(AppError::Config(
+            "Cannot preserve invalid history because the file does not exist".into(),
+        ));
+    }
+
+    let backup_path =
+        path.with_file_name(format!("history.corrupt.{}.json", Uuid::new_v4()));
+    std::fs::rename(path, &backup_path)?;
+    Ok(backup_path)
 }
 
 pub fn save_history_to(history: &[HistoryEntry], path: &Path) -> Result<(), AppError> {
@@ -91,21 +128,27 @@ fn truncate_text(text: &str, max_chars: usize) -> String {
 }
 
 fn trim_history(history: Vec<HistoryEntry>) -> Vec<HistoryEntry> {
-    if history.len() <= MAX_HISTORY_ENTRIES {
+    let starred_total = history.iter().filter(|entry| entry.starred).count();
+    if history.len() <= MAX_HISTORY_ENTRIES && starred_total <= MAX_STARRED_ENTRIES {
         return history;
     }
 
-    let starred_count = history.iter().filter(|e| e.starred).count();
-    let non_starred_allowed = MAX_HISTORY_ENTRIES.saturating_sub(starred_count);
+    let starred_allowed = starred_total.min(MAX_STARRED_ENTRIES);
+    let non_starred_allowed = MAX_HISTORY_ENTRIES.saturating_sub(starred_allowed);
+    let mut starred_kept = 0;
     let mut non_starred_kept = 0;
 
     history
         .into_iter()
         .filter(|entry| {
             if entry.starred {
-                return true;
-            }
-            if non_starred_kept < non_starred_allowed {
+                if starred_kept < MAX_STARRED_ENTRIES {
+                    starred_kept += 1;
+                    true
+                } else {
+                    false
+                }
+            } else if non_starred_kept < non_starred_allowed {
                 non_starred_kept += 1;
                 true
             } else {
@@ -570,23 +613,36 @@ mod tests {
     // ── load_history ───────────────────────────────────────────────────────────
 
     #[test]
-    fn test_load_history_empty_file_returns_error() {
+    fn test_load_history_empty_file_is_quarantined() {
         let dir = TempDir::new().unwrap();
         let path = dir.path().join("history.json");
         std::fs::write(&path, "").unwrap();
 
-        let result = load_history_from(&path);
-        assert!(result.is_err());
+        let history = load_history_from(&path).unwrap();
+        assert!(history.is_empty());
+        assert!(!path.exists());
+        let backups: Vec<_> = std::fs::read_dir(dir.path())
+            .unwrap()
+            .filter_map(|entry| entry.ok())
+            .filter(|entry| {
+                entry
+                    .file_name()
+                    .to_string_lossy()
+                    .starts_with("history.corrupt.")
+            })
+            .collect();
+        assert_eq!(backups.len(), 1);
     }
 
     #[test]
-    fn test_load_history_invalid_json_returns_error() {
+    fn test_load_history_invalid_json_is_quarantined() {
         let dir = TempDir::new().unwrap();
         let path = dir.path().join("history.json");
         std::fs::write(&path, "{ invalid json }").unwrap();
 
-        let result = load_history_from(&path);
-        assert!(result.is_err());
+        let history = load_history_from(&path).unwrap();
+        assert!(history.is_empty());
+        assert!(!path.exists());
     }
 
     #[test]
@@ -772,6 +828,30 @@ mod tests {
             history.iter().any(|e| e.id == "new-id"),
             "New entry should be present"
         );
+    }
+
+    #[test]
+    fn test_trim_history_caps_excess_starred_entries() {
+        let mut history: Vec<HistoryEntry> = (0..25)
+            .map(|i| {
+                make_test_entry_with_starred(
+                    &format!("starred-{i}"),
+                    &format!("Action{i}"),
+                    true,
+                )
+            })
+            .collect();
+        history.extend((0..90).map(|i| make_test_entry(&format!("plain-{i}"), "Action")));
+
+        history = trim_history(history);
+
+        assert_eq!(history.len(), MAX_HISTORY_ENTRIES);
+        assert_eq!(
+            history.iter().filter(|entry| entry.starred).count(),
+            MAX_STARRED_ENTRIES
+        );
+        assert!(history.iter().any(|entry| entry.id == "starred-0"));
+        assert!(!history.iter().any(|entry| entry.id == "starred-24"));
     }
 
     // ── History file lock ───────────────────────────────────────────────────────
