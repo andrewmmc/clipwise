@@ -50,7 +50,7 @@ pub fn load_history_from(path: &Path) -> Result<Vec<HistoryEntry>, AppError> {
         return Ok(Vec::new());
     }
 
-    match load_json_or_default(path) {
+    match load_json_or_default::<Vec<HistoryEntry>>(path) {
         Ok(history) => {
             info!(
                 path = %path.display(),

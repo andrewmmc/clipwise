@@ -1183,6 +1183,6 @@ mod tests {
             updated.headers.get("X-New").map(String::as_str),
             Some("fresh")
         );
-        assert!(updated.headers.get("X-Keep").is_none());
+        assert!(!updated.headers.contains_key("X-Keep"));
     }
 }

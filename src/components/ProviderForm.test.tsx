@@ -955,7 +955,7 @@ describe("ProviderForm", () => {
     const providerWithSpecialHeaders = {
       ...mockProvider,
       headers: {
-        "X-API-Key": "key-with-123",
+        "X-Client-Key": "key-with-123",
         "X-Request-ID": "req_abc-123_xyz",
       },
     };
@@ -974,7 +974,7 @@ describe("ProviderForm", () => {
       expect(onSave).toHaveBeenCalledWith(
         expect.objectContaining({
           headers: {
-            "X-API-Key": "key-with-123",
+            "X-Client-Key": "key-with-123",
             "X-Request-ID": "req_abc-123_xyz",
           },
         }),
