@@ -20,9 +20,15 @@ pub(crate) async fn attach_apple_provider_async<R: Runtime>(
     };
 
     if already_has_apple {
-        return AppleModelAvailability {
-            available: true,
-            reason: None,
+        return match crate::providers::apple::check_availability().await {
+            Ok((available, reason)) => AppleModelAvailability { available, reason },
+            Err(err) => {
+                debug!(error = %err, "Apple Intelligence availability check failed");
+                AppleModelAvailability {
+                    available: false,
+                    reason: Some("unknown".to_string()),
+                }
+            }
         };
     }
 
