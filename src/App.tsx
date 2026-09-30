@@ -164,10 +164,7 @@ function AppContent({
         <main className="flex-1 overflow-y-auto p-5">
           {error && (
             <div className="mb-4">
-              <ErrorBox
-                title={t("Failed to refresh config")}
-                message={error}
-              />
+              <ErrorBox title={t("Failed to refresh config")} message={error} />
             </div>
           )}
           {visibleActiveView === "getting-started" && (
@@ -200,16 +197,12 @@ function AppContent({
           )}
           {visibleActiveView === "actions" && (
             <ActionList
-              key={
-                setupEditor?.type === "action" ? "setup-action" : "actions"
-              }
+              key={setupEditor?.type === "action" ? "setup-action" : "actions"}
               config={config}
               onRefresh={refresh}
               startCreating={setupEditor?.type === "action"}
               creationDraft={
-                setupEditor?.type === "action"
-                  ? setupEditor.preset
-                  : undefined
+                setupEditor?.type === "action" ? setupEditor.preset : undefined
               }
               onCreateComplete={
                 setupEditor?.type === "action" ? returnToGuide : undefined

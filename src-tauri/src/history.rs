@@ -88,8 +88,7 @@ fn quarantine_invalid_history_at(path: &Path) -> Result<PathBuf, AppError> {
         ));
     }
 
-    let backup_path =
-        path.with_file_name(format!("history.corrupt.{}.json", Uuid::new_v4()));
+    let backup_path = path.with_file_name(format!("history.corrupt.{}.json", Uuid::new_v4()));
     std::fs::rename(path, &backup_path)?;
     Ok(backup_path)
 }
@@ -834,11 +833,7 @@ mod tests {
     fn test_trim_history_caps_excess_starred_entries() {
         let mut history: Vec<HistoryEntry> = (0..25)
             .map(|i| {
-                make_test_entry_with_starred(
-                    &format!("starred-{i}"),
-                    &format!("Action{i}"),
-                    true,
-                )
+                make_test_entry_with_starred(&format!("starred-{i}"), &format!("Action{i}"), true)
             })
             .collect();
         history.extend((0..90).map(|i| make_test_entry(&format!("plain-{i}"), "Action")));

@@ -728,7 +728,10 @@ describe("ProviderForm", () => {
     render(<ProviderForm onSave={onSave} onCancel={onCancel} />);
 
     await user.click(screen.getByRole("button", { name: /add header/i }));
-    await user.type(screen.getByPlaceholderText("Header name"), "Authorization");
+    await user.type(
+      screen.getByPlaceholderText("Header name"),
+      "Authorization",
+    );
     await user.type(screen.getByPlaceholderText("e.g. Anthropic Claude"), "P");
     await user.type(screen.getByPlaceholderText("sk-..."), "k");
     await user.click(screen.getByRole("button", { name: /^save$/i }));

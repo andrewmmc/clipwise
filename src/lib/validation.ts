@@ -61,9 +61,13 @@ export function validateProviderHeaders(
       });
     }
     if (seen.has(normalized)) {
-      return translate(locale, "Duplicate header names are not allowed: {{name}}.", {
-        name,
-      });
+      return translate(
+        locale,
+        "Duplicate header names are not allowed: {{name}}.",
+        {
+          name,
+        },
+      );
     }
     seen.add(normalized);
   }

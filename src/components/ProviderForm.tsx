@@ -7,7 +7,12 @@ import { getAppleAvailabilityMessage } from "../lib/appleAvailability";
 import { getErrorMessage } from "../lib/errors";
 import { PROVIDER_OPTION_LABELS } from "../lib/providers";
 import { tauriCommands } from "../lib/tauri";
-import { isApiProviderType, isProviderType, validateProviderForm, validateProviderHeaders } from "../lib/validation";
+import {
+  isApiProviderType,
+  isProviderType,
+  validateProviderForm,
+  validateProviderHeaders,
+} from "../lib/validation";
 import type { AppleModelAvailability, Provider } from "../types/config";
 import { ChevronDown } from "lucide-react";
 import ApiProviderForm from "./ApiProviderForm";

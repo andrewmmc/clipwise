@@ -11,8 +11,6 @@ describe("getErrorMessage", () => {
   });
 
   it("stringifies objects whose message is not a string", () => {
-    expect(getErrorMessage({ message: { code: 1 } })).toBe(
-      "[object Object]",
-    );
+    expect(getErrorMessage({ message: { code: 1 } })).toBe("[object Object]");
   });
 });

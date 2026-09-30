@@ -318,10 +318,7 @@ where
 #[cfg(not(test))]
 #[tauri::command]
 pub async fn get_config(app: AppHandle) -> Result<AppConfig, AppError> {
-    let mut config = run_config_worker(app, |config| {
-        Ok(redact_config_secrets(config))
-    })
-    .await?;
+    let mut config = run_config_worker(app, |config| Ok(redact_config_secrets(config))).await?;
     // Reflect changes made in System Settings (including revoked approval) in
     // the UI without overwriting the user's saved preference during startup.
     config.settings.start_at_login = crate::autostart::is_enabled()?;
@@ -1170,7 +1167,9 @@ mod tests {
 
         let mut updated = stored.clone();
         updated.api_key = None;
-        updated.headers.insert("X-Private-Token".into(), "  ".into());
+        updated
+            .headers
+            .insert("X-Private-Token".into(), "  ".into());
         updated.headers.insert("X-New".into(), "fresh".into());
         updated.headers.remove("X-Keep");
 
@@ -1180,7 +1179,10 @@ mod tests {
             updated.headers.get("X-Private-Token").map(String::as_str),
             Some("header-secret")
         );
-        assert_eq!(updated.headers.get("X-New").map(String::as_str), Some("fresh"));
+        assert_eq!(
+            updated.headers.get("X-New").map(String::as_str),
+            Some("fresh")
+        );
         assert!(updated.headers.get("X-Keep").is_none());
     }
 }
