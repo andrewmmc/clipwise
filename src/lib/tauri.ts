@@ -5,9 +5,9 @@ import type {
   AppConfig,
   AppInfo,
   AppSettings,
+  HistoryEntry,
   Provider,
 } from "../types/config";
-import type { HistoryEntry } from "../types/bindings/HistoryEntry";
 
 export const tauriCommands = {
   getAppInfo: (): Promise<AppInfo> => invoke("get_app_info"),

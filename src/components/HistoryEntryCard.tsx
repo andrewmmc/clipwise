@@ -1,5 +1,5 @@
 import { cx } from "../lib/classNames";
-import type { HistoryEntry } from "../types/bindings/HistoryEntry";
+import type { HistoryEntry } from "../types/config";
 import {
   CheckCircle2,
   ChevronDown,

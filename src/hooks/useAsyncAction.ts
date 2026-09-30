@@ -25,11 +25,13 @@ export default function useAsyncAction() {
     }
   }, []);
 
+  const clearError = useCallback(() => setError(null), []);
+
   return {
     error,
     pending,
     run,
     setError,
-    clearError: () => setError(null),
+    clearError,
   };
 }

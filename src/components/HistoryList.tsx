@@ -5,7 +5,7 @@ import { cx } from "../lib/classNames";
 import { getErrorMessage } from "../lib/errors";
 import { formatHistoryTimestamp } from "../lib/history";
 import { tauriCommands } from "../lib/tauri";
-import type { HistoryEntry } from "../types/bindings/HistoryEntry";
+import type { HistoryEntry } from "../types/config";
 import {
   CircleCheck,
   CircleX,
