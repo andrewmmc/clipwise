@@ -10,7 +10,9 @@ describe("getErrorMessage", () => {
     expect(getErrorMessage("plain failure")).toBe("plain failure");
   });
 
-  it("stringifies objects whose message is not a string", () => {
-    expect(getErrorMessage({ message: { code: 1 } })).toBe("[object Object]");
+  it("falls back when message is empty, whitespace, or missing", () => {
+    expect(getErrorMessage({ message: "  " })).toBe("[object Object]");
+    expect(getErrorMessage("   ")).toBe("   ");
+    expect(getErrorMessage(42)).toBe("42");
   });
 });

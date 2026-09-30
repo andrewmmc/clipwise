@@ -150,6 +150,14 @@ describe("SettingsPanel", () => {
     await waitFor(() => expect(onRefresh).toHaveBeenCalledOnce());
   });
 
+  it("ignores unsupported language values", () => {
+    render(<SettingsPanel config={mockConfig} onRefresh={onRefresh} />);
+    fireEvent.change(screen.getByRole("combobox", { name: "Language" }), {
+      target: { value: "fr" },
+    });
+    expect(mockInvoke).not.toHaveBeenCalled();
+  });
+
   it("shows error message when save fails", async () => {
     mockInvoke.mockRejectedValue(new Error("write error"));
     const user = userEvent.setup();

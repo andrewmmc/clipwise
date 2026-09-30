@@ -382,6 +382,29 @@ describe("ActionForm", () => {
     expect(screen.getByText("Test result")).toBeInTheDocument();
   });
 
+  it("shows a test error when the current draft is invalid", async () => {
+    const user = userEvent.setup();
+    render(
+      <ActionForm
+        config={mockConfig}
+        initial={mockAction}
+        onSave={onSave}
+        onCancel={onCancel}
+      />,
+    );
+
+    await user.clear(screen.getByLabelText("Action Name"));
+    await user.click(screen.getByRole("button", { name: /^test$/i }));
+
+    expect(
+      screen.getByText("Error: Name, provider, and prompt are required."),
+    ).toBeInTheDocument();
+    expect(mockInvoke).not.toHaveBeenCalledWith(
+      "test_action",
+      expect.anything(),
+    );
+  });
+
   it("tests an action with custom input", async () => {
     mockInvoke.mockResolvedValue("Custom result");
     const user = userEvent.setup();

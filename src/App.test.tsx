@@ -11,7 +11,13 @@ import { mockConfig, emptyConfig } from "./test/fixtures";
 
 describe("App", () => {
   beforeEach(() => vi.clearAllMocks());
-  afterEach(() => cleanup());
+  afterEach(() => {
+    cleanup();
+    Object.defineProperty(window.navigator, "language", {
+      configurable: true,
+      value: "en-US",
+    });
+  });
 
   // ── Loading state ─────────────────────────────────────────────────────────────
 
@@ -96,6 +102,37 @@ describe("App", () => {
         screen.getByRole("button", { name: /set up provider/i }),
       ).toBeInTheDocument(),
     );
+  });
+
+  it("opens the provider editor from onboarding and returns to the guide", async () => {
+    mockInvoke.mockImplementation((cmd) => {
+      if (cmd === "get_config") {
+        return Promise.resolve({
+          ...emptyConfig,
+          settings: {
+            ...emptyConfig.settings,
+            onboardingCompleted: false,
+          },
+        });
+      }
+      if (cmd === "prepare_apple_provider") {
+        return Promise.resolve({ available: false, reason: "not_supported" });
+      }
+      return Promise.resolve(undefined);
+    });
+    const user = userEvent.setup();
+    render(<App />);
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: /set up provider/i }),
+      ).toBeInTheDocument(),
+    );
+
+    await user.click(screen.getByRole("button", { name: /set up provider/i }));
+    expect(screen.getByText("New Provider")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Back" }));
+    expect(screen.getByText("Welcome to Clipwise")).toBeInTheDocument();
   });
 
   it("opens the existing action editor with the chosen onboarding template", async () => {
@@ -202,6 +239,19 @@ describe("App", () => {
       expect(screen.getByText("Failed to load config")).toBeInTheDocument(),
     );
     expect(screen.getByText(/disk error/)).toBeInTheDocument();
+  });
+
+  it("localizes boot errors from the browser language", async () => {
+    Object.defineProperty(window.navigator, "language", {
+      configurable: true,
+      value: "zh-Hant-TW",
+    });
+    mockInvoke.mockRejectedValue(new Error("disk error"));
+    render(<App />);
+    await waitFor(() =>
+      expect(screen.getByText("無法載入設定")).toBeInTheDocument(),
+    );
+    expect(screen.getByRole("button", { name: "重試" })).toBeInTheDocument();
   });
 
   it("shows error with non-Error rejection", async () => {

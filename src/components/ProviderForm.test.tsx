@@ -742,6 +742,28 @@ describe("ProviderForm", () => {
     expect(onSave).not.toHaveBeenCalled();
   });
 
+  it("shows an inline error when testing a connection with duplicate headers", async () => {
+    const user = userEvent.setup();
+    render(<ProviderForm onSave={onSave} onCancel={onCancel} />);
+
+    await user.click(screen.getByRole("button", { name: /add header/i }));
+    await user.click(screen.getByRole("button", { name: /add header/i }));
+    const headerNames = screen.getAllByPlaceholderText("Header name");
+    await user.type(headerNames[0], "X-Org");
+    await user.type(headerNames[1], "x-org");
+    await user.type(screen.getByPlaceholderText("e.g. Anthropic Claude"), "P");
+    await user.type(screen.getByPlaceholderText("sk-..."), "k");
+    await user.click(screen.getByRole("button", { name: /test connection/i }));
+
+    expect(
+      screen.getByText("Duplicate header names are not allowed: x-org."),
+    ).toBeInTheDocument();
+    expect(mockInvoke).not.toHaveBeenCalledWith(
+      "test_provider",
+      expect.anything(),
+    );
+  });
+
   // ── Args (CLI mode) ───────────────────────────────────────────────────────
 
   it("Add arg button adds an argument row in CLI mode", async () => {
