@@ -9,7 +9,7 @@ import { useI18n } from "../lib/i18n";
 
 interface Props {
   config: AppConfig;
-  onRefresh: () => void;
+  onRefresh: () => void | Promise<void>;
   onShowGuide?: () => void;
 }
 
@@ -40,7 +40,7 @@ export default function SettingsPanel({
       try {
         await run(async () => {
           await tauriCommands.saveSettings(updated);
-          onRefresh();
+          await onRefresh();
         });
       } catch {
         setSettingsState({ source: config.settings, settings: previous });
