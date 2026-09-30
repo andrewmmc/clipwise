@@ -1,4 +1,5 @@
 import { Plus, Trash2 } from "lucide-react";
+import { useId } from "react";
 import { buildCommandPreview } from "../lib/cliPreview";
 import ErrorBox from "./ErrorBox";
 import SuccessBox from "./SuccessBox";
@@ -36,11 +37,15 @@ export default function CliProviderForm({
   onTestCommand,
 }: Props) {
   const { t } = useI18n();
+  const commandId = useId();
+  const argsId = useId();
   const commandPreview = buildCommandPreview(command, args);
   return (
     <>
       <div>
-        <label className="label label-required">{t("Command")}</label>
+        <label htmlFor={commandId} className="label label-required">
+          {t("Command")}
+        </label>
         <p className="helper-text mb-2">
           {t("Find the binary path with")}{" "}
           <code className="rounded bg-surface-tertiary px-1 py-0.5">
@@ -49,6 +54,7 @@ export default function CliProviderForm({
         </p>
         <div className="flex gap-2">
           <input
+            id={commandId}
             type="text"
             value={command}
             onChange={(e) => onCommandChange(e.target.value)}
@@ -75,7 +81,9 @@ export default function CliProviderForm({
 
       <div>
         <div className="mb-2 flex items-center justify-between">
-          <label className="label mb-0">{t("Arguments")}</label>
+          <label className="label mb-0" id={`${argsId}-label`}>
+            {t("Arguments")}
+          </label>
           <button
             type="button"
             onClick={onAddArg}
@@ -92,10 +100,12 @@ export default function CliProviderForm({
           {args.map((arg, index) => (
             <div key={index} className="flex gap-2">
               <input
+                id={`${argsId}-${index}`}
                 type="text"
                 value={arg}
                 onChange={(e) => onArgChange(index, e.target.value)}
                 placeholder={t("e.g. --print")}
+                aria-label={t("Arguments")}
                 className="input input-sm flex-1 font-mono"
                 {...CLI_INPUT_PROPS}
               />
@@ -103,6 +113,7 @@ export default function CliProviderForm({
                 type="button"
                 onClick={() => onRemoveArg(index)}
                 className="btn-icon btn-icon-danger flex size-[30px] shrink-0 items-center justify-center"
+                aria-label={t("Remove argument")}
               >
                 <Trash2 size={14} />
               </button>

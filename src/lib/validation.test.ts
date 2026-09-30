@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   MAX_USER_PROMPT_LENGTH,
   isApiProviderType,
+  isAppLanguage,
   isProviderType,
   validateActionForm,
   validateEndpoint,
@@ -70,6 +71,18 @@ describe("isProviderType", () => {
 
   it("rejects unknown values", () => {
     expect(isProviderType("unknown")).toBe(false);
+  });
+});
+
+describe("isAppLanguage", () => {
+  it("accepts supported locales", () => {
+    expect(isAppLanguage("en")).toBe(true);
+    expect(isAppLanguage("zh-TW")).toBe(true);
+  });
+
+  it("rejects unsupported locales", () => {
+    expect(isAppLanguage("zh")).toBe(false);
+    expect(isAppLanguage("fr")).toBe(false);
   });
 });
 

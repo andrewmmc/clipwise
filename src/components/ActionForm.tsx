@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { cx } from "../lib/classNames";
 import { getErrorMessage } from "../lib/errors";
 import { tauriCommands } from "../lib/tauri";
@@ -29,6 +29,11 @@ export default function ActionForm({
   onCancel,
 }: Props) {
   const { locale, t } = useI18n();
+  const nameId = useId();
+  const providerIdField = useId();
+  const promptId = useId();
+  const modelId = useId();
+  const testInputId = useId();
   const actionPresets = getActionPresets(locale);
   const [name, setName] = useState(initial?.name ?? draft?.name ?? "");
   const [providerId, setProviderId] = useState(
@@ -120,8 +125,11 @@ export default function ActionForm({
         {error && <ErrorBox message={error} />}
 
         <div>
-          <label className="label label-required">{t("Action Name")}</label>
+          <label htmlFor={nameId} className="label label-required">
+            {t("Action Name")}
+          </label>
           <input
+            id={nameId}
             type="text"
             value={name}
             onChange={(e) => {
@@ -135,9 +143,12 @@ export default function ActionForm({
         </div>
 
         <div>
-          <label className="label label-required">{t("Provider")}</label>
+          <label htmlFor={providerIdField} className="label label-required">
+            {t("Provider")}
+          </label>
           <div className="relative">
             <select
+              id={providerIdField}
               value={providerId}
               onChange={(e) => {
                 setProviderId(e.target.value);
@@ -161,7 +172,7 @@ export default function ActionForm({
 
         <div>
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-            <label className="label label-required mb-0">
+            <label htmlFor={promptId} className="label label-required mb-0">
               {t("User Prompt")}
             </label>
             <div className="flex flex-wrap gap-1">
@@ -184,6 +195,7 @@ export default function ActionForm({
             </div>
           </div>
           <textarea
+            id={promptId}
             value={userPrompt}
             onChange={(e) => {
               setUserPrompt(e.target.value);
@@ -214,13 +226,14 @@ export default function ActionForm({
         </div>
 
         <div>
-          <label className="label">
+          <label htmlFor={modelId} className="label">
             {t("Model Override")}{" "}
             <span className="font-normal text-text-tertiary">
               {t("(optional)")}
             </span>
           </label>
           <input
+            id={modelId}
             type="text"
             value={model}
             onChange={(e) => {
@@ -252,8 +265,10 @@ export default function ActionForm({
           </h3>
           <div className="flex gap-2">
             <input
+              id={testInputId}
               type="text"
               placeholder={t("Test input text…")}
+              aria-label={t("Test input text…")}
               value={testInput}
               onChange={(e) => setTestInput(e.target.value)}
               className="input input-sm flex-1"

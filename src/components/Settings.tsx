@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import useAsyncAction from "../hooks/useAsyncAction";
 import { tauriCommands } from "../lib/tauri";
 import type { AppConfig, AppSettings } from "../types/config";
+import { isAppLanguage } from "../lib/validation";
 import ConfirmDeleteActions from "./ConfirmDeleteActions";
 import ErrorBox from "./ErrorBox";
 import { BookOpen } from "lucide-react";
@@ -196,11 +197,10 @@ export default function SettingsPanel({
               value={settings.language}
               aria-label={t("Language")}
               disabled={pending}
-              onChange={(e) =>
-                updateSettings({
-                  language: e.target.value as AppSettings["language"],
-                })
-              }
+              onChange={(e) => {
+                if (!isAppLanguage(e.target.value)) return;
+                updateSettings({ language: e.target.value });
+              }}
               className="input select !w-48"
             >
               <option value="en">{t("English")}</option>

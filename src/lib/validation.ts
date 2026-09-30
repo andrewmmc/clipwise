@@ -40,6 +40,10 @@ export function isProviderType(value: string): value is ProviderType {
   return (PROVIDER_TYPES as string[]).includes(value);
 }
 
+export function isAppLanguage(value: string): value is AppLanguage {
+  return value === "en" || value === "zh-TW";
+}
+
 const RESERVED_HEADER_NAMES = new Set(["authorization", "x-api-key"]);
 
 export function validateProviderHeaders(

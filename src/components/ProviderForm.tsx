@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import useCliProviderEnabled from "../hooks/useCliProviderEnabled";
 import useProviderFormState, {
   getInitialProviderFormState,
@@ -36,6 +36,8 @@ export default function ProviderForm({
   onCancel,
 }: Props) {
   const { locale, t } = useI18n();
+  const nameId = useId();
+  const typeId = useId();
   const [form, dispatch] = useProviderFormState(initial);
   const [saving, setSaving] = useState(false);
   const [testingCommand, setTestingCommand] = useState(false);
@@ -253,8 +255,11 @@ export default function ProviderForm({
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="label label-required">{t("Name")}</label>
+            <label htmlFor={nameId} className="label label-required">
+              {t("Name")}
+            </label>
             <input
+              id={nameId}
               type="text"
               value={form.name}
               onChange={(e) => {
@@ -270,9 +275,12 @@ export default function ProviderForm({
             />
           </div>
           <div>
-            <label className="label label-required">{t("Type")}</label>
+            <label htmlFor={typeId} className="label label-required">
+              {t("Type")}
+            </label>
             <div className="relative">
               <select
+                id={typeId}
                 value={form.type}
                 onChange={(e) => {
                   const nextType = e.target.value;

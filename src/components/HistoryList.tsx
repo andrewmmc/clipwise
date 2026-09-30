@@ -332,6 +332,7 @@ export default function HistoryList() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={t("Search action, provider, input, or output…")}
+              aria-label={t("Search action, provider, input, or output…")}
               className="input input-sm w-full pl-8"
             />
           </div>

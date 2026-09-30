@@ -35,6 +35,9 @@ describe("ActionForm", () => {
       <ActionForm config={mockConfig} onSave={onSave} onCancel={onCancel} />,
     );
     expect(screen.getByText("New Action")).toBeInTheDocument();
+    expect(screen.getByLabelText("Action Name")).toBeInTheDocument();
+    expect(screen.getByLabelText("Provider")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Back" })).toBeInTheDocument();
   });
 
   it("shows 'Edit Action' heading in edit mode", () => {
