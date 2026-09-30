@@ -30,6 +30,9 @@ describe("App", () => {
     );
     expect(
       screen.getByRole("button", { name: /actions/i }),
+    ).toHaveAttribute("aria-current", "page");
+    expect(
+      screen.getByRole("navigation", { name: "Settings sections" }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /providers/i }),
