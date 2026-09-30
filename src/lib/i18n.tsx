@@ -15,6 +15,7 @@ const zhTW: Record<string, string> = {
   Providers: "供應商",
   History: "記錄",
   Settings: "設定",
+  "Settings sections": "設定分頁",
   About: "關於",
   Delete: "刪除",
   Cancel: "取消",
