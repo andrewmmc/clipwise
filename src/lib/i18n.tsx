@@ -123,6 +123,7 @@ const zhTW: Record<string, string> = {
   "Duplicate header names are not allowed: {{name}}.":
     "不可使用重複的標頭名稱：{{name}}。",
   "Leave blank to keep saved value": "留空以保留已儲存的值",
+  "Enter a value for header {{name}}.": "請輸入標頭 {{name}} 的值。",
   Command: "指令",
   "Find the binary path with": "使用以下指令尋找執行檔路徑：",
   "e.g. claude": "例如：claude",

@@ -57,7 +57,7 @@ pub async fn test_provider(
             .find(|stored| stored.id == provider.id)
             .cloned()
         {
-            crate::commands::config_cmd::merge_preserved_provider_secrets(&mut provider, &stored);
+            crate::commands::config_cmd::merge_preserved_provider_secrets(&mut provider, &stored)?;
         }
     }
     validate_provider_fields(&provider)?;

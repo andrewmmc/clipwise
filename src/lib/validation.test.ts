@@ -114,6 +114,16 @@ describe("validateProviderHeaders", () => {
     );
   });
 
+  it("requires values for new or renamed headers when editing", () => {
+    expect(validateProviderHeaders([["X-New", ""]], "en", ["X-Old"])).toMatch(
+      /Enter a value for header X-New/,
+    );
+    expect(
+      validateProviderHeaders([["X-Old", ""]], "en", ["X-Old"]),
+    ).toBeNull();
+    expect(validateProviderHeaders([["X-New", ""]])).toBeNull();
+  });
+
   it("ignores empty header names", () => {
     expect(
       validateProviderHeaders([

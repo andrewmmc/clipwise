@@ -117,6 +117,9 @@ export default function ProviderForm({
   const appleDuplicateMessage = appleProviderExists
     ? t("Only one Apple Intelligence provider can be configured.")
     : null;
+  const savedHeaderNames = initial
+    ? Object.keys(initial.headers ?? {})
+    : undefined;
   const appleOptionDisabled =
     appleAvailability?.available !== true || appleProviderExists;
 
@@ -150,7 +153,7 @@ export default function ProviderForm({
       return;
     }
     const headersError = isApiProviderType(form.type)
-      ? validateProviderHeaders(form.headers, locale)
+      ? validateProviderHeaders(form.headers, locale, savedHeaderNames)
       : null;
     if (headersError) {
       setError(headersError);
@@ -198,7 +201,11 @@ export default function ProviderForm({
       setConnectionTestError(validationError);
       return;
     }
-    const headersError = validateProviderHeaders(form.headers, locale);
+    const headersError = validateProviderHeaders(
+      form.headers,
+      locale,
+      savedHeaderNames,
+    );
     if (headersError) {
       clearConnectionTestSuccess();
       setConnectionTestError(headersError);

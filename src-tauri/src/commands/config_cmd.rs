@@ -114,7 +114,13 @@ pub(crate) fn redact_provider_secrets(provider: &mut Provider) {
     }
 }
 
-pub(crate) fn merge_preserved_provider_secrets(provider: &mut Provider, stored: &Provider) {
+/// Blank values mean "keep the stored secret". A blank value under a name with
+/// no stored header (e.g. a renamed header) is rejected rather than silently
+/// dropped, which would delete the secret from the Keychain.
+pub(crate) fn merge_preserved_provider_secrets(
+    provider: &mut Provider,
+    stored: &Provider,
+) -> Result<(), AppError> {
     if matches!(
         provider.provider_type,
         ProviderType::OpenAI | ProviderType::Anthropic
@@ -123,18 +129,17 @@ pub(crate) fn merge_preserved_provider_secrets(provider: &mut Provider, stored: 
         provider.api_key = stored.api_key.clone();
     }
 
-    let mut merged = crate::models::ProviderHeaders::new();
-    for (name, value) in &provider.headers {
-        let trimmed = value.trim();
-        if trimmed.is_empty() {
-            if let Some(stored_value) = stored.headers.get(name) {
-                merged.insert(name.clone(), stored_value.clone());
-            }
-        } else {
-            merged.insert(name.clone(), value.clone());
+    for (name, value) in provider.headers.iter_mut() {
+        if !value.trim().is_empty() {
+            continue;
         }
+        let stored_value = stored
+            .headers
+            .get(name)
+            .ok_or_else(|| AppError::Config(format!("Enter a value for header {name:?}")))?;
+        value.clone_from(stored_value);
     }
-    provider.headers = merged;
+    Ok(())
 }
 
 pub(crate) fn replace_provider(config: &mut AppConfig, provider: Provider) -> Result<(), AppError> {
@@ -459,7 +464,7 @@ pub async fn update_provider(provider: Provider, app: AppHandle) -> Result<(), A
             .cloned()
             .ok_or_else(|| AppError::ProviderNotFound(provider.id.clone()))?;
         let mut provider = provider;
-        merge_preserved_provider_secrets(&mut provider, &old_provider);
+        merge_preserved_provider_secrets(&mut provider, &old_provider)?;
         replace_provider(config, provider)?;
         let new_provider = config
             .providers
@@ -1173,7 +1178,7 @@ mod tests {
         updated.headers.insert("X-New".into(), "fresh".into());
         updated.headers.remove("X-Keep");
 
-        merge_preserved_provider_secrets(&mut updated, &stored);
+        merge_preserved_provider_secrets(&mut updated, &stored).unwrap();
         assert_eq!(updated.api_key.as_deref(), Some("key"));
         assert_eq!(
             updated.headers.get("X-Private-Token").map(String::as_str),
@@ -1184,5 +1189,20 @@ mod tests {
             Some("fresh")
         );
         assert!(!updated.headers.contains_key("X-Keep"));
+    }
+
+    #[test]
+    fn test_merge_preserved_provider_secrets_rejects_blank_renamed_header() {
+        let mut stored = stub_provider("p1");
+        stored
+            .headers
+            .insert("X-Old".into(), "header-secret".into());
+
+        let mut updated = stored.clone();
+        updated.headers.clear();
+        updated.headers.insert("X-New".into(), String::new());
+
+        let err = merge_preserved_provider_secrets(&mut updated, &stored).unwrap_err();
+        assert!(err.to_string().contains("X-New"), "{err}");
     }
 }

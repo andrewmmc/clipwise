@@ -1,5 +1,8 @@
 use crate::commands::{app_info_cmd::*, apple_cmd::*, config_cmd::*, history_cmd::*, llm_cmd::*};
-use crate::config::{load_config, quarantine_invalid_config, validate_config, ConfigState};
+use crate::config::{
+    load_config, quarantine_invalid_config, strip_reserved_provider_headers, validate_config,
+    ConfigState,
+};
 use crate::models::AppConfig;
 use std::sync::Mutex;
 use tracing::{error, info, warn};
@@ -63,6 +66,8 @@ pub fn run() {
         }
     }
 
+    // Keychain header maps may still contain legacy reserved headers.
+    strip_reserved_provider_headers(&mut config);
     if let Err(err) = validate_config(&config) {
         error!(error = %err, "Securely stored provider data failed validation");
         panic!("provider data loaded from secure storage is invalid: {err}");
