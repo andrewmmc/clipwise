@@ -1,4 +1,7 @@
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
+
+pub type ProviderHeaders = BTreeMap<String, String>;
 
 /// A configured LLM provider (API or CLI).
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -20,14 +23,9 @@ pub struct Provider {
     #[cfg_attr(feature = "ts", ts(optional))]
     pub api_key: Option<String>,
     /// For API providers: extra headers
-    #[serde(
-        default,
-        skip_serializing_if = "serde_json::Map::is_empty",
-        deserialize_with = "deserialize_string_headers"
-    )]
-    // ts-rs cannot parse `deserialize_with`; the type is overridden explicitly below.
+    #[serde(default, skip_serializing_if = "ProviderHeaders::is_empty")]
     #[cfg_attr(feature = "ts", ts(type = "Record<string, string> | undefined"))]
-    pub headers: serde_json::Map<String, serde_json::Value>,
+    pub headers: ProviderHeaders,
     /// Default model name for this provider
     #[serde(skip_serializing_if = "Option::is_none")]
     #[cfg_attr(feature = "ts", ts(optional))]
@@ -105,17 +103,38 @@ pub struct HistoryEntry {
 }
 
 /// Global application settings.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "ts", ts(export))]
+pub enum AppLanguage {
+    #[default]
+    #[serde(rename = "en")]
+    English,
+    #[serde(rename = "zh-TW")]
+    TraditionalChinese,
+}
+
+/// Global application settings.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[cfg_attr(feature = "ts", ts(export))]
 #[serde(rename_all = "camelCase")]
 pub struct AppSettings {
+    #[serde(default)]
+    pub language: AppLanguage,
     #[serde(default = "default_true")]
     pub show_notification_on_complete: bool,
+    /// Whether Clipwise should be registered as a macOS login item.
+    #[serde(default)]
+    pub start_at_login: bool,
     #[serde(default = "default_max_tokens")]
     pub max_tokens: u32,
-    #[serde(default = "default_true")]
+    #[serde(default)]
     pub history_enabled: bool,
+    /// Older saved configs predate onboarding and must not be interrupted.
+    /// New configs use `Default`, which deliberately starts incomplete.
+    #[serde(default = "default_true")]
+    pub onboarding_completed: bool,
 }
 
 fn default_true() -> bool {
@@ -128,14 +147,17 @@ fn default_max_tokens() -> u32 {
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
+            language: AppLanguage::default(),
             show_notification_on_complete: true,
+            start_at_login: false,
             max_tokens: 4096,
-            history_enabled: true,
+            history_enabled: false,
+            onboarding_completed: false,
         }
     }
 }
 
-/// Root configuration object stored in ~/Library/Application Support/llm-actions/config.json
+/// Root configuration object stored in ~/Library/Application Support/clipwise/config.json
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[cfg_attr(feature = "ts", ts(export))]
@@ -166,28 +188,6 @@ pub struct LlmResult {
     pub result: String,
 }
 
-fn deserialize_string_headers<'de, D>(
-    deserializer: D,
-) -> Result<serde_json::Map<String, serde_json::Value>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let headers = serde_json::Value::deserialize(deserializer)?;
-    let headers = headers
-        .as_object()
-        .ok_or_else(|| serde::de::Error::custom("headers must be an object"))?;
-
-    let mut validated_headers = serde_json::Map::new();
-    for (key, value) in headers {
-        let value = value
-            .as_str()
-            .ok_or_else(|| serde::de::Error::custom(format!("header `{key}` must be a string")))?;
-        validated_headers.insert(key.clone(), serde_json::Value::String(value.to_owned()));
-    }
-
-    Ok(validated_headers)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -199,7 +199,7 @@ mod tests {
             provider_type: ProviderType::Anthropic,
             endpoint: Some("https://api.anthropic.com/v1/messages".into()),
             api_key: Some("sk-ant-test".into()),
-            headers: serde_json::Map::new(),
+            headers: ProviderHeaders::new(),
             default_model: Some("claude-sonnet-4-20250514".into()),
             command: None,
             args: vec![],
@@ -213,7 +213,7 @@ mod tests {
             provider_type: ProviderType::Cli,
             endpoint: None,
             api_key: None,
-            headers: serde_json::Map::new(),
+            headers: ProviderHeaders::new(),
             default_model: None,
             command: Some("claude".into()),
             args: vec!["--print".into()],
@@ -310,10 +310,7 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(
-            provider.headers.get("x-test"),
-            Some(&serde_json::Value::String("value".into()))
-        );
+        assert_eq!(provider.headers.get("x-test"), Some(&"value".to_string()));
     }
 
     #[test]
@@ -443,25 +440,44 @@ mod tests {
     #[test]
     fn test_app_settings_all_defaults_from_empty_json() {
         let s: AppSettings = serde_json::from_str("{}").unwrap();
+        assert_eq!(s.language, AppLanguage::English);
         assert!(s.show_notification_on_complete);
+        assert!(!s.start_at_login);
         assert_eq!(s.max_tokens, 4096);
-        assert!(s.history_enabled);
+        assert!(!s.history_enabled);
+        assert!(s.onboarding_completed);
     }
 
     #[test]
     fn test_app_settings_partial_json_fills_defaults() {
         let s: AppSettings = serde_json::from_str(r#"{"maxTokens": 2048}"#).unwrap();
         assert!(s.show_notification_on_complete); // default preserved
+        assert!(!s.start_at_login); // login items require explicit opt-in
         assert_eq!(s.max_tokens, 2048);
-        assert!(s.history_enabled); // default preserved
+        assert!(!s.history_enabled); // privacy-preserving default
+        assert!(s.onboarding_completed); // existing installs are not interrupted
     }
 
     #[test]
     fn test_app_settings_default_impl() {
         let s = AppSettings::default();
+        assert_eq!(s.language, AppLanguage::English);
         assert!(s.show_notification_on_complete);
+        assert!(!s.start_at_login);
         assert_eq!(s.max_tokens, 4096);
-        assert!(s.history_enabled);
+        assert!(!s.history_enabled);
+        assert!(!s.onboarding_completed);
+    }
+
+    #[test]
+    fn test_app_settings_onboarding_value_round_trips() {
+        let settings = AppSettings {
+            onboarding_completed: true,
+            ..Default::default()
+        };
+        let json = serde_json::to_string(&settings).unwrap();
+        let decoded: AppSettings = serde_json::from_str(&json).unwrap();
+        assert!(decoded.onboarding_completed);
     }
 
     #[test]
@@ -469,6 +485,29 @@ mod tests {
         let s: AppSettings = serde_json::from_str(r#"{"historyEnabled": false}"#).unwrap();
         assert!(!s.history_enabled);
         assert!(s.show_notification_on_complete); // other defaults preserved
+    }
+
+    #[test]
+    fn test_app_settings_start_at_login_round_trips() {
+        let settings = AppSettings {
+            start_at_login: true,
+            ..Default::default()
+        };
+        let json = serde_json::to_string(&settings).unwrap();
+        let decoded: AppSettings = serde_json::from_str(&json).unwrap();
+        assert!(decoded.start_at_login);
+    }
+
+    #[test]
+    fn test_app_settings_language_round_trips() {
+        let settings = AppSettings {
+            language: AppLanguage::TraditionalChinese,
+            ..Default::default()
+        };
+        let json = serde_json::to_string(&settings).unwrap();
+        assert!(json.contains(r#""language":"zh-TW""#));
+        let decoded: AppSettings = serde_json::from_str(&json).unwrap();
+        assert_eq!(decoded.language, AppLanguage::TraditionalChinese);
     }
 
     // ── AppConfig ─────────────────────────────────────────────────────────────

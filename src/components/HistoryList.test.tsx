@@ -5,25 +5,32 @@ import {
   waitFor,
   cleanup,
 } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import HistoryList from "./HistoryList";
 import * as tauri from "../lib/tauri";
-import type { HistoryEntry } from "../types/bindings/HistoryEntry";
+import type { HistoryEntry } from "../types/config";
 
 vi.mock("../lib/tauri", () => ({
   tauriCommands: {
     getHistory: vi.fn(),
     clearHistory: vi.fn(),
+    purgeHistory: vi.fn(),
     deleteHistoryEntry: vi.fn(),
     toggleStarEntry: vi.fn(),
   },
 }));
 
-Object.assign(navigator, {
-  clipboard: {
-    writeText: vi.fn(() => Promise.resolve()),
-  },
-});
+const installClipboardMock = () => {
+  Object.defineProperty(navigator, "clipboard", {
+    configurable: true,
+    value: {
+      writeText: vi.fn(() => Promise.resolve()),
+    },
+  });
+};
+
+installClipboardMock();
 
 describe("HistoryList", () => {
   const mockHistory: HistoryEntry[] = [
@@ -52,6 +59,7 @@ describe("HistoryList", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    installClipboardMock();
   });
 
   afterEach(() => {
@@ -465,6 +473,56 @@ describe("HistoryList", () => {
     });
   });
 
+  it("refreshes history after star toggle to reflect backend side effects", async () => {
+    const refreshedHistory = [
+      { ...mockHistory[0], starred: true },
+      { ...mockHistory[1], starred: false },
+    ];
+    vi.mocked(tauri.tauriCommands.getHistory)
+      .mockResolvedValueOnce(mockHistory)
+      .mockResolvedValueOnce(refreshedHistory);
+    vi.mocked(tauri.tauriCommands.toggleStarEntry).mockResolvedValue(true);
+
+    render(<HistoryList />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Summarize")).toBeInTheDocument();
+    });
+
+    const starButtons = document.querySelectorAll('button[title="Star entry"]');
+    fireEvent.click(starButtons[0]);
+
+    await waitFor(() => {
+      expect(tauri.tauriCommands.getHistory).toHaveBeenCalledTimes(2);
+      expect(
+        document.querySelectorAll('button[title="Unstar entry"]'),
+      ).toHaveLength(1);
+    });
+  });
+
+  it("keeps the optimistic star update and shows no error when the post-toggle refresh fails", async () => {
+    vi.mocked(tauri.tauriCommands.getHistory)
+      .mockResolvedValueOnce(mockHistory)
+      .mockRejectedValueOnce(new Error("refresh failed"));
+    vi.mocked(tauri.tauriCommands.toggleStarEntry).mockResolvedValue(true);
+
+    render(<HistoryList />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Summarize")).toBeInTheDocument();
+    });
+
+    const starButtons = document.querySelectorAll('button[title="Star entry"]');
+    fireEvent.click(starButtons[0]);
+
+    await waitFor(() => {
+      expect(
+        document.querySelectorAll('button[title="Unstar entry"]'),
+      ).toHaveLength(2);
+    });
+    expect(screen.queryByText("refresh failed")).not.toBeInTheDocument();
+  });
+
   it("shows error when star toggle fails", async () => {
     vi.mocked(tauri.tauriCommands.getHistory).mockResolvedValue(mockHistory);
     vi.mocked(tauri.tauriCommands.toggleStarEntry).mockRejectedValue(
@@ -503,7 +561,9 @@ describe("HistoryList", () => {
     render(<HistoryList />);
 
     await waitFor(() => screen.getByText("Summarize"));
-    const entryButton = screen.getAllByRole("button")[2];
+    const entryButton = screen
+      .getByText("Summarize")
+      .closest("button") as HTMLElement;
     fireEvent.keyDown(entryButton, { key: "Escape" });
 
     expect(screen.queryByText("Summary text")).not.toBeInTheDocument();
@@ -560,7 +620,11 @@ describe("HistoryList", () => {
   });
 
   it("shows empty starred state when starred entries are removed while filtering", async () => {
-    vi.mocked(tauri.tauriCommands.getHistory).mockResolvedValue(mockHistory);
+    vi.mocked(tauri.tauriCommands.getHistory)
+      .mockResolvedValueOnce(mockHistory)
+      .mockResolvedValueOnce(
+        mockHistory.map((entry) => ({ ...entry, starred: false })),
+      );
     vi.mocked(tauri.tauriCommands.toggleStarEntry).mockResolvedValue(false);
 
     render(<HistoryList />);
@@ -576,17 +640,205 @@ describe("HistoryList", () => {
 
   it("toggles expanded state with keyboard", async () => {
     vi.mocked(tauri.tauriCommands.getHistory).mockResolvedValue(mockHistory);
+    const user = userEvent.setup();
 
     render(<HistoryList />);
 
     await waitFor(() => screen.getByText("Summarize"));
-    const entryButton = screen.getAllByRole("button")[2];
-    fireEvent.keyDown(entryButton, { key: "Enter" });
+    const entryButton = screen
+      .getByText("Summarize")
+      .closest("button") as HTMLButtonElement;
+    entryButton.focus();
+    await user.keyboard("{Enter}");
     expect(screen.getByText("Summary text")).toBeInTheDocument();
-    fireEvent.keyDown(entryButton, { key: " " });
+    await user.keyboard(" ");
     await waitFor(() =>
       expect(screen.queryByText("Summary text")).not.toBeInTheDocument(),
     );
+  });
+
+  it("activates star without expanding the entry from the keyboard", async () => {
+    vi.mocked(tauri.tauriCommands.getHistory).mockResolvedValue(mockHistory);
+    vi.mocked(tauri.tauriCommands.toggleStarEntry).mockResolvedValue(true);
+    const user = userEvent.setup();
+
+    render(<HistoryList />);
+
+    await waitFor(() => screen.getByText("Summarize"));
+    const starButton = screen.getAllByTitle("Star entry")[0];
+    starButton.focus();
+    await user.keyboard(" ");
+
+    await waitFor(() =>
+      expect(tauri.tauriCommands.toggleStarEntry).toHaveBeenCalledWith("1"),
+    );
+    expect(screen.queryByText("Summary text")).not.toBeInTheDocument();
+  });
+
+  it("filters history by search query", async () => {
+    vi.mocked(tauri.tauriCommands.getHistory).mockResolvedValue(mockHistory);
+
+    render(<HistoryList />);
+
+    await waitFor(() => screen.getByText("Summarize"));
+    fireEvent.change(screen.getByPlaceholderText(/search action, provider/i), {
+      target: { value: "translate" },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Translate")).toBeInTheDocument();
+      expect(screen.queryByText("Summarize")).not.toBeInTheDocument();
+    });
+  });
+
+  it("filters history to successful entries only", async () => {
+    vi.mocked(tauri.tauriCommands.getHistory).mockResolvedValue(mockHistory);
+
+    render(<HistoryList />);
+
+    await waitFor(() => screen.getByText("Summarize"));
+    fireEvent.click(screen.getByRole("button", { name: /success/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Summarize")).toBeInTheDocument();
+      expect(screen.queryByText("Translate")).not.toBeInTheDocument();
+    });
+  });
+
+  it("filters history to failed entries only", async () => {
+    vi.mocked(tauri.tauriCommands.getHistory).mockResolvedValue(mockHistory);
+
+    render(<HistoryList />);
+
+    await waitFor(() => screen.getByText("Summarize"));
+    fireEvent.click(screen.getByRole("button", { name: /^failed$/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Translate")).toBeInTheDocument();
+      expect(screen.queryByText("Summarize")).not.toBeInTheDocument();
+    });
+  });
+
+  it("purges all history including starred entries after confirmation", async () => {
+    vi.mocked(tauri.tauriCommands.getHistory).mockResolvedValue(mockHistory);
+    vi.mocked(tauri.tauriCommands.purgeHistory).mockResolvedValue(undefined);
+
+    render(<HistoryList />);
+
+    await waitFor(() => screen.getByText("Summarize"));
+    fireEvent.click(screen.getByRole("button", { name: /delete all/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^delete$/i }));
+
+    await waitFor(() => {
+      expect(tauri.tauriCommands.purgeHistory).toHaveBeenCalled();
+      expect(
+        screen.getByText("All history deleted, including starred entries."),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("shows no-matching empty state when the search has no results", async () => {
+    vi.mocked(tauri.tauriCommands.getHistory).mockResolvedValue(mockHistory);
+
+    render(<HistoryList />);
+
+    await waitFor(() => screen.getByText("Summarize"));
+    fireEvent.change(screen.getByPlaceholderText(/search action, provider/i), {
+      target: { value: "no-such-entry-xyz" },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("No matching entries")).toBeInTheDocument();
+      expect(
+        screen.getByText("Try adjusting your search or filters."),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("shows no-matching empty state when the status filter excludes everything", async () => {
+    const successOnlyHistory: HistoryEntry[] = [
+      {
+        id: "1",
+        timestamp: "2024-01-01T12:00:00Z",
+        actionName: "Summarize",
+        providerName: "Anthropic",
+        inputText: "test",
+        outputText: "output",
+        success: true,
+        starred: false,
+      },
+    ];
+    vi.mocked(tauri.tauriCommands.getHistory).mockResolvedValue(
+      successOnlyHistory,
+    );
+
+    render(<HistoryList />);
+
+    await waitFor(() => screen.getByText("Summarize"));
+    fireEvent.click(screen.getByRole("button", { name: /^failed$/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText("No matching entries")).toBeInTheDocument();
+      expect(
+        screen.getByText("Try adjusting your search or filters."),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("returns to all entries when the All filter is clicked", async () => {
+    vi.mocked(tauri.tauriCommands.getHistory).mockResolvedValue(mockHistory);
+
+    render(<HistoryList />);
+
+    await waitFor(() => screen.getByText("Summarize"));
+    fireEvent.click(screen.getByRole("button", { name: /^failed$/i }));
+
+    await waitFor(() =>
+      expect(screen.queryByText("Summarize")).not.toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /^all$/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Summarize")).toBeInTheDocument();
+      expect(screen.getByText("Translate")).toBeInTheDocument();
+    });
+  });
+
+  it("cancels the delete-all confirmation", async () => {
+    vi.mocked(tauri.tauriCommands.getHistory).mockResolvedValue(mockHistory);
+
+    render(<HistoryList />);
+
+    await waitFor(() => screen.getByText("Summarize"));
+    fireEvent.click(screen.getByRole("button", { name: /delete all/i }));
+
+    const cancelButton = await screen.findByRole("button", { name: /cancel/i });
+    fireEvent.click(cancelButton);
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: /delete all/i }),
+      ).toBeInTheDocument(),
+    );
+    expect(tauri.tauriCommands.purgeHistory).not.toHaveBeenCalled();
+  });
+
+  it("copies output from a successful entry", async () => {
+    vi.mocked(tauri.tauriCommands.getHistory).mockResolvedValue(mockHistory);
+    const mockWriteText = vi.mocked(navigator.clipboard.writeText);
+
+    render(<HistoryList />);
+
+    await waitFor(() => screen.getByText("Summarize"));
+    fireEvent.click(screen.getByText("Summarize"));
+    await waitFor(() => screen.getByText("Output"));
+    fireEvent.click(screen.getAllByText("Copy")[1]);
+
+    await waitFor(() =>
+      expect(mockWriteText).toHaveBeenCalledWith("Summary text"),
+    );
+    expect(screen.getByText("Copied output to clipboard.")).toBeInTheDocument();
   });
 
   it("does not show star filter when no starred entries", async () => {

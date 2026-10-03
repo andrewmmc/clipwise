@@ -1,0 +1,260 @@
+import { describe, it, expect } from "vitest";
+import {
+  MAX_USER_PROMPT_LENGTH,
+  isApiProviderType,
+  isAppLanguage,
+  isProviderType,
+  validateActionForm,
+  validateEndpoint,
+  validateProviderForm,
+  validateProviderHeaders,
+} from "./validation";
+import type { AppConfig, Provider } from "../types/config";
+
+const baseConfig: AppConfig = {
+  providers: [
+    {
+      id: "p1",
+      name: "OpenAI",
+      type: "openai",
+      headers: {},
+      args: [],
+    } as Provider,
+  ],
+  actions: [],
+  settings: {
+    language: "en",
+    showNotificationOnComplete: true,
+    startAtLogin: false,
+    maxTokens: 1000,
+    historyEnabled: true,
+    onboardingCompleted: true,
+  },
+};
+
+describe("validateEndpoint", () => {
+  it("allows an empty endpoint", () => {
+    expect(validateEndpoint("")).toBeNull();
+    expect(validateEndpoint("   ")).toBeNull();
+  });
+
+  it("rejects a non-https endpoint", () => {
+    expect(validateEndpoint("http://example.com")).toMatch(/https/);
+  });
+
+  it("rejects a malformed https endpoint", () => {
+    expect(validateEndpoint("https://")).toMatch(/https/);
+  });
+
+  it("accepts a valid https endpoint", () => {
+    expect(validateEndpoint("https://api.example.com/v1")).toBeNull();
+  });
+});
+
+describe("isApiProviderType", () => {
+  it("treats openai and anthropic as API types", () => {
+    expect(isApiProviderType("openai")).toBe(true);
+    expect(isApiProviderType("anthropic")).toBe(true);
+  });
+
+  it("treats cli and apple as non-API types", () => {
+    expect(isApiProviderType("cli")).toBe(false);
+    expect(isApiProviderType("apple")).toBe(false);
+  });
+});
+
+describe("isProviderType", () => {
+  it("accepts known provider types", () => {
+    expect(isProviderType("openai")).toBe(true);
+    expect(isProviderType("apple")).toBe(true);
+  });
+
+  it("rejects unknown values", () => {
+    expect(isProviderType("unknown")).toBe(false);
+  });
+});
+
+describe("isAppLanguage", () => {
+  it("accepts supported locales", () => {
+    expect(isAppLanguage("en")).toBe(true);
+    expect(isAppLanguage("zh-TW")).toBe(true);
+  });
+
+  it("rejects unsupported locales", () => {
+    expect(isAppLanguage("zh")).toBe(false);
+    expect(isAppLanguage("fr")).toBe(false);
+  });
+});
+
+describe("validateProviderHeaders", () => {
+  it("accepts unique header names", () => {
+    expect(
+      validateProviderHeaders([
+        ["X-Org", "a"],
+        ["X-Trace", "b"],
+      ]),
+    ).toBeNull();
+  });
+
+  it("rejects duplicate header names", () => {
+    expect(
+      validateProviderHeaders([
+        ["X-Org", "a"],
+        ["x-org", "b"],
+      ]),
+    ).toMatch(/Duplicate header names/);
+  });
+
+  it("rejects reserved auth header names", () => {
+    expect(validateProviderHeaders([["Authorization", "Bearer x"]])).toMatch(
+      /reserved/i,
+    );
+    expect(validateProviderHeaders([["x-api-key", "secret"]])).toMatch(
+      /reserved/i,
+    );
+  });
+
+  it("requires values for new or renamed headers when editing", () => {
+    expect(validateProviderHeaders([["X-New", ""]], "en", ["X-Old"])).toMatch(
+      /Enter a value for header X-New/,
+    );
+    expect(
+      validateProviderHeaders([["X-Old", ""]], "en", ["X-Old"]),
+    ).toBeNull();
+    expect(validateProviderHeaders([["X-New", ""]])).toBeNull();
+  });
+
+  it("ignores empty header names", () => {
+    expect(
+      validateProviderHeaders([
+        ["", "value"],
+        ["X-Org", "a"],
+      ]),
+    ).toBeNull();
+  });
+});
+
+describe("validateProviderForm", () => {
+  it("requires a name", () => {
+    expect(
+      validateProviderForm({ name: "   ", type: "openai", apiKey: "k" }, false),
+    ).toMatch(/name is required/i);
+  });
+
+  it("requires an API key for API providers", () => {
+    expect(
+      validateProviderForm({ name: "OpenAI", type: "openai" }, false),
+    ).toMatch(/API key is required/i);
+  });
+
+  it("requires an API key when apiKey is only whitespace", () => {
+    expect(
+      validateProviderForm(
+        { name: "OpenAI", type: "openai", apiKey: "  " },
+        false,
+      ),
+    ).toMatch(/API key is required/i);
+  });
+
+  it("allows a blank API key when editing a provider with a stored key", () => {
+    expect(
+      validateProviderForm(
+        { name: "OpenAI", type: "openai", apiKey: "" },
+        false,
+        true,
+      ),
+    ).toBeNull();
+  });
+
+  it("rejects an invalid endpoint for API providers", () => {
+    expect(
+      validateProviderForm(
+        {
+          name: "OpenAI",
+          type: "openai",
+          apiKey: "k",
+          endpoint: "http://insecure.example.com",
+        },
+        false,
+      ),
+    ).toMatch(/https/);
+  });
+
+  it("defaults a missing endpoint to empty and passes", () => {
+    expect(
+      validateProviderForm(
+        { name: "OpenAI", type: "openai", apiKey: "k" },
+        false,
+      ),
+    ).toBeNull();
+  });
+
+  it("requires a command for CLI providers", () => {
+    expect(
+      validateProviderForm({ name: "My CLI", type: "cli" }, false),
+    ).toMatch(/Command is required/i);
+  });
+
+  it("accepts a valid CLI provider", () => {
+    expect(
+      validateProviderForm(
+        { name: "My CLI", type: "cli", command: "llm" },
+        false,
+      ),
+    ).toBeNull();
+  });
+
+  it("allows only one Apple provider", () => {
+    expect(
+      validateProviderForm({ name: "Apple", type: "apple" }, true),
+    ).toMatch(/Only one Apple/i);
+  });
+
+  it("accepts an Apple provider when none exists yet", () => {
+    expect(
+      validateProviderForm({ name: "Apple", type: "apple" }, false),
+    ).toBeNull();
+  });
+});
+
+describe("validateActionForm", () => {
+  it("requires name, provider, and prompt", () => {
+    expect(
+      validateActionForm(
+        { name: "", providerId: "p1", userPrompt: "do it" },
+        baseConfig,
+      ),
+    ).toMatch(/required/i);
+  });
+
+  it("rejects a provider that does not exist", () => {
+    expect(
+      validateActionForm(
+        { name: "Act", providerId: "missing", userPrompt: "do it" },
+        baseConfig,
+      ),
+    ).toMatch(/does not exist/i);
+  });
+
+  it("rejects a prompt exceeding the max length", () => {
+    expect(
+      validateActionForm(
+        {
+          name: "Act",
+          providerId: "p1",
+          userPrompt: "a".repeat(MAX_USER_PROMPT_LENGTH + 1),
+        },
+        baseConfig,
+      ),
+    ).toMatch(new RegExp(`${MAX_USER_PROMPT_LENGTH} characters`));
+  });
+
+  it("accepts a valid action", () => {
+    expect(
+      validateActionForm(
+        { name: "Act", providerId: "p1", userPrompt: "do it" },
+        baseConfig,
+      ),
+    ).toBeNull();
+  });
+});

@@ -1,7 +1,12 @@
 use crate::error::AppError;
+use crate::json_store::{load_json_or_default, save_pretty_json};
 use crate::models::HistoryEntry;
+use crate::paths::app_data_dir;
+use std::path::Path;
 use std::path::PathBuf;
-use tracing::info;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{LazyLock, Mutex, MutexGuard};
+use tracing::{info, warn};
 use uuid::Uuid;
 
 const MAX_HISTORY_ENTRIES: usize = 100;
@@ -9,41 +14,88 @@ const MAX_STARRED_ENTRIES: usize = 20;
 const INPUT_TRUNCATE_CHARS: usize = 500;
 const OUTPUT_TRUNCATE_CHARS: usize = 2000;
 
+/// Serializes reads and read-modify-write access to the real history file.
+///
+/// Each mutation below independently loads history.json, applies a change,
+/// and writes the whole file back. Without a lock, two mutations racing
+/// (e.g. a tray action finishing while the Settings UI clears or stars an
+/// entry) can interleave their reads and writes, so whichever save happens
+/// last silently overwrites the other's change. This lock only guards
+/// in-process ordering of the public, path-less helpers below, which are the
+/// only ones production code calls against the shared history file. Reads also
+/// hold the lock because recovering an unreadable file renames it; the
+/// `_at` helpers used by tests operate on independent temp paths and don't
+/// need it.
+static HISTORY_FILE_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
+static HISTORY_GENERATION: AtomicU64 = AtomicU64::new(0);
+
+fn lock_history_file() -> MutexGuard<'static, ()> {
+    HISTORY_FILE_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
+pub fn current_generation() -> u64 {
+    HISTORY_GENERATION.load(Ordering::Acquire)
+}
+
 /// Returns the path to the history file:
 /// ~/Library/Application Support/clipwise/history.json
 pub fn history_path() -> Result<PathBuf, AppError> {
-    let base = dirs::data_local_dir()
-        .or_else(|| dirs::home_dir().map(|h| h.join(".local").join("share")))
-        .ok_or_else(|| AppError::Config("Cannot locate app support directory".into()))?;
-    Ok(base.join("clipwise").join("history.json"))
+    Ok(app_data_dir()?.join("history.json"))
 }
 
-/// Load history from disk, returning an empty vec if the file doesn't exist.
-pub fn load_history() -> Result<Vec<HistoryEntry>, AppError> {
-    let path = history_path()?;
+pub fn load_history_from(path: &Path) -> Result<Vec<HistoryEntry>, AppError> {
     if !path.exists() {
         info!(path = %path.display(), "History file missing; returning empty history");
         return Ok(Vec::new());
     }
 
-    let data = std::fs::read_to_string(&path)?;
-    let history: Vec<HistoryEntry> = serde_json::from_str(&data)?;
-    info!(
-        path = %path.display(),
-        entry_count = history.len(),
-        "Loaded history"
-    );
-    Ok(history)
+    match load_json_or_default::<Vec<HistoryEntry>>(path) {
+        Ok(history) => {
+            info!(
+                path = %path.display(),
+                entry_count = history.len(),
+                "Loaded history"
+            );
+            Ok(history)
+        }
+        Err(err) => match quarantine_invalid_history_at(path) {
+            Ok(backup_path) => {
+                warn!(
+                    error = %err,
+                    path = %path.display(),
+                    backup = %backup_path.display(),
+                    "Quarantined unreadable history file; starting with empty history"
+                );
+                Ok(Vec::new())
+            }
+            Err(quarantine_err) => {
+                warn!(
+                    error = %quarantine_err,
+                    path = %path.display(),
+                    "Failed to quarantine unreadable history file"
+                );
+                Err(err)
+            }
+        },
+    }
 }
 
-/// Save history to disk, creating parent directories if needed.
-pub fn save_history(history: &[HistoryEntry]) -> Result<(), AppError> {
-    let path = history_path()?;
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)?;
+fn quarantine_invalid_history_at(path: &Path) -> Result<PathBuf, AppError> {
+    if !path.exists() {
+        return Err(AppError::Config(
+            "Cannot preserve invalid history because the file does not exist".into(),
+        ));
     }
-    let data = serde_json::to_string_pretty(history)?;
-    std::fs::write(&path, data)?;
+
+    let backup_path = path.with_file_name(format!("history.corrupt.{}.json", Uuid::new_v4()));
+    std::fs::rename(path, &backup_path)?;
+    Ok(backup_path)
+}
+
+pub fn save_history_to(history: &[HistoryEntry], path: &Path) -> Result<(), AppError> {
+    save_pretty_json(&history, path)?;
     info!(
         path = %path.display(),
         entry_count = history.len(),
@@ -52,16 +104,109 @@ pub fn save_history(history: &[HistoryEntry]) -> Result<(), AppError> {
     Ok(())
 }
 
+/// Load history from disk, returning an empty vec if the file doesn't exist.
+pub fn load_history() -> Result<Vec<HistoryEntry>, AppError> {
+    load_history_serialized_from(&history_path()?)
+}
+
+fn load_history_serialized_from(path: &Path) -> Result<Vec<HistoryEntry>, AppError> {
+    let _guard = lock_history_file();
+    load_history_from(path)
+}
+
+/// Save history to disk, creating parent directories if needed.
+pub fn save_history(history: &[HistoryEntry]) -> Result<(), AppError> {
+    let _guard = lock_history_file();
+    save_history_to(history, &history_path()?)
+}
+
 /// Truncate text to a maximum character count, appending "..." if truncated.
 fn truncate_text(text: &str, max_chars: usize) -> String {
-    let chars: Vec<char> = text.chars().collect();
-    if chars.len() <= max_chars {
-        text.to_string()
-    } else {
-        let mut result: String = chars.iter().take(max_chars).collect();
+    let mut chars = text.chars();
+    let truncated: String = chars.by_ref().take(max_chars).collect();
+    if chars.next().is_some() {
+        let mut result = truncated;
         result.push_str("...");
         result
+    } else {
+        text.to_string()
     }
+}
+
+fn trim_history(history: Vec<HistoryEntry>) -> Vec<HistoryEntry> {
+    let starred_total = history.iter().filter(|entry| entry.starred).count();
+    if history.len() <= MAX_HISTORY_ENTRIES && starred_total <= MAX_STARRED_ENTRIES {
+        return history;
+    }
+
+    let starred_allowed = starred_total.min(MAX_STARRED_ENTRIES);
+    let non_starred_allowed = MAX_HISTORY_ENTRIES.saturating_sub(starred_allowed);
+    let mut starred_kept = 0;
+    let mut non_starred_kept = 0;
+
+    history
+        .into_iter()
+        .filter(|entry| {
+            if entry.starred {
+                if starred_kept < MAX_STARRED_ENTRIES {
+                    starred_kept += 1;
+                    true
+                } else {
+                    false
+                }
+            } else if non_starred_kept < non_starred_allowed {
+                non_starred_kept += 1;
+                true
+            } else {
+                false
+            }
+        })
+        .collect()
+}
+
+fn add_entry_to_history(
+    mut history: Vec<HistoryEntry>,
+    action_name: String,
+    provider_name: String,
+    input_text: String,
+    output_text: String,
+    success: bool,
+) -> Vec<HistoryEntry> {
+    history.insert(
+        0,
+        HistoryEntry {
+            id: Uuid::new_v4().to_string(),
+            timestamp: chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+            action_name,
+            provider_name,
+            input_text: truncate_text(&input_text, INPUT_TRUNCATE_CHARS),
+            output_text: truncate_text(&output_text, OUTPUT_TRUNCATE_CHARS),
+            success,
+            starred: false,
+        },
+    );
+
+    trim_history(history)
+}
+
+pub fn add_entry_to_path(
+    path: &Path,
+    action_name: String,
+    provider_name: String,
+    input_text: String,
+    output_text: String,
+    success: bool,
+) -> Result<(), AppError> {
+    let history = load_history_from(path)?;
+    let history = add_entry_to_history(
+        history,
+        action_name,
+        provider_name,
+        input_text,
+        output_text,
+        success,
+    );
+    save_history_to(&history, path)
 }
 
 /// Add a new entry to history, prepending it and trimming to MAX_HISTORY_ENTRIES.
@@ -72,49 +217,50 @@ pub fn add_entry(
     output_text: String,
     success: bool,
 ) -> Result<(), AppError> {
-    let mut history = load_history()?;
-
-    let entry = HistoryEntry {
-        id: Uuid::new_v4().to_string(),
-        timestamp: chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+    let _guard = lock_history_file();
+    add_entry_to_path(
+        &history_path()?,
         action_name,
         provider_name,
-        input_text: truncate_text(&input_text, INPUT_TRUNCATE_CHARS),
-        output_text: truncate_text(&output_text, OUTPUT_TRUNCATE_CHARS),
+        input_text,
+        output_text,
         success,
-        starred: false,
-    };
-
-    // Prepend the new entry (newest first)
-    history.insert(0, entry);
-
-    // Trim to max entries, preserving starred items
-    if history.len() > MAX_HISTORY_ENTRIES {
-        let mut starred_entries: Vec<HistoryEntry> =
-            history.iter().filter(|e| e.starred).cloned().collect();
-        let mut non_starred_entries: Vec<HistoryEntry> =
-            history.iter().filter(|e| !e.starred).cloned().collect();
-        let non_starred_allowed = MAX_HISTORY_ENTRIES.saturating_sub(starred_entries.len());
-        non_starred_entries.truncate(non_starred_allowed);
-        starred_entries.extend(non_starred_entries);
-        history = starred_entries;
-    }
-
-    save_history(&history)?;
-    Ok(())
+    )
 }
 
-/// Clear non-starred history entries. Starred entries are preserved.
-pub fn clear_history() -> Result<(), AppError> {
-    let mut history = load_history()?;
+pub fn add_entry_if_generation(
+    expected_generation: u64,
+    action_name: String,
+    provider_name: String,
+    input_text: String,
+    output_text: String,
+    success: bool,
+) -> Result<bool, AppError> {
+    let _guard = lock_history_file();
+    if current_generation() != expected_generation {
+        return Ok(false);
+    }
+
+    add_entry_to_path(
+        &history_path()?,
+        action_name,
+        provider_name,
+        input_text,
+        output_text,
+        success,
+    )?;
+    Ok(true)
+}
+
+pub fn clear_history_at(path: &Path) -> Result<(), AppError> {
+    let mut history = load_history_from(path)?;
     let original_len = history.len();
 
     history.retain(|entry| entry.starred);
 
     if history.is_empty() {
-        let path = history_path()?;
         if path.exists() {
-            std::fs::remove_file(&path)?;
+            std::fs::remove_file(path)?;
             info!(path = %path.display(), "Cleared history (no starred entries to preserve)");
         }
     } else {
@@ -123,34 +269,102 @@ pub fn clear_history() -> Result<(), AppError> {
             preserved = history.len(),
             "Cleared non-starred history entries"
         );
-        save_history(&history)?;
+        save_history_to(&history, path)?;
     }
 
     Ok(())
 }
 
-/// Delete a single history entry by ID.
-pub fn delete_entry(id: &str) -> Result<bool, AppError> {
-    let mut history = load_history()?;
+/// Clear non-starred history entries. Starred entries are preserved.
+pub fn clear_history() -> Result<(), AppError> {
+    let _guard = lock_history_file();
+    clear_history_at(&history_path()?)
+}
+
+pub fn purge_history_at(path: &Path) -> Result<(), AppError> {
+    if path.exists() {
+        std::fs::remove_file(path)?;
+        info!(path = %path.display(), "Purged history");
+    }
+
+    // Recovery backups can contain the same plaintext clipboard data as the
+    // active file, so permanent deletion must remove them as well.
+    let parent = path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .unwrap_or(Path::new("."));
+    let entries = match std::fs::read_dir(parent) {
+        Ok(entries) => entries,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(err) => return Err(err.into()),
+    };
+    for entry in entries {
+        let entry = entry?;
+        let name = entry.file_name();
+        let backup_id = name
+            .to_str()
+            .and_then(|name| name.strip_prefix("history.corrupt."))
+            .and_then(|name| name.strip_suffix(".json"));
+        if backup_id.is_some_and(|id| Uuid::parse_str(id).is_ok()) && entry.file_type()?.is_file() {
+            std::fs::remove_file(entry.path())?;
+            info!(path = %entry.path().display(), "Purged history recovery backup");
+        }
+    }
+    Ok(())
+}
+
+/// Permanently delete all history entries, including starred entries.
+pub fn purge_history() -> Result<(), AppError> {
+    let _guard = lock_history_file();
+    HISTORY_GENERATION.fetch_add(1, Ordering::AcqRel);
+    purge_history_at(&history_path()?)
+}
+
+fn purge_history_if_disabled_at(history_enabled: bool, path: &Path) -> Result<(), AppError> {
+    if history_enabled {
+        return Ok(());
+    }
+
+    purge_history_at(path)
+}
+
+/// Reconciles persisted history with the privacy setting during startup.
+///
+/// If the app previously stopped after disabling history but before deleting
+/// the history file, this retries the deletion before the app becomes usable.
+pub fn purge_history_if_disabled(history_enabled: bool) -> Result<(), AppError> {
+    if history_enabled {
+        return Ok(());
+    }
+
+    let _guard = lock_history_file();
+    HISTORY_GENERATION.fetch_add(1, Ordering::AcqRel);
+    purge_history_if_disabled_at(false, &history_path()?)
+}
+
+pub fn delete_entry_at(path: &Path, id: &str) -> Result<bool, AppError> {
+    let mut history = load_history_from(path)?;
     let original_len = history.len();
 
     history.retain(|entry| entry.id != id);
 
     if history.len() == original_len {
-        // Entry not found
         return Ok(false);
     }
 
-    save_history(&history)?;
+    save_history_to(&history, path)?;
     info!(id = %id, "Deleted history entry");
     Ok(true)
 }
 
-/// Toggle the starred state of a history entry. Returns the new starred state.
-/// Enforces MAX_STARRED_ENTRIES: if starring would exceed the limit, the oldest
-/// starred entry is unstarred first.
-pub fn toggle_star(id: &str) -> Result<bool, AppError> {
-    let mut history = load_history()?;
+/// Delete a single history entry by ID.
+pub fn delete_entry(id: &str) -> Result<bool, AppError> {
+    let _guard = lock_history_file();
+    delete_entry_at(&history_path()?, id)
+}
+
+pub fn toggle_star_at(path: &Path, id: &str) -> Result<bool, AppError> {
+    let mut history = load_history_from(path)?;
 
     let current_starred = history
         .iter()
@@ -163,7 +377,6 @@ pub fn toggle_star(id: &str) -> Result<bool, AppError> {
     if new_starred {
         let current_starred_count = history.iter().filter(|e| e.starred).count();
         if current_starred_count >= MAX_STARRED_ENTRIES {
-            // Unstar the oldest starred entry
             if let Some(oldest_starred) = history
                 .iter_mut()
                 .filter(|e| e.starred && e.id != id)
@@ -182,9 +395,17 @@ pub fn toggle_star(id: &str) -> Result<bool, AppError> {
         entry.starred = new_starred;
     }
 
-    save_history(&history)?;
+    save_history_to(&history, path)?;
     info!(id = %id, starred = new_starred, "Toggled history entry star");
     Ok(new_starred)
+}
+
+/// Toggle the starred state of a history entry. Returns the new starred state.
+/// Enforces MAX_STARRED_ENTRIES: if starring would exceed the limit, the oldest
+/// starred entry is unstarred first.
+pub fn toggle_star(id: &str) -> Result<bool, AppError> {
+    let _guard = lock_history_file();
+    toggle_star_at(&history_path()?, id)
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -252,33 +473,42 @@ mod tests {
         assert_eq!(result.chars().count(), 23); // 20 + "..."
     }
 
+    #[test]
+    fn test_add_entry_skips_stale_history_generation() {
+        let result = add_entry_if_generation(
+            current_generation().wrapping_add(1),
+            "Action".into(),
+            "Provider".into(),
+            "input".into(),
+            "output".into(),
+            true,
+        )
+        .unwrap();
+
+        assert!(!result);
+    }
+
     // ── add_entry ───────────────────────────────────────────────────────────────
 
     #[test]
-    fn test_add_entry_prepends_to_existing_history() {
+    fn test_add_entry_to_path_prepends_to_existing_history() {
         let dir = TempDir::new().unwrap();
-        let _path = setup_test_history_file(&dir, vec![make_test_entry("old-id", "OldAction")]);
+        let path = setup_test_history_file(&dir, vec![make_test_entry("old-id", "OldAction")]);
 
-        // Temporarily override history_path to return test path
-        // Note: This requires modifying the function or using a test helper
-        // For now, we'll test the logic in a more isolated way
-        let entries = vec![make_test_entry("old-id", "OldAction")];
-        let mut history = entries.clone();
+        add_entry_to_path(
+            &path,
+            "NewAction".into(),
+            "TestProvider".into(),
+            "new input".into(),
+            "new output".into(),
+            true,
+        )
+        .unwrap();
 
-        let new_entry = HistoryEntry {
-            id: "new-id".to_string(),
-            timestamp: "2024-01-02T00:00:00Z".to_string(),
-            action_name: "NewAction".to_string(),
-            provider_name: "TestProvider".to_string(),
-            input_text: "new input".to_string(),
-            output_text: "new output".to_string(),
-            success: true,
-            starred: false,
-        };
-        history.insert(0, new_entry);
+        let history = load_history_from(&path).unwrap();
 
         assert_eq!(history.len(), 2);
-        assert_eq!(history[0].id, "new-id");
+        assert_eq!(history[0].action_name, "NewAction");
         assert_eq!(history[1].id, "old-id");
     }
 
@@ -290,7 +520,7 @@ mod tests {
 
         let new_entry = make_test_entry("new-id", "NewAction");
         history.insert(0, new_entry);
-        history.truncate(MAX_HISTORY_ENTRIES);
+        history = trim_history(history);
 
         assert_eq!(history.len(), MAX_HISTORY_ENTRIES);
         assert_eq!(history[0].id, "new-id");
@@ -307,9 +537,7 @@ mod tests {
         // At exactly 100 entries, adding one more should trigger trim
         let new_entry = make_test_entry("new-id", "NewAction");
         history.insert(0, new_entry);
-        if history.len() > MAX_HISTORY_ENTRIES {
-            history.truncate(MAX_HISTORY_ENTRIES);
-        }
+        history = trim_history(history);
 
         assert_eq!(history.len(), MAX_HISTORY_ENTRIES);
     }
@@ -318,14 +546,18 @@ mod tests {
 
     #[test]
     fn test_delete_entry_removes_correct_entry() {
-        let mut history: Vec<HistoryEntry> = vec![
+        let history: Vec<HistoryEntry> = vec![
             make_test_entry("id1", "Action1"),
             make_test_entry("id2", "Action2"),
             make_test_entry("id3", "Action3"),
         ];
 
-        history.retain(|e| e.id != "id2");
+        let dir = TempDir::new().unwrap();
+        let path = setup_test_history_file(&dir, history);
+        let deleted = delete_entry_at(&path, "id2").unwrap();
+        let history = load_history_from(&path).unwrap();
 
+        assert!(deleted);
         assert_eq!(history.len(), 2);
         assert!(history.iter().any(|e| e.id == "id1"));
         assert!(history.iter().any(|e| e.id == "id3"));
@@ -339,11 +571,13 @@ mod tests {
             make_test_entry("id2", "Action2"),
         ];
 
-        let original_len = history.len();
-        let mut history_clone = history.clone();
-        history_clone.retain(|e| e.id != "nonexistent");
+        let dir = TempDir::new().unwrap();
+        let path = setup_test_history_file(&dir, history);
+        let deleted = delete_entry_at(&path, "nonexistent").unwrap();
+        let history = load_history_from(&path).unwrap();
 
-        assert_eq!(history_clone.len(), original_len);
+        assert!(!deleted);
+        assert_eq!(history.len(), 2);
     }
 
     #[test]
@@ -352,7 +586,7 @@ mod tests {
         let path = setup_test_history_file(&dir, vec![make_test_entry("id1", "Action1")]);
 
         assert!(path.exists());
-        std::fs::remove_file(&path).unwrap();
+        clear_history_at(&path).unwrap();
         assert!(!path.exists());
     }
 
@@ -362,34 +596,132 @@ mod tests {
         let path = dir.path().join("nonexistent.json");
 
         assert!(!path.exists());
-        // Should not error when file doesn't exist
-        let result = std::fs::remove_file(&path);
-        // Result will be Err, but our clear_history handles this
-        assert!(result.is_err());
+        assert!(clear_history_at(&path).is_ok());
+    }
+
+    #[test]
+    fn test_purge_history_removes_starred_entries() {
+        let history = vec![make_test_entry_with_starred("id1", "Action1", true)];
+
+        let dir = TempDir::new().unwrap();
+        let path = setup_test_history_file(&dir, history);
+        purge_history_at(&path).unwrap();
+
+        assert!(!path.exists());
+        assert!(load_history_from(&path).unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_purge_history_nonexistent_file_no_error() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("nonexistent.json");
+
+        assert!(!path.exists());
+        assert!(purge_history_at(&path).is_ok());
+    }
+
+    #[test]
+    fn test_purge_history_removes_backups_without_active_file() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("history.json");
+        std::fs::write(&path, r#"[{"inputText":"private clipboard text""#).unwrap();
+        assert!(load_history_from(&path).unwrap().is_empty());
+        assert!(!path.exists());
+
+        let second_backup = dir
+            .path()
+            .join(format!("history.corrupt.{}.json", Uuid::new_v4()));
+        std::fs::write(&second_backup, "older clipboard data").unwrap();
+        let config_backup = dir
+            .path()
+            .join(format!("config.corrupt.{}.json", Uuid::new_v4()));
+        std::fs::write(&config_backup, "config backup").unwrap();
+        let unrelated_file = dir.path().join("history.corrupt.notes.json");
+        std::fs::write(&unrelated_file, "notes").unwrap();
+        let unrelated_dir = dir
+            .path()
+            .join(format!("history.corrupt.{}.json", Uuid::new_v4()));
+        std::fs::create_dir(&unrelated_dir).unwrap();
+
+        purge_history_at(&path).unwrap();
+
+        assert!(!second_backup.exists());
+        assert!(config_backup.exists());
+        assert!(unrelated_file.exists());
+        assert!(unrelated_dir.exists());
+        assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 3);
+    }
+
+    #[test]
+    fn test_disabled_history_purges_active_file_and_recovery_backups() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("history.json");
+        std::fs::write(&path, "truncated history with clipboard data").unwrap();
+        assert!(load_history_from(&path).unwrap().is_empty());
+        setup_test_history_file(
+            &dir,
+            vec![make_test_entry_with_starred("id1", "Action", true)],
+        );
+
+        purge_history_if_disabled_at(true, &path).unwrap();
+        assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 2);
+        purge_history_if_disabled_at(false, &path).unwrap();
+        assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 0);
+    }
+
+    #[test]
+    fn test_purge_history_if_disabled_removes_existing_history() {
+        let dir = TempDir::new().unwrap();
+        let path = setup_test_history_file(&dir, vec![make_test_entry("id1", "Action1")]);
+
+        purge_history_if_disabled_at(false, &path).unwrap();
+
+        assert!(!path.exists());
+    }
+
+    #[test]
+    fn test_purge_history_if_disabled_preserves_enabled_history() {
+        let dir = TempDir::new().unwrap();
+        let path = setup_test_history_file(&dir, vec![make_test_entry("id1", "Action1")]);
+
+        purge_history_if_disabled_at(true, &path).unwrap();
+
+        assert!(path.exists());
     }
 
     // ── load_history ───────────────────────────────────────────────────────────
 
     #[test]
-    fn test_load_history_empty_file_returns_error() {
+    fn test_load_history_empty_file_is_quarantined() {
         let dir = TempDir::new().unwrap();
         let path = dir.path().join("history.json");
         std::fs::write(&path, "").unwrap();
 
-        let result: Result<Vec<HistoryEntry>, _> =
-            serde_json::from_str::<Vec<HistoryEntry>>(&std::fs::read_to_string(&path).unwrap());
-        assert!(result.is_err());
+        let history = load_history_from(&path).unwrap();
+        assert!(history.is_empty());
+        assert!(!path.exists());
+        let backups: Vec<_> = std::fs::read_dir(dir.path())
+            .unwrap()
+            .filter_map(|entry| entry.ok())
+            .filter(|entry| {
+                entry
+                    .file_name()
+                    .to_string_lossy()
+                    .starts_with("history.corrupt.")
+            })
+            .collect();
+        assert_eq!(backups.len(), 1);
     }
 
     #[test]
-    fn test_load_history_invalid_json_returns_error() {
+    fn test_load_history_invalid_json_is_quarantined() {
         let dir = TempDir::new().unwrap();
         let path = dir.path().join("history.json");
         std::fs::write(&path, "{ invalid json }").unwrap();
 
-        let result: Result<Vec<HistoryEntry>, _> =
-            serde_json::from_str::<Vec<HistoryEntry>>(&std::fs::read_to_string(&path).unwrap());
-        assert!(result.is_err());
+        let history = load_history_from(&path).unwrap();
+        assert!(history.is_empty());
+        assert!(!path.exists());
     }
 
     #[test]
@@ -401,8 +733,7 @@ mod tests {
         ];
         let path = setup_test_history_file(&dir, entries.clone());
 
-        let data = std::fs::read_to_string(&path).unwrap();
-        let loaded: Vec<HistoryEntry> = serde_json::from_str(&data).unwrap();
+        let loaded = load_history_from(&path).unwrap();
         assert_eq!(loaded.len(), 2);
         assert_eq!(loaded[0].id, "id1");
         assert_eq!(loaded[1].id, "id2");
@@ -416,16 +747,10 @@ mod tests {
         let path = dir.path().join("nested").join("deep").join("history.json");
 
         let entries = vec![make_test_entry("id1", "Action1")];
-        let data = serde_json::to_string_pretty(&entries).unwrap();
-
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent).unwrap();
-        }
-        std::fs::write(&path, data).unwrap();
+        save_history_to(&entries, &path).unwrap();
 
         assert!(path.exists());
-        let loaded: Vec<HistoryEntry> =
-            serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        let loaded = load_history_from(&path).unwrap();
         assert_eq!(loaded.len(), 1);
     }
 
@@ -446,61 +771,73 @@ mod tests {
 
     #[test]
     fn test_toggle_star_sets_starred_true() {
-        let mut history = [make_test_entry("id1", "Action1")];
-        let entry = history.iter_mut().find(|e| e.id == "id1").unwrap();
-        entry.starred = !entry.starred;
-        assert!(entry.starred);
+        let dir = TempDir::new().unwrap();
+        let path = setup_test_history_file(&dir, vec![make_test_entry("id1", "Action1")]);
+        let starred = toggle_star_at(&path, "id1").unwrap();
+        let history = load_history_from(&path).unwrap();
+        assert!(starred);
+        assert!(history.iter().find(|e| e.id == "id1").unwrap().starred);
     }
 
     #[test]
     fn test_toggle_star_unsets_starred() {
-        let mut history = [make_test_entry_with_starred("id1", "Action1", true)];
-        let entry = history.iter_mut().find(|e| e.id == "id1").unwrap();
-        entry.starred = !entry.starred;
-        assert!(!entry.starred);
+        let dir = TempDir::new().unwrap();
+        let path = setup_test_history_file(
+            &dir,
+            vec![make_test_entry_with_starred("id1", "Action1", true)],
+        );
+        let starred = toggle_star_at(&path, "id1").unwrap();
+        let history = load_history_from(&path).unwrap();
+        assert!(!starred);
+        assert!(!history.iter().find(|e| e.id == "id1").unwrap().starred);
     }
 
     #[test]
     fn test_toggle_star_enforces_max_starred_limit() {
         let mut history: Vec<HistoryEntry> = (0..MAX_STARRED_ENTRIES)
-            .map(|i| make_test_entry_with_starred(&format!("starred-{}", i), &format!("Action{}", i), true))
+            .map(|i| {
+                make_test_entry_with_starred(
+                    &format!("starred-{}", i),
+                    &format!("Action{}", i),
+                    true,
+                )
+            })
             .collect();
         history.push(make_test_entry("new-id", "NewAction"));
 
-        let new_starred = !history.iter().find(|e| e.id == "new-id").unwrap().starred;
+        let dir = TempDir::new().unwrap();
+        let path = setup_test_history_file(&dir, history);
+        let new_starred = toggle_star_at(&path, "new-id").unwrap();
+        let history = load_history_from(&path).unwrap();
+
         assert!(new_starred);
-
-        let current_starred_count = history.iter().filter(|e| e.starred).count();
-        assert_eq!(current_starred_count, MAX_STARRED_ENTRIES);
-
-        if current_starred_count >= MAX_STARRED_ENTRIES {
-            if let Some(oldest_starred) = history
-                .iter_mut()
-                .filter(|e| e.starred && e.id != "new-id")
-                .last()
-            {
-                oldest_starred.starred = false;
-            }
-        }
-        history.iter_mut().find(|e| e.id == "new-id").unwrap().starred = new_starred;
-
         let final_starred_count = history.iter().filter(|e| e.starred).count();
         assert_eq!(final_starred_count, MAX_STARRED_ENTRIES);
         assert!(history.iter().find(|e| e.id == "new-id").unwrap().starred);
-        assert!(!history.iter().find(|e| e.id == "starred-19").unwrap().starred, "Oldest starred entry should be unstarred");
+        assert!(
+            !history
+                .iter()
+                .find(|e| e.id == "starred-19")
+                .unwrap()
+                .starred,
+            "Oldest starred entry should be unstarred"
+        );
     }
 
     // ── clear_history preserves starred ────────────────────────────────────────
 
     #[test]
     fn test_clear_history_preserves_starred() {
-        let mut history = vec![
+        let history = vec![
             make_test_entry("id1", "Action1"),
             make_test_entry_with_starred("id2", "Action2", true),
             make_test_entry("id3", "Action3"),
         ];
 
-        history.retain(|entry| entry.starred);
+        let dir = TempDir::new().unwrap();
+        let path = setup_test_history_file(&dir, history);
+        clear_history_at(&path).unwrap();
+        let history = load_history_from(&path).unwrap();
 
         assert_eq!(history.len(), 1);
         assert!(history.iter().any(|e| e.id == "id2"));
@@ -508,17 +845,44 @@ mod tests {
 
     #[test]
     fn test_clear_history_removes_all_when_none_starred() {
-        let mut history = vec![
+        let history = vec![
             make_test_entry("id1", "Action1"),
             make_test_entry("id2", "Action2"),
         ];
 
-        history.retain(|entry| entry.starred);
+        let dir = TempDir::new().unwrap();
+        let path = setup_test_history_file(&dir, history);
+        clear_history_at(&path).unwrap();
 
-        assert!(history.is_empty());
+        assert!(!path.exists());
     }
 
     // ── add_entry trimming preserves starred ───────────────────────────────────
+
+    #[test]
+    fn test_trim_history_preserves_newest_first_order() {
+        let mut history: Vec<HistoryEntry> = (0..105)
+            .map(|i| {
+                make_test_entry_with_starred(
+                    &format!("id-{}", i),
+                    &format!("Action{}", i),
+                    i == 50 || i == 99,
+                )
+            })
+            .collect();
+        history.reverse();
+        history.insert(0, make_test_entry("new-id", "NewAction"));
+
+        history = trim_history(history);
+
+        let ids: Vec<&str> = history.iter().map(|e| e.id.as_str()).collect();
+        assert_eq!(ids.first().copied(), Some("new-id"));
+        assert!(
+            ids.iter().position(|&id| id == "id-99").unwrap()
+                < ids.iter().position(|&id| id == "id-50").unwrap(),
+            "Starred entries should keep their relative chronological order"
+        );
+    }
 
     #[test]
     fn test_add_entry_trimming_preserves_starred() {
@@ -532,19 +896,119 @@ mod tests {
         let new_entry = make_test_entry("new-id", "NewAction");
         history.insert(0, new_entry);
 
-        if history.len() > MAX_HISTORY_ENTRIES {
-            let mut starred_entries: Vec<HistoryEntry> =
-                history.iter().filter(|e| e.starred).cloned().collect();
-            let mut non_starred_entries: Vec<HistoryEntry> =
-                history.iter().filter(|e| !e.starred).cloned().collect();
-            let non_starred_allowed = MAX_HISTORY_ENTRIES.saturating_sub(starred_entries.len());
-            non_starred_entries.truncate(non_starred_allowed);
-            starred_entries.extend(non_starred_entries);
-            history = starred_entries;
-        }
+        history = trim_history(history);
 
         assert_eq!(history.len(), MAX_HISTORY_ENTRIES);
-        assert!(history.iter().any(|e| e.id == "id-99"), "Starred entry should be preserved");
-        assert!(history.iter().any(|e| e.id == "new-id"), "New entry should be present");
+        assert!(
+            history.iter().any(|e| e.id == "id-99"),
+            "Starred entry should be preserved"
+        );
+        assert!(
+            history.iter().any(|e| e.id == "new-id"),
+            "New entry should be present"
+        );
+    }
+
+    #[test]
+    fn test_trim_history_caps_excess_starred_entries() {
+        let mut history: Vec<HistoryEntry> = (0..25)
+            .map(|i| {
+                make_test_entry_with_starred(&format!("starred-{i}"), &format!("Action{i}"), true)
+            })
+            .collect();
+        history.extend((0..90).map(|i| make_test_entry(&format!("plain-{i}"), "Action")));
+
+        history = trim_history(history);
+
+        assert_eq!(history.len(), MAX_HISTORY_ENTRIES);
+        assert_eq!(
+            history.iter().filter(|entry| entry.starred).count(),
+            MAX_STARRED_ENTRIES
+        );
+        assert!(history.iter().any(|entry| entry.id == "starred-0"));
+        assert!(!history.iter().any(|entry| entry.id == "starred-24"));
+    }
+
+    // ── History file lock ───────────────────────────────────────────────────────
+
+    #[test]
+    fn test_history_read_waits_for_recovery_and_write() {
+        use std::sync::mpsc;
+        use std::thread;
+        use std::time::Duration;
+
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("history.json");
+        std::fs::write(&path, "corrupt history").unwrap();
+        let guard = lock_history_file();
+        let reader_path = path.clone();
+        let (started_tx, started_rx) = mpsc::channel();
+        let (result_tx, result_rx) = mpsc::channel();
+        let reader = thread::spawn(move || {
+            started_tx.send(()).unwrap();
+            result_tx
+                .send(load_history_serialized_from(&reader_path))
+                .unwrap();
+        });
+        started_rx.recv_timeout(Duration::from_secs(5)).unwrap();
+        assert!(matches!(
+            result_rx.recv_timeout(Duration::from_millis(50)),
+            Err(mpsc::RecvTimeoutError::Timeout)
+        ));
+
+        // A history mutation recovers the corrupt file and writes a new entry
+        // while holding the same lock used by the production read helper.
+        add_entry_to_path(
+            &path,
+            "NewAction".into(),
+            "Provider".into(),
+            "new input".into(),
+            "new output".into(),
+            true,
+        )
+        .unwrap();
+        drop(guard);
+
+        let history = result_rx
+            .recv_timeout(Duration::from_secs(5))
+            .unwrap()
+            .unwrap();
+        reader.join().unwrap();
+        assert_eq!(history.len(), 1);
+        assert_eq!(history[0].action_name, "NewAction");
+        assert!(path.exists());
+        assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 2);
+    }
+
+    #[test]
+    fn test_lock_history_file_serializes_concurrent_access() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::thread;
+        use std::time::Duration;
+
+        static CONCURRENT: AtomicUsize = AtomicUsize::new(0);
+        static MAX_CONCURRENT: AtomicUsize = AtomicUsize::new(0);
+
+        let handles: Vec<_> = (0..8)
+            .map(|_| {
+                thread::spawn(|| {
+                    let _guard = lock_history_file();
+                    let current = CONCURRENT.fetch_add(1, Ordering::SeqCst) + 1;
+                    MAX_CONCURRENT.fetch_max(current, Ordering::SeqCst);
+                    thread::sleep(Duration::from_millis(5));
+                    CONCURRENT.fetch_sub(1, Ordering::SeqCst);
+                })
+            })
+            .collect();
+
+        for handle in handles {
+            handle.join().unwrap();
+        }
+
+        assert_eq!(
+            MAX_CONCURRENT.load(Ordering::SeqCst),
+            1,
+            "lock_history_file should serialize access; only one holder should run at a time"
+        );
     }
 }

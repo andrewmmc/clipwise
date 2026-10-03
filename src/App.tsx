@@ -1,74 +1,121 @@
-import { useEffect, useState } from "react";
-import { tauriCommands } from "./lib/tauri";
-import type { AppConfig } from "./types/config";
+import { useState } from "react";
+import useConfig from "./hooks/useConfig";
+import { cx } from "./lib/classNames";
 import AboutPanel from "./components/About";
 import ActionList from "./components/ActionList";
 import ErrorBox from "./components/ErrorBox";
 import HistoryList from "./components/HistoryList";
 import ProviderList from "./components/ProviderList";
 import SettingsPanel from "./components/Settings";
+import GettingStarted from "./components/GettingStarted";
+import { tauriCommands } from "./lib/tauri";
+import type { ActionPreset } from "./lib/actionPresets";
+import { I18nProvider, useI18n } from "./lib/i18n";
+import type { AppConfig, AppLanguage } from "./types/config";
 
 type Tab = "actions" | "providers" | "history" | "settings" | "about";
+type View = Tab | "getting-started";
+type SetupEditor =
+  { type: "provider" } | { type: "action"; preset: ActionPreset };
+
+function bootLocale(): AppLanguage {
+  const language = globalThis.navigator?.language ?? "en";
+  return language.toLowerCase().startsWith("zh") ? "zh-TW" : "en";
+}
 
 export default function App() {
-  const [config, setConfig] = useState<AppConfig | null>(null);
-  const [activeTab, setActiveTab] = useState<Tab>("actions");
-  const [error, setError] = useState<string | null>(null);
+  const { config, error, loading, refresh, clearError } = useConfig();
+  const locale = config?.settings.language ?? bootLocale();
 
-  const refresh = () => {
-    tauriCommands
-      .getConfig()
-      .then(setConfig)
-      .catch((e) => setError(e instanceof Error ? e.message : String(e)));
-  };
+  return (
+    <I18nProvider locale={locale}>
+      <AppContent
+        config={config}
+        error={error}
+        loading={loading}
+        refresh={refresh}
+        clearError={clearError}
+      />
+    </I18nProvider>
+  );
+}
 
-  useEffect(() => {
-    tauriCommands
-      .getConfig()
-      .then(setConfig)
-      .catch((e) => setError(e instanceof Error ? e.message : String(e)));
-  }, []);
+interface AppContentProps {
+  config: AppConfig | null;
+  error: string | null;
+  loading: boolean;
+  refresh: () => Promise<void>;
+  clearError: () => void;
+}
 
-  if (error) {
+function AppContent({
+  config,
+  error,
+  loading,
+  refresh,
+  clearError,
+}: AppContentProps) {
+  const { t } = useI18n();
+  const [activeView, setActiveView] = useState<View | null>(null);
+  const [guideReopened, setGuideReopened] = useState(false);
+  const [setupEditor, setSetupEditor] = useState<SetupEditor | null>(null);
+
+  if (error && !config) {
     return (
       <div className="app-shell flex items-center justify-center">
         <div className="card max-w-sm p-6 text-center">
-          <ErrorBox title="Failed to load config" message={error} />
+          <ErrorBox title={t("Failed to load config")} message={error} />
           <button
             onClick={() => {
-              setError(null);
-              refresh();
+              clearError();
+              void refresh();
             }}
             className="btn btn-secondary mt-4"
           >
-            Retry
+            {t("Retry")}
           </button>
         </div>
       </div>
     );
   }
 
-  if (!config) {
+  if (loading || !config) {
     return (
       <div className="app-shell flex items-center justify-center">
-        <span className="text-[13px] text-text-tertiary">Loading…</span>
+        <span className="text-[13px] text-text-tertiary">{t("Loading…")}</span>
       </div>
     );
   }
 
-  const tabs: { id: Tab; label: string }[] = [
-    { id: "actions", label: "Actions" },
-    { id: "providers", label: "Providers" },
-    ...(config.settings.historyEnabled
-      ? [{ id: "history" as Tab, label: "History" }]
+  const showGuideTab = !config.settings.onboardingCompleted || guideReopened;
+  const tabs: { id: View; label: string }[] = [
+    ...(showGuideTab
+      ? [{ id: "getting-started" as View, label: t("Getting Started") }]
       : []),
-    { id: "settings", label: "Settings" },
-    { id: "about", label: "About" },
+    { id: "actions", label: t("Actions") },
+    { id: "providers", label: t("Providers") },
+    ...(config.settings.historyEnabled
+      ? [{ id: "history" as Tab, label: t("History") }]
+      : []),
+    { id: "settings", label: t("Settings") },
+    { id: "about", label: t("About") },
   ];
+  const requestedView =
+    activeView ??
+    (config.settings.onboardingCompleted ? "actions" : "getting-started");
+  const visibleActiveView = tabs.some((tab) => tab.id === requestedView)
+    ? requestedView
+    : "actions";
 
-  if (activeTab === "history" && !config.settings.historyEnabled) {
-    setActiveTab("actions");
-  }
+  const returnToGuide = () => {
+    setSetupEditor(null);
+    setActiveView("getting-started");
+  };
+
+  const selectView = (view: View) => {
+    setSetupEditor(null);
+    setActiveView(view);
+  };
 
   return (
     <div className="app-shell">
@@ -89,20 +136,25 @@ export default function App() {
           </span>
         </header>
 
-        <nav className="flex gap-1 border-b border-border px-2">
+        <nav
+          className="flex gap-1 border-b border-border px-2"
+          aria-label={t("Settings sections")}
+        >
           {tabs.map((tab) => (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={[
+              type="button"
+              onClick={() => selectView(tab.id)}
+              aria-current={visibleActiveView === tab.id ? "page" : undefined}
+              className={cx(
                 "relative px-3 py-2.5 text-[13px] font-medium transition-colors cursor-pointer",
-                activeTab === tab.id
+                visibleActiveView === tab.id
                   ? "text-text-primary"
                   : "text-text-tertiary hover:text-text-secondary",
-              ].join(" ")}
+              )}
             >
               {tab.label}
-              {activeTab === tab.id && (
+              {visibleActiveView === tab.id && (
                 <span className="absolute inset-x-3 -bottom-px h-0.5 rounded-full bg-accent" />
               )}
             </button>
@@ -110,21 +162,86 @@ export default function App() {
         </nav>
 
         <main className="flex-1 overflow-y-auto p-5">
-          {activeTab === "actions" && (
-            <ActionList config={config} onRefresh={refresh} />
+          {error && (
+            <div className="mb-4">
+              <ErrorBox title={t("Failed to refresh config")} message={error} />
+            </div>
           )}
-          {activeTab === "providers" && (
-            <ProviderList config={config} onRefresh={refresh} />
-          )}
-          {activeTab === "settings" && (
-            <SettingsPanel
-              key={JSON.stringify(config.settings)}
+          {visibleActiveView === "getting-started" && (
+            <GettingStarted
               config={config}
+              reviewMode={config.settings.onboardingCompleted}
               onRefresh={refresh}
+              onSetupProvider={() => {
+                setSetupEditor({ type: "provider" });
+                setActiveView("providers");
+              }}
+              onChoosePreset={(preset) => {
+                setSetupEditor({ type: "action", preset });
+                setActiveView("actions");
+              }}
+              onFinish={async () => {
+                await tauriCommands.saveSettings({
+                  ...config.settings,
+                  onboardingCompleted: true,
+                });
+                await refresh();
+                setGuideReopened(false);
+                setActiveView("actions");
+              }}
+              onDone={() => {
+                setGuideReopened(false);
+                setActiveView("actions");
+              }}
             />
           )}
-          {activeTab === "history" && <HistoryList />}
-          {activeTab === "about" && <AboutPanel />}
+          {visibleActiveView === "actions" && (
+            <ActionList
+              key={setupEditor?.type === "action" ? "setup-action" : "actions"}
+              config={config}
+              onRefresh={refresh}
+              startCreating={setupEditor?.type === "action"}
+              creationDraft={
+                setupEditor?.type === "action" ? setupEditor.preset : undefined
+              }
+              onCreateComplete={
+                setupEditor?.type === "action" ? returnToGuide : undefined
+              }
+              onCreateCancel={
+                setupEditor?.type === "action" ? returnToGuide : undefined
+              }
+            />
+          )}
+          {visibleActiveView === "providers" && (
+            <ProviderList
+              key={
+                setupEditor?.type === "provider"
+                  ? "setup-provider"
+                  : "providers"
+              }
+              config={config}
+              onRefresh={refresh}
+              startCreating={setupEditor?.type === "provider"}
+              onCreateComplete={
+                setupEditor?.type === "provider" ? returnToGuide : undefined
+              }
+              onCreateCancel={
+                setupEditor?.type === "provider" ? returnToGuide : undefined
+              }
+            />
+          )}
+          {visibleActiveView === "settings" && (
+            <SettingsPanel
+              config={config}
+              onRefresh={refresh}
+              onShowGuide={() => {
+                setGuideReopened(true);
+                setActiveView("getting-started");
+              }}
+            />
+          )}
+          {visibleActiveView === "history" && <HistoryList />}
+          {visibleActiveView === "about" && <AboutPanel />}
         </main>
       </div>
     </div>

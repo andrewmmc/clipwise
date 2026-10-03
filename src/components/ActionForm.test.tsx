@@ -35,6 +35,9 @@ describe("ActionForm", () => {
       <ActionForm config={mockConfig} onSave={onSave} onCancel={onCancel} />,
     );
     expect(screen.getByText("New Action")).toBeInTheDocument();
+    expect(screen.getByLabelText("Action Name")).toBeInTheDocument();
+    expect(screen.getByLabelText("Provider")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Back" })).toBeInTheDocument();
   });
 
   it("shows 'Edit Action' heading in edit mode", () => {
@@ -372,11 +375,34 @@ describe("ActionForm", () => {
 
     await waitFor(() =>
       expect(mockInvoke).toHaveBeenCalledWith("test_action", {
-        actionId: "a1",
+        action: mockAction,
         sampleText: "The quick brown fox jumps over the lazy dog.",
       }),
     );
     expect(screen.getByText("Test result")).toBeInTheDocument();
+  });
+
+  it("shows a test error when the current draft is invalid", async () => {
+    const user = userEvent.setup();
+    render(
+      <ActionForm
+        config={mockConfig}
+        initial={mockAction}
+        onSave={onSave}
+        onCancel={onCancel}
+      />,
+    );
+
+    await user.clear(screen.getByLabelText("Action Name"));
+    await user.click(screen.getByRole("button", { name: /^test$/i }));
+
+    expect(
+      screen.getByText("Error: Name, provider, and prompt are required."),
+    ).toBeInTheDocument();
+    expect(mockInvoke).not.toHaveBeenCalledWith(
+      "test_action",
+      expect.anything(),
+    );
   });
 
   it("tests an action with custom input", async () => {
@@ -396,8 +422,41 @@ describe("ActionForm", () => {
 
     await waitFor(() =>
       expect(mockInvoke).toHaveBeenCalledWith("test_action", {
-        actionId: "a1",
+        action: mockAction,
         sampleText: "Custom",
+      }),
+    );
+  });
+
+  it("tests the current unsaved action draft", async () => {
+    mockInvoke.mockResolvedValue("Draft result");
+    const user = userEvent.setup();
+    render(
+      <ActionForm
+        config={mockConfig}
+        initial={mockAction}
+        onSave={onSave}
+        onCancel={onCancel}
+      />,
+    );
+
+    const prompt = screen.getByPlaceholderText(/refine this text/i);
+    await user.clear(prompt);
+    await user.type(prompt, "Draft prompt");
+    await user.type(
+      screen.getByPlaceholderText("Leave blank for provider default"),
+      "draft-model",
+    );
+    await user.click(screen.getByRole("button", { name: /^test$/i }));
+
+    await waitFor(() =>
+      expect(mockInvoke).toHaveBeenCalledWith("test_action", {
+        action: {
+          ...mockAction,
+          userPrompt: "Draft prompt",
+          model: "draft-model",
+        },
+        sampleText: "The quick brown fox jumps over the lazy dog.",
       }),
     );
   });
@@ -442,6 +501,42 @@ describe("ActionForm", () => {
     await waitFor(() =>
       expect(screen.getByText("Error: test failed")).toBeInTheDocument(),
     );
+  });
+
+  it("applies a prompt preset to the user prompt", async () => {
+    const user = userEvent.setup();
+    render(
+      <ActionForm config={mockConfig} onSave={onSave} onCancel={onCancel} />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /summarize/i }));
+
+    expect(
+      screen.getByDisplayValue(
+        "Summarize the following text clearly and briefly.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Summarize")).toBeInTheDocument();
+  });
+
+  it("does not overwrite an existing action name when applying a preset", async () => {
+    const user = userEvent.setup();
+    render(
+      <ActionForm config={mockConfig} onSave={onSave} onCancel={onCancel} />,
+    );
+
+    await user.type(
+      screen.getByPlaceholderText("e.g. Refine wording"),
+      "Custom name",
+    );
+    await user.click(screen.getByRole("button", { name: /fix grammar/i }));
+
+    expect(screen.getByDisplayValue("Custom name")).toBeInTheDocument();
+    expect(
+      screen.getByDisplayValue(
+        "Fix grammar, spelling, and punctuation in the following text.",
+      ),
+    ).toBeInTheDocument();
   });
 
   // ── Cancel ────────────────────────────────────────────────────────────────

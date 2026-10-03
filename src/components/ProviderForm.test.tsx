@@ -8,6 +8,16 @@ const mockInvoke = vi.mocked(invoke);
 const { default: ProviderForm } = await import("./ProviderForm");
 import { mockProvider, mockCliProvider } from "../test/fixtures";
 
+async function selectAvailableProviderType(
+  user: ReturnType<typeof userEvent.setup>,
+  value: string,
+  label: string,
+) {
+  const option = await screen.findByRole("option", { name: label });
+  await waitFor(() => expect(option).toBeEnabled());
+  await user.selectOptions(screen.getByRole("combobox"), value);
+}
+
 describe("ProviderForm", () => {
   const onSave = vi.fn();
   const onCancel = vi.fn();
@@ -83,7 +93,11 @@ describe("ProviderForm", () => {
     const user = userEvent.setup();
     render(<ProviderForm onSave={onSave} onCancel={onCancel} />);
 
-    await user.selectOptions(screen.getByDisplayValue("Anthropic"), "apple");
+    await selectAvailableProviderType(
+      user,
+      "apple",
+      "Apple Intelligence (On-Device)",
+    );
 
     expect(
       screen.getByDisplayValue("Apple Intelligence (On-Device)"),
@@ -209,8 +223,11 @@ describe("ProviderForm", () => {
   it("switching type to cli hides API fields and shows CLI fields", async () => {
     const user = userEvent.setup();
     render(<ProviderForm onSave={onSave} onCancel={onCancel} />);
-    const typeSelect = screen.getByDisplayValue("Anthropic");
-    await user.selectOptions(typeSelect, "cli");
+    await selectAvailableProviderType(
+      user,
+      "cli",
+      "CLI (claude/codex/copilot)",
+    );
     expect(screen.queryByPlaceholderText("sk-...")).not.toBeInTheDocument();
     expect(screen.getByPlaceholderText("e.g. claude")).toBeInTheDocument();
   });
@@ -218,16 +235,22 @@ describe("ProviderForm", () => {
   it("defaults new CLI providers to a -p argument", async () => {
     const user = userEvent.setup();
     render(<ProviderForm onSave={onSave} onCancel={onCancel} />);
-    const typeSelect = screen.getByDisplayValue("Anthropic");
-    await user.selectOptions(typeSelect, "cli");
+    await selectAvailableProviderType(
+      user,
+      "cli",
+      "CLI (claude/codex/copilot)",
+    );
     expect(screen.getByDisplayValue("-p")).toBeInTheDocument();
   });
 
   it("shows a command path hint in CLI mode", async () => {
     const user = userEvent.setup();
     render(<ProviderForm onSave={onSave} onCancel={onCancel} />);
-    const typeSelect = screen.getByDisplayValue("Anthropic");
-    await user.selectOptions(typeSelect, "cli");
+    await selectAvailableProviderType(
+      user,
+      "cli",
+      "CLI (claude/codex/copilot)",
+    );
     const hint = screen.getByText(/find the binary path with/i);
     expect(hint).toBeInTheDocument();
     expect(screen.getByText("which claude")).toBeInTheDocument();
@@ -236,9 +259,15 @@ describe("ProviderForm", () => {
   it("shows a headless mode hint for CLI arguments", async () => {
     const user = userEvent.setup();
     render(<ProviderForm onSave={onSave} onCancel={onCancel} />);
-    const typeSelect = screen.getByDisplayValue("Anthropic");
-    await user.selectOptions(typeSelect, "cli");
+    await selectAvailableProviderType(
+      user,
+      "cli",
+      "CLI (claude/codex/copilot)",
+    );
     expect(screen.getByText(/configure headless mode/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/sent through standard input/i),
+    ).toBeInTheDocument();
   });
 
   // ── Validation ────────────────────────────────────────────────────────────
@@ -272,8 +301,11 @@ describe("ProviderForm", () => {
       screen.getByPlaceholderText("e.g. Anthropic Claude"),
       "My CLI",
     );
-    const typeSelect = screen.getByDisplayValue("Anthropic");
-    await user.selectOptions(typeSelect, "cli");
+    await selectAvailableProviderType(
+      user,
+      "cli",
+      "CLI (claude/codex/copilot)",
+    );
     await user.click(screen.getByRole("button", { name: /^save$/i }));
     expect(
       screen.getByText("Command is required for CLI providers."),
@@ -302,6 +334,74 @@ describe("ProviderForm", () => {
     expect(onSave).not.toHaveBeenCalled();
   });
 
+  it("tests an API provider connection before saving", async () => {
+    mockInvoke.mockImplementation(async (command) => {
+      if (command === "test_provider") {
+        return "Connection successful. Provider responded: ok";
+      }
+      if (command === "check_apple_model_availability") {
+        return { available: true, reason: null };
+      }
+      if (command === "is_cli_provider_enabled") {
+        return true;
+      }
+      return undefined;
+    });
+    const user = userEvent.setup();
+    render(<ProviderForm onSave={onSave} onCancel={onCancel} />);
+
+    await user.type(
+      screen.getByPlaceholderText("e.g. Anthropic Claude"),
+      "My Provider",
+    );
+    await user.type(screen.getByPlaceholderText("sk-..."), "sk-ant-key");
+    await user.click(screen.getByRole("button", { name: /test connection/i }));
+
+    await waitFor(() =>
+      expect(mockInvoke).toHaveBeenCalledWith(
+        "test_provider",
+        expect.objectContaining({
+          provider: expect.objectContaining({
+            name: "My Provider",
+            type: "anthropic",
+            apiKey: "sk-ant-key",
+          }),
+        }),
+      ),
+    );
+    expect(
+      screen.getByText("Connection successful. Provider responded: ok"),
+    ).toBeInTheDocument();
+  });
+
+  it("shows an inline error when testing an API provider connection fails", async () => {
+    mockInvoke.mockImplementation(async (command) => {
+      if (command === "test_provider") {
+        throw new Error("invalid api key");
+      }
+      if (command === "check_apple_model_availability") {
+        return { available: true, reason: null };
+      }
+      if (command === "is_cli_provider_enabled") {
+        return true;
+      }
+      return undefined;
+    });
+    const user = userEvent.setup();
+    render(<ProviderForm onSave={onSave} onCancel={onCancel} />);
+
+    await user.type(
+      screen.getByPlaceholderText("e.g. Anthropic Claude"),
+      "My Provider",
+    );
+    await user.type(screen.getByPlaceholderText("sk-..."), "bad-key");
+    await user.click(screen.getByRole("button", { name: /test connection/i }));
+
+    await waitFor(() =>
+      expect(screen.getByText("invalid api key")).toBeInTheDocument(),
+    );
+  });
+
   it("tests a CLI command before saving", async () => {
     mockInvoke.mockResolvedValue("Command looks good: /bin/sh");
     const user = userEvent.setup();
@@ -311,7 +411,11 @@ describe("ProviderForm", () => {
       screen.getByPlaceholderText("e.g. Anthropic Claude"),
       "My CLI",
     );
-    await user.selectOptions(screen.getByDisplayValue("Anthropic"), "cli");
+    await selectAvailableProviderType(
+      user,
+      "cli",
+      "CLI (claude/codex/copilot)",
+    );
     await user.type(screen.getByPlaceholderText("e.g. claude"), "/bin/sh");
     await user.click(screen.getByRole("button", { name: /^test$/i }));
 
@@ -339,7 +443,11 @@ describe("ProviderForm", () => {
     const user = userEvent.setup();
     render(<ProviderForm onSave={onSave} onCancel={onCancel} />);
 
-    await user.selectOptions(screen.getByDisplayValue("Anthropic"), "cli");
+    await selectAvailableProviderType(
+      user,
+      "cli",
+      "CLI (claude/codex/copilot)",
+    );
     await user.type(screen.getByPlaceholderText("e.g. claude"), "bad-cli");
     await user.click(screen.getByRole("button", { name: /^test$/i }));
 
@@ -364,7 +472,11 @@ describe("ProviderForm", () => {
     const user = userEvent.setup();
     render(<ProviderForm onSave={onSave} onCancel={onCancel} />);
 
-    await user.selectOptions(screen.getByDisplayValue("Anthropic"), "cli");
+    await selectAvailableProviderType(
+      user,
+      "cli",
+      "CLI (claude/codex/copilot)",
+    );
     await user.type(screen.getByPlaceholderText("e.g. claude"), "bad-cli");
     await user.click(screen.getByRole("button", { name: /^test$/i }));
 
@@ -407,8 +519,11 @@ describe("ProviderForm", () => {
       screen.getByPlaceholderText("e.g. Anthropic Claude"),
       "My CLI",
     );
-    const typeSelect = screen.getByDisplayValue("Anthropic");
-    await user.selectOptions(typeSelect, "cli");
+    await selectAvailableProviderType(
+      user,
+      "cli",
+      "CLI (claude/codex/copilot)",
+    );
     await user.type(screen.getByPlaceholderText("e.g. claude"), "claude");
     await user.click(screen.getByRole("button", { name: /^save$/i }));
 
@@ -433,7 +548,11 @@ describe("ProviderForm", () => {
       screen.getByPlaceholderText("e.g. Anthropic Claude"),
       "Apple Local",
     );
-    await user.selectOptions(screen.getByDisplayValue("Anthropic"), "apple");
+    await selectAvailableProviderType(
+      user,
+      "apple",
+      "Apple Intelligence (On-Device)",
+    );
     await user.click(screen.getByRole("button", { name: /^save$/i }));
 
     await waitFor(() =>
@@ -538,7 +657,11 @@ describe("ProviderForm", () => {
     const user = userEvent.setup();
     render(<ProviderForm onSave={onSave} onCancel={onCancel} />);
 
-    await user.selectOptions(screen.getByDisplayValue("Anthropic"), "cli");
+    await selectAvailableProviderType(
+      user,
+      "cli",
+      "CLI (claude/codex/copilot)",
+    );
     await user.click(screen.getByRole("button", { name: /^test$/i }));
 
     expect(
@@ -576,6 +699,68 @@ describe("ProviderForm", () => {
       expect(onSave).toHaveBeenCalledWith(
         expect.objectContaining({ headers: {} }),
       ),
+    );
+  });
+
+  it("rejects duplicate custom header names", async () => {
+    onSave.mockResolvedValue(undefined);
+    const user = userEvent.setup();
+    render(<ProviderForm onSave={onSave} onCancel={onCancel} />);
+
+    await user.click(screen.getByRole("button", { name: /add header/i }));
+    await user.click(screen.getByRole("button", { name: /add header/i }));
+    const headerNames = screen.getAllByPlaceholderText("Header name");
+    await user.type(headerNames[0], "X-Org");
+    await user.type(headerNames[1], "x-org");
+    await user.type(screen.getByPlaceholderText("e.g. Anthropic Claude"), "P");
+    await user.type(screen.getByPlaceholderText("sk-..."), "k");
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+    expect(
+      screen.getByText("Duplicate header names are not allowed: x-org."),
+    ).toBeInTheDocument();
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it("rejects reserved auth header names", async () => {
+    onSave.mockResolvedValue(undefined);
+    const user = userEvent.setup();
+    render(<ProviderForm onSave={onSave} onCancel={onCancel} />);
+
+    await user.click(screen.getByRole("button", { name: /add header/i }));
+    await user.type(
+      screen.getByPlaceholderText("Header name"),
+      "Authorization",
+    );
+    await user.type(screen.getByPlaceholderText("e.g. Anthropic Claude"), "P");
+    await user.type(screen.getByPlaceholderText("sk-..."), "k");
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+    expect(
+      screen.getByText("Header name Authorization is reserved."),
+    ).toBeInTheDocument();
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it("shows an inline error when testing a connection with duplicate headers", async () => {
+    const user = userEvent.setup();
+    render(<ProviderForm onSave={onSave} onCancel={onCancel} />);
+
+    await user.click(screen.getByRole("button", { name: /add header/i }));
+    await user.click(screen.getByRole("button", { name: /add header/i }));
+    const headerNames = screen.getAllByPlaceholderText("Header name");
+    await user.type(headerNames[0], "X-Org");
+    await user.type(headerNames[1], "x-org");
+    await user.type(screen.getByPlaceholderText("e.g. Anthropic Claude"), "P");
+    await user.type(screen.getByPlaceholderText("sk-..."), "k");
+    await user.click(screen.getByRole("button", { name: /test connection/i }));
+
+    expect(
+      screen.getByText("Duplicate header names are not allowed: x-org."),
+    ).toBeInTheDocument();
+    expect(mockInvoke).not.toHaveBeenCalledWith(
+      "test_provider",
+      expect.anything(),
     );
   });
 
@@ -623,13 +808,14 @@ describe("ProviderForm", () => {
     );
 
     // Switch to CLI
-    await user.selectOptions(screen.getByDisplayValue("Anthropic"), "cli");
+    await selectAvailableProviderType(
+      user,
+      "cli",
+      "CLI (claude/codex/copilot)",
+    );
 
     // Switch back to API - state should be preserved
-    await user.selectOptions(
-      screen.getByDisplayValue("CLI (claude/codex/copilot)"),
-      "anthropic",
-    );
+    await user.selectOptions(screen.getByRole("combobox"), "anthropic");
 
     expect(screen.getByDisplayValue("My Provider")).toBeInTheDocument();
     expect(screen.getByDisplayValue("sk-test-key")).toBeInTheDocument();
@@ -643,7 +829,11 @@ describe("ProviderForm", () => {
     render(<ProviderForm onSave={onSave} onCancel={onCancel} />);
 
     // Switch to CLI and trigger validation error
-    await user.selectOptions(screen.getByDisplayValue("Anthropic"), "cli");
+    await selectAvailableProviderType(
+      user,
+      "cli",
+      "CLI (claude/codex/copilot)",
+    );
     await user.type(
       screen.getByPlaceholderText("e.g. Anthropic Claude"),
       "My CLI",
@@ -655,10 +845,7 @@ describe("ProviderForm", () => {
     ).toBeInTheDocument();
 
     // Switch back to API - error should clear
-    await user.selectOptions(
-      screen.getByDisplayValue("CLI (claude/codex/copilot)"),
-      "anthropic",
-    );
+    await user.selectOptions(screen.getByRole("combobox"), "anthropic");
 
     expect(
       screen.queryByText("Command is required for CLI providers."),
@@ -689,10 +876,10 @@ describe("ProviderForm", () => {
     );
 
     // First switch to API (should default to anthropic)
-    await user.selectOptions(
-      screen.getByDisplayValue("CLI (claude/codex/copilot)"),
-      "anthropic",
-    );
+    await screen.findByRole("option", {
+      name: "CLI (claude/codex/copilot)",
+    });
+    await user.selectOptions(screen.getByRole("combobox"), "anthropic");
 
     const endpointInput = screen.getByPlaceholderText(
       "https://api.anthropic.com/v1/messages",
@@ -790,7 +977,7 @@ describe("ProviderForm", () => {
     const providerWithSpecialHeaders = {
       ...mockProvider,
       headers: {
-        "X-API-Key": "key-with-123",
+        "X-Client-Key": "key-with-123",
         "X-Request-ID": "req_abc-123_xyz",
       },
     };
@@ -809,7 +996,7 @@ describe("ProviderForm", () => {
       expect(onSave).toHaveBeenCalledWith(
         expect.objectContaining({
           headers: {
-            "X-API-Key": "key-with-123",
+            "X-Client-Key": "key-with-123",
             "X-Request-ID": "req_abc-123_xyz",
           },
         }),
@@ -958,7 +1145,11 @@ describe("ProviderForm", () => {
       screen.getByPlaceholderText("e.g. Anthropic Claude"),
       "My CLI",
     );
-    await user.selectOptions(screen.getByDisplayValue("Anthropic"), "cli");
+    await selectAvailableProviderType(
+      user,
+      "cli",
+      "CLI (claude/codex/copilot)",
+    );
     await user.type(screen.getByPlaceholderText("e.g. claude"), "   ");
     await user.click(screen.getByRole("button", { name: /^save$/i }));
 
@@ -984,7 +1175,9 @@ describe("ProviderForm", () => {
     await user.clear(nameInput);
     await user.type(nameInput, "Modified Name");
 
-    const keyInput = screen.getByPlaceholderText("sk-...");
+    const keyInput = screen.getByPlaceholderText(
+      "Leave blank to keep saved key",
+    );
     await user.clear(keyInput);
     await user.type(keyInput, "modified-key");
 

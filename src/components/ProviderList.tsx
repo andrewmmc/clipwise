@@ -1,53 +1,82 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import useCliProviderEnabled from "../hooks/useCliProviderEnabled";
+import useAsyncAction from "../hooks/useAsyncAction";
 import { tauriCommands } from "../lib/tauri";
+import { PROVIDER_TYPE_LABELS } from "../lib/providers";
 import type { AppConfig, Provider } from "../types/config";
 import useTransientMessage from "../hooks/useTransientMessage";
+import ConfirmDeleteActions from "./ConfirmDeleteActions";
 import EmptyState from "./EmptyState";
+import ErrorBox from "./ErrorBox";
 import ProviderForm from "./ProviderForm";
+import SectionHeader from "./SectionHeader";
 import SuccessBox from "./SuccessBox";
 import { Plus, Pencil, Trash2, Server, Shield } from "lucide-react";
+import { useI18n } from "../lib/i18n";
 
 interface Props {
   config: AppConfig;
-  onRefresh: () => void;
+  onRefresh: () => void | Promise<void>;
+  startCreating?: boolean;
+  onCreateComplete?: () => void;
+  onCreateCancel?: () => void;
 }
 
-const typeLabel: Record<string, string> = {
-  openai: "OpenAI-compatible",
-  anthropic: "Anthropic",
-  cli: "CLI",
-  apple: "Apple Intelligence (On-Device)",
-};
-
-export default function ProviderList({ config, onRefresh }: Props) {
+export default function ProviderList({
+  config,
+  onRefresh,
+  startCreating = false,
+  onCreateComplete,
+  onCreateCancel,
+}: Props) {
+  const { t } = useI18n();
   const [editing, setEditing] = useState<Provider | null>(null);
-  const [creating, setCreating] = useState(false);
-  const [cliEnabled, setCliEnabled] = useState(true);
-
-  useEffect(() => {
-    tauriCommands
-      .isCliProviderEnabled()
-      .then(setCliEnabled)
-      .catch(() => setCliEnabled(false));
-  }, []);
+  const [creating, setCreating] = useState(startCreating);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const {
+    error: mutationError,
+    run: runMutation,
+    clearError,
+  } = useAsyncAction();
+  const cliEnabled = useCliProviderEnabled();
   const {
     message: successMessage,
     showMessage: showSuccessMessage,
     clearMessage: clearSuccessMessage,
   } = useTransientMessage();
 
+  const clearListFeedback = () => {
+    clearSuccessMessage();
+    clearError();
+    setDeleteError(null);
+  };
+
   const handleDelete = async (id: string) => {
     const usedBy = config.actions.filter((a) => a.providerId === id);
     if (usedBy.length > 0) {
-      alert(
-        `Cannot delete: ${usedBy.length} action(s) use this provider. Remove them first.`,
+      setDeleteError(
+        t(
+          "Cannot delete: {{count}} action(s) use this provider. Remove them first.",
+          {
+            count: usedBy.length,
+          },
+        ),
       );
+      setPendingDeleteId(null);
       return;
     }
-    if (!confirm("Delete this provider?")) return;
-    await tauriCommands.deleteProvider(id);
-    onRefresh();
+    try {
+      await runMutation(async () => {
+        await tauriCommands.deleteProvider(id);
+        setPendingDeleteId(null);
+        setDeleteError(null);
+        await onRefresh();
+      });
+    } catch {
+      // useAsyncAction captures the displayed error.
+    }
   };
 
   if (creating) {
@@ -55,12 +84,18 @@ export default function ProviderList({ config, onRefresh }: Props) {
       <ProviderForm
         existingProviders={config.providers}
         onSave={async (data) => {
-          await tauriCommands.addProvider(data);
-          onRefresh();
-          showSuccessMessage("Provider saved successfully.");
-          setCreating(false);
+          await runMutation(async () => {
+            await tauriCommands.addProvider(data);
+            await onRefresh();
+            showSuccessMessage(t("Provider saved successfully."));
+            setCreating(false);
+            onCreateComplete?.();
+          });
         }}
-        onCancel={() => setCreating(false)}
+        onCancel={() => {
+          setCreating(false);
+          onCreateCancel?.();
+        }}
       />
     );
   }
@@ -71,10 +106,12 @@ export default function ProviderList({ config, onRefresh }: Props) {
         initial={editing}
         existingProviders={config.providers}
         onSave={async (data) => {
-          await tauriCommands.updateProvider({ ...data, id: editing.id });
-          onRefresh();
-          showSuccessMessage("Provider saved successfully.");
-          setEditing(null);
+          await runMutation(async () => {
+            await tauriCommands.updateProvider({ ...data, id: editing.id });
+            await onRefresh();
+            showSuccessMessage(t("Provider saved successfully."));
+            setEditing(null);
+          });
         }}
         onCancel={() => setEditing(null)}
       />
@@ -83,47 +120,49 @@ export default function ProviderList({ config, onRefresh }: Props) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-[13px] font-semibold text-text-primary">
-            Providers
-          </h2>
-          <p className="mt-0.5 text-[12px] text-text-tertiary">
-            Configure LLM API{cliEnabled && " or CLI"} providers.
-          </p>
-        </div>
-        <button
-          onClick={() => {
-            clearSuccessMessage();
-            setCreating(true);
-          }}
-          className="btn btn-primary"
-        >
-          <Plus size={14} />
-          Add Provider
-        </button>
-      </div>
+      <SectionHeader
+        title={t("Providers")}
+        description={t(
+          cliEnabled
+            ? "Configure LLM API or CLI providers."
+            : "Configure LLM API providers.",
+        )}
+        actions={
+          <button
+            onClick={() => {
+              clearListFeedback();
+              setCreating(true);
+            }}
+            className="btn btn-primary"
+          >
+            <Plus size={14} />
+            {t("Add Provider")}
+          </button>
+        }
+      />
 
       {successMessage && <SuccessBox message={successMessage} />}
+      {deleteError && <ErrorBox message={deleteError} />}
+      {mutationError && <ErrorBox message={mutationError} />}
 
       <div className="feedback-box feedback-info flex gap-2 text-[12px]">
         <Shield size={14} className="mt-0.5 shrink-0" />
         <div>
           <p>
-            When you use an API provider (OpenAI, Anthropic), your clipboard
-            text is sent to that provider&apos;s servers for processing. Apple
-            Intelligence runs entirely on-device and does not send data
-            externally.
+            {t(
+              "When you use an API provider (OpenAI, Anthropic), your clipboard text is sent to that provider's servers for processing. Apple Intelligence runs entirely on-device and does not send data externally.",
+            )}
           </p>
           <p className="mt-1 text-text-tertiary">
-            API keys are stored locally and never shared with Clipwise or any
-            third party.{" "}
+            {t(
+              "API keys are stored locally and never shared with Clipwise or any third party.",
+            )}{" "}
             <button
               type="button"
               onClick={() => openUrl("https://clipwise.mmc.dev/privacy")}
               className="cursor-pointer underline hover:text-text-secondary"
             >
-              Privacy Policy
+              {t("Privacy Policy")}
             </button>
           </p>
         </div>
@@ -132,8 +171,8 @@ export default function ProviderList({ config, onRefresh }: Props) {
       {config.providers.length === 0 ? (
         <EmptyState
           icon={<Server size={18} />}
-          title="No providers configured"
-          description="Add an API key to start."
+          title={t("No providers configured")}
+          description={t("Add an API key to start.")}
         />
       ) : (
         <div className="space-y-2">
@@ -149,7 +188,7 @@ export default function ProviderList({ config, onRefresh }: Props) {
                     {provider.name}
                   </p>
                   <p className="mt-0.5 text-[12px] text-text-secondary">
-                    {typeLabel[provider.type] ?? provider.type}
+                    {t(PROVIDER_TYPE_LABELS[provider.type])}
                     {provider.defaultModel && ` · ${provider.defaultModel}`}
                     {provider.command && ` · ${provider.command}`}
                   </p>
@@ -161,23 +200,37 @@ export default function ProviderList({ config, onRefresh }: Props) {
                 </div>
                 {!isApple && (
                   <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => {
-                        clearSuccessMessage();
-                        setEditing(provider);
-                      }}
-                      className="btn-icon"
-                      title="Edit"
-                    >
-                      <Pencil size={14} />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(provider.id)}
-                      className="btn-icon btn-icon-danger"
-                      title="Delete"
-                    >
-                      <Trash2 size={14} />
-                    </button>
+                    {pendingDeleteId === provider.id ? (
+                      <ConfirmDeleteActions
+                        onConfirm={() => handleDelete(provider.id)}
+                        onCancel={() => setPendingDeleteId(null)}
+                      />
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            clearListFeedback();
+                            setEditing(provider);
+                          }}
+                          className="btn-icon"
+                          title={t("Edit")}
+                        >
+                          <Pencil size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            clearListFeedback();
+                            setPendingDeleteId(provider.id);
+                          }}
+                          className="btn-icon btn-icon-danger"
+                          title={t("Delete")}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </>
+                    )}
                   </div>
                 )}
               </div>

@@ -1,10 +1,15 @@
-use crate::commands::validate_cmd::normalize_response_str;
 use crate::error::AppError;
 use crate::models::{Provider, SYSTEM_PROMPT};
-use crate::retry::with_http_retry;
+use crate::providers::http::{
+    endpoint_or_default, model_or_default, provider_api_key, secure_provider_client,
+    send_json_and_normalize, validate_provider_endpoint,
+};
 use reqwest::Client;
 use serde_json::json;
-use tracing::{debug, info, warn};
+use tracing::info;
+
+const DEFAULT_ENDPOINT: &str = "https://api.anthropic.com/v1/messages";
+const DEFAULT_MODEL: &str = "claude-sonnet-4-20250514";
 
 pub async fn call_anthropic(
     provider: &Provider,
@@ -12,7 +17,9 @@ pub async fn call_anthropic(
     model: Option<&str>,
     max_tokens: u32,
 ) -> Result<serde_json::Value, AppError> {
-    call_anthropic_with_client(provider, user_message, model, max_tokens, &Client::new()).await
+    validate_provider_endpoint(provider)?;
+    let client = secure_provider_client()?;
+    call_anthropic_with_client(provider, user_message, model, max_tokens, &client).await
 }
 
 pub async fn call_anthropic_with_client(
@@ -22,17 +29,9 @@ pub async fn call_anthropic_with_client(
     max_tokens: u32,
     client: &Client,
 ) -> Result<serde_json::Value, AppError> {
-    let endpoint = provider
-        .endpoint
-        .as_deref()
-        .unwrap_or("https://api.anthropic.com/v1/messages");
-    let api_key = provider
-        .api_key
-        .as_deref()
-        .ok_or_else(|| AppError::Config("Anthropic provider missing apiKey".into()))?;
-    let model_name = model
-        .or(provider.default_model.as_deref())
-        .unwrap_or("claude-sonnet-4-20250514");
+    let endpoint = endpoint_or_default(provider, DEFAULT_ENDPOINT);
+    let api_key = provider_api_key(provider, "Anthropic")?;
+    let model_name = model_or_default(model, provider, DEFAULT_MODEL);
 
     info!(
         provider_id = %provider.id,
@@ -53,79 +52,38 @@ pub async fn call_anthropic_with_client(
         ]
     });
 
-    // Make HTTP request with retry logic for transient errors
-    let body_text = with_http_retry(|| async {
-        let mut req = client
-            .post(endpoint)
-            .header("x-api-key", api_key)
-            .header("anthropic-version", "2023-06-01")
-            .header("Content-Type", "application/json");
-
-        for (key, val) in &provider.headers {
-            if let Some(v) = val.as_str() {
-                req = req.header(key.as_str(), v);
-            }
-        }
-
-        let resp = req.json(&body).send().await.map_err(AppError::Http)?;
-        let status = resp.status();
-
-        if !status.is_success() {
-            warn!(provider_id = %provider.id, status = status.as_u16(), "Anthropic request failed");
-            let error_body = resp.text().await.unwrap_or_default();
-            return Err(AppError::from_http_status(status.as_u16(), &error_body));
-        }
-
-        debug!(provider_id = %provider.id, status = status.as_u16(), "Anthropic request succeeded");
-        resp.text().await.map_err(AppError::Http)
-    })
-    .await?;
-
-    debug!(provider_id = %provider.id, response_bytes = body_text.len(), "Received Anthropic response body");
-
-    let json: serde_json::Value = serde_json::from_str(&body_text)
-        .map_err(|_| AppError::Llm(format!("Failed to parse response as JSON: {}", body_text)))?;
-
-    // Extract content from content[0].text
-    let content = json
-        .get("content")
-        .and_then(serde_json::Value::as_array)
-        .and_then(|content| content.first())
-        .and_then(|item| item.get("text"))
-        .and_then(serde_json::Value::as_str)
-        .ok_or(AppError::InvalidResponse)?;
-
-    normalize_response_str(content)
+    send_json_and_normalize(
+        client,
+        provider,
+        "Anthropic",
+        endpoint,
+        &body,
+        |client, endpoint| {
+            client
+                .post(endpoint)
+                .header("x-api-key", api_key)
+                .header("anthropic-version", "2023-06-01")
+                .header("Content-Type", "application/json")
+        },
+        |json| {
+            json.get("content")
+                .and_then(serde_json::Value::as_array)
+                .and_then(|content| content.first())
+                .and_then(|item| item.get("text"))
+                .and_then(serde_json::Value::as_str)
+                .ok_or(AppError::InvalidResponse)
+        },
+    )
+    .await
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::ProviderType;
-    use tokio::task::JoinError;
+    use crate::models::{ProviderHeaders, ProviderType};
+    use crate::providers::test_helpers::{no_proxy_client, start_mock_server_or_skip};
     use wiremock::matchers::{body_string_contains, header, method, path};
-    use wiremock::{Mock, MockServer, ResponseTemplate};
-
-    async fn start_mock_server_or_skip() -> Option<MockServer> {
-        match tokio::spawn(async { MockServer::start().await }).await {
-            Ok(server) => Some(server),
-            Err(err) if should_skip_mock_server_test(&err) => {
-                eprintln!(
-                    "Skipping HTTP integration test because this environment cannot bind a local port"
-                );
-                None
-            }
-            Err(err) => panic!("Mock server startup failed unexpectedly: {err}"),
-        }
-    }
-
-    fn should_skip_mock_server_test(err: &JoinError) -> bool {
-        err.is_panic()
-    }
-
-    fn no_proxy_client() -> Client {
-        Client::builder().no_proxy().build().unwrap()
-    }
+    use wiremock::{Mock, ResponseTemplate};
 
     fn make_provider(server_uri: &str) -> Provider {
         Provider {
@@ -134,7 +92,7 @@ mod tests {
             provider_type: ProviderType::Anthropic,
             endpoint: Some(format!("{}/v1/messages", server_uri)),
             api_key: Some("test-key".into()),
-            headers: serde_json::Map::new(),
+            headers: ProviderHeaders::new(),
             default_model: None,
             command: None,
             args: vec![],
@@ -246,7 +204,10 @@ mod tests {
             &no_proxy_client(),
         )
         .await;
-        assert!(matches!(result, Err(AppError::NetworkError)));
+        assert!(matches!(result, Err(AppError::Llm(_))));
+        let message = result.unwrap_err().to_string();
+        assert!(message.contains("500"));
+        assert!(!message.contains("Server Error"));
     }
 
     #[tokio::test]
@@ -458,10 +419,7 @@ mod tests {
             .await;
 
         let mut provider = make_provider(&server.uri());
-        provider.headers.insert(
-            "x-org-id".into(),
-            serde_json::Value::String("org-123".into()),
-        );
+        provider.headers.insert("x-org-id".into(), "org-123".into());
         let result =
             call_anthropic_with_client(&provider, "test", None, 1024, &no_proxy_client()).await;
         assert!(result.is_ok(), "custom header must be forwarded");

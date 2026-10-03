@@ -1,15 +1,31 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
+import useCliProviderEnabled from "../hooks/useCliProviderEnabled";
+import useProviderFormState, {
+  getInitialProviderFormState,
+} from "../hooks/useProviderFormState";
+import { getAppleAvailabilityMessage } from "../lib/appleAvailability";
+import { getErrorMessage } from "../lib/errors";
+import { PROVIDER_OPTION_LABELS } from "../lib/providers";
 import { tauriCommands } from "../lib/tauri";
-import type {
-  AppleModelAvailability,
-  Provider,
-  ProviderType,
-} from "../types/config";
-import { ArrowLeft, ChevronDown, RotateCcw, Save } from "lucide-react";
+import {
+  isApiProviderType,
+  isProviderType,
+  validateProviderForm,
+  validateProviderHeaders,
+} from "../lib/validation";
+import type { AppleModelAvailability, Provider } from "../types/config";
+import { ChevronDown } from "lucide-react";
 import ApiProviderForm from "./ApiProviderForm";
 import CliProviderForm from "./CliProviderForm";
+import EditorHeader from "./EditorHeader";
 import ErrorBox from "./ErrorBox";
+import FormFooter from "./FormFooter";
 import useTransientMessage from "../hooks/useTransientMessage";
+import { useI18n } from "../lib/i18n";
+import {
+  AppleProviderSection,
+  ProviderTypeOption,
+} from "./ProviderFormSections";
 
 interface Props {
   initial?: Provider;
@@ -18,62 +34,25 @@ interface Props {
   onCancel: () => void;
 }
 
-const DEFAULT_CLI_ARGS = ["-p"];
-
-function getAppleAvailabilityMessage(
-  availability: AppleModelAvailability | null,
-): string | null {
-  if (!availability || availability.available) return null;
-
-  switch (availability.reason) {
-    case "not_enabled":
-      return "Apple Intelligence is available on this Mac but not enabled in system settings.";
-    case "not_ready":
-      return "Apple Intelligence is still preparing its on-device model on this Mac.";
-    case "not_supported":
-      return "Apple Intelligence is not supported on this Mac.";
-    default:
-      return "Apple Intelligence is currently unavailable on this Mac.";
-  }
-}
-
-function validateEndpoint(endpoint: string) {
-  const trimmed = endpoint.trim();
-  if (!trimmed) return null;
-  if (!trimmed.startsWith("https://")) {
-    return "Endpoint URL must be a valid https:// URL.";
-  }
-  try {
-    new URL(trimmed);
-    return null;
-  } catch {
-    return "Endpoint URL must be a valid https:// URL.";
-  }
-}
-
 export default function ProviderForm({
   initial,
   existingProviders = [],
   onSave,
   onCancel,
 }: Props) {
-  const [name, setName] = useState(initial?.name ?? "");
-  const [type, setType] = useState<ProviderType>(initial?.type ?? "anthropic");
-  const [endpoint, setEndpoint] = useState(initial?.endpoint ?? "");
-  const [apiKey, setApiKey] = useState(initial?.apiKey ?? "");
-  const [defaultModel, setDefaultModel] = useState(initial?.defaultModel ?? "");
-  const [command, setCommand] = useState(initial?.command ?? "");
-  const [args, setArgs] = useState<string[]>(
-    initial?.type === "cli" ? (initial.args ?? []) : [],
-  );
-  const [headers, setHeaders] = useState<[string, string][]>(
-    Object.entries(initial?.headers ?? {}),
-  );
+  const { locale, t } = useI18n();
+  const nameId = useId();
+  const typeId = useId();
+  const [form, dispatch] = useProviderFormState(initial);
   const [saving, setSaving] = useState(false);
   const [testingCommand, setTestingCommand] = useState(false);
-  const [cliEnabled, setCliEnabled] = useState(true);
+  const [testingConnection, setTestingConnection] = useState(false);
+  const cliEnabled = useCliProviderEnabled();
   const [error, setError] = useState<string | null>(null);
   const [commandTestError, setCommandTestError] = useState<string | null>(null);
+  const [connectionTestError, setConnectionTestError] = useState<string | null>(
+    null,
+  );
   const [appleAvailability, setAppleAvailability] =
     useState<AppleModelAvailability | null>(null);
   const {
@@ -81,15 +60,25 @@ export default function ProviderForm({
     showMessage: showCommandTestSuccess,
     clearMessage: clearCommandTestSuccess,
   } = useTransientMessage();
+  const {
+    message: connectionTestSuccess,
+    showMessage: showConnectionTestSuccess,
+    clearMessage: clearConnectionTestSuccess,
+  } = useTransientMessage();
 
   const clearFormFeedback = () => setError(null);
   const clearCommandFeedback = () => {
     setCommandTestError(null);
     clearCommandTestSuccess();
   };
+  const clearConnectionFeedback = () => {
+    setConnectionTestError(null);
+    clearConnectionTestSuccess();
+  };
   const clearAllFeedback = () => {
     clearFormFeedback();
     clearCommandFeedback();
+    clearConnectionFeedback();
   };
 
   useEffect(() => {
@@ -111,96 +100,156 @@ export default function ProviderForm({
         }
       });
 
-    void tauriCommands
-      .isCliProviderEnabled()
-      .then((enabled) => {
-        if (!cancelled) {
-          setCliEnabled(enabled);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setCliEnabled(false);
-        }
-      });
-
     return () => {
       cancelled = true;
     };
   }, []);
 
   const appleUnavailableMessage =
-    type === "apple" ? getAppleAvailabilityMessage(appleAvailability) : null;
+    form.type === "apple"
+      ? appleAvailability === null
+        ? t("Checking Apple Intelligence availability…")
+        : getAppleAvailabilityMessage(appleAvailability, locale)
+      : null;
   const appleProviderExists = existingProviders.some(
     (provider) => provider.type === "apple" && provider.id !== initial?.id,
   );
   const appleDuplicateMessage = appleProviderExists
-    ? "Only one Apple Intelligence provider can be configured."
+    ? t("Only one Apple Intelligence provider can be configured.")
     : null;
+  const savedHeaderNames = initial
+    ? Object.keys(initial.headers ?? {})
+    : undefined;
   const appleOptionDisabled =
-    appleAvailability?.available === false || appleProviderExists;
+    appleAvailability?.available !== true || appleProviderExists;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) {
-      setError("Provider name is required.");
+    if (form.type === "apple" && appleAvailability?.available !== true) {
+      setError(
+        appleUnavailableMessage ??
+          t("Apple Intelligence is currently unavailable on this Mac."),
+      );
       return;
     }
-    if (type !== "cli" && type !== "apple" && !apiKey.trim()) {
-      setError("API key is required for API providers.");
+    if (form.type === "cli" && !cliEnabled) {
+      setError(t("CLI providers are not available in this build."));
       return;
     }
-    if (type !== "cli" && type !== "apple") {
-      const endpointError = validateEndpoint(endpoint);
-      if (endpointError) {
-        setError(endpointError);
-        return;
-      }
-    }
-    if (type === "cli" && !command.trim()) {
-      setError("Command is required for CLI providers.");
+    const validationError = validateProviderForm(
+      {
+        name: form.name,
+        type: form.type,
+        endpoint: form.endpoint,
+        apiKey: form.apiKey,
+        command: form.command,
+      },
+      appleProviderExists,
+      Boolean(initial && isApiProviderType(initial.type)),
+      locale,
+    );
+    if (validationError) {
+      setError(validationError);
       return;
     }
-    if (type === "apple" && appleProviderExists) {
-      setError("Only one Apple Intelligence provider can be configured.");
+    const headersError = isApiProviderType(form.type)
+      ? validateProviderHeaders(form.headers, locale, savedHeaderNames)
+      : null;
+    if (headersError) {
+      setError(headersError);
       return;
     }
     setSaving(true);
     setError(null);
     try {
-      const isApi = type !== "cli" && type !== "apple";
-      const headersObj = Object.fromEntries(headers.filter(([k]) => k.trim()));
+      const isApi = isApiProviderType(form.type);
+      const headersObj = Object.fromEntries(
+        form.headers.filter(([k]) => k.trim()),
+      );
       await onSave({
-        name: name.trim(),
-        type,
-        endpoint: isApi ? endpoint.trim() || undefined : undefined,
-        apiKey: isApi ? apiKey.trim() || undefined : undefined,
+        name: form.name.trim(),
+        type: form.type,
+        endpoint: isApi ? form.endpoint.trim() || undefined : undefined,
+        apiKey: isApi ? form.apiKey.trim() || undefined : undefined,
         headers: isApi ? headersObj : {},
-        defaultModel: defaultModel.trim() || undefined,
-        command: type === "cli" ? command.trim() : undefined,
-        args: type === "cli" ? args.filter(Boolean) : [],
+        defaultModel: form.defaultModel.trim() || undefined,
+        command: form.type === "cli" ? form.command.trim() : undefined,
+        args: form.type === "cli" ? form.args.filter(Boolean) : [],
       });
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(getErrorMessage(e));
     } finally {
       setSaving(false);
     }
   };
 
+  const handleTestConnection = async () => {
+    const validationError = validateProviderForm(
+      {
+        name: form.name,
+        type: form.type,
+        endpoint: form.endpoint,
+        apiKey: form.apiKey,
+        command: form.command,
+      },
+      appleProviderExists,
+      Boolean(initial && isApiProviderType(initial.type)),
+      locale,
+    );
+    if (validationError) {
+      clearConnectionTestSuccess();
+      setConnectionTestError(validationError);
+      return;
+    }
+    const headersError = validateProviderHeaders(
+      form.headers,
+      locale,
+      savedHeaderNames,
+    );
+    if (headersError) {
+      clearConnectionTestSuccess();
+      setConnectionTestError(headersError);
+      return;
+    }
+
+    setTestingConnection(true);
+    setConnectionTestError(null);
+    clearConnectionTestSuccess();
+    try {
+      const headersObj = Object.fromEntries(
+        form.headers.filter(([key]) => key.trim()),
+      );
+      const result = await tauriCommands.testProvider({
+        id: initial?.id ?? "",
+        name: form.name.trim(),
+        type: form.type,
+        endpoint: form.endpoint.trim() || undefined,
+        apiKey: form.apiKey.trim() || undefined,
+        headers: headersObj,
+        defaultModel: form.defaultModel.trim() || undefined,
+      });
+      showConnectionTestSuccess(result);
+    } catch (e) {
+      setConnectionTestError(getErrorMessage(e));
+    } finally {
+      setTestingConnection(false);
+    }
+  };
+
   const handleTestCommand = async () => {
-    if (!command.trim()) {
+    if (!form.command.trim()) {
       clearCommandTestSuccess();
-      setCommandTestError("Enter a command before testing.");
+      setCommandTestError(t("Enter a command before testing."));
       return;
     }
     setTestingCommand(true);
     setCommandTestError(null);
     clearCommandTestSuccess();
     try {
-      const result = await tauriCommands.testCliCommand(command.trim());
+      const result = await tauriCommands.testCliCommand(form.command.trim());
       showCommandTestSuccess(result);
     } catch (e) {
-      setCommandTestError(e instanceof Error ? e.message : String(e));
+      setCommandTestError(getErrorMessage(e));
     } finally {
       setTestingCommand(false);
     }
@@ -208,54 +257,74 @@ export default function ProviderForm({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <button onClick={onCancel} className="btn-icon">
-          <ArrowLeft size={16} />
-        </button>
-        <h2 className="text-[13px] font-semibold text-text-primary">
-          {initial ? "Edit Provider" : "New Provider"}
-        </h2>
-      </div>
+      <EditorHeader
+        title={initial ? t("Edit Provider") : t("New Provider")}
+        onBack={onCancel}
+      />
 
       <form onSubmit={handleSubmit} className="card space-y-4 p-4">
         {error && <ErrorBox message={error} />}
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="label label-required">Name</label>
+            <label htmlFor={nameId} className="label label-required">
+              {t("Name")}
+            </label>
             <input
+              id={nameId}
               type="text"
-              value={name}
+              value={form.name}
               onChange={(e) => {
-                setName(e.target.value);
+                dispatch({
+                  type: "field",
+                  field: "name",
+                  value: e.target.value,
+                });
                 clearFormFeedback();
               }}
-              placeholder="e.g. Anthropic Claude"
+              placeholder={t("e.g. Anthropic Claude")}
               className="input"
             />
           </div>
           <div>
-            <label className="label label-required">Type</label>
+            <label htmlFor={typeId} className="label label-required">
+              {t("Type")}
+            </label>
             <div className="relative">
               <select
-                value={type}
+                id={typeId}
+                value={form.type}
                 onChange={(e) => {
-                  const nextType = e.target.value as ProviderType;
-                  setType(nextType);
+                  const nextType = e.target.value;
+                  if (!isProviderType(nextType)) return;
                   clearAllFeedback();
-                  if (nextType === "cli" && !initial && args.length === 0) {
-                    setArgs(DEFAULT_CLI_ARGS);
-                  }
+                  dispatch({
+                    type: "setType",
+                    value: nextType,
+                    defaultArgs:
+                      nextType === "cli" && !initial && form.args.length === 0,
+                  });
                 }}
                 className="input select"
               >
-                <option value="apple" disabled={appleOptionDisabled}>
-                  Apple Intelligence (On-Device)
-                </option>
-                <option value="anthropic">Anthropic</option>
-                <option value="openai">OpenAI-compatible</option>
+                <ProviderTypeOption
+                  type="apple"
+                  label={t(PROVIDER_OPTION_LABELS.apple)}
+                  disabled={appleOptionDisabled}
+                />
+                <ProviderTypeOption
+                  type="anthropic"
+                  label={t(PROVIDER_OPTION_LABELS.anthropic)}
+                />
+                <ProviderTypeOption
+                  type="openai"
+                  label={t(PROVIDER_OPTION_LABELS.openai)}
+                />
                 {cliEnabled && (
-                  <option value="cli">CLI (claude/codex/copilot)</option>
+                  <ProviderTypeOption
+                    type="cli"
+                    label={t(PROVIDER_OPTION_LABELS.cli)}
+                  />
                 )}
               </select>
               <ChevronDown
@@ -266,135 +335,100 @@ export default function ProviderForm({
             {appleOptionDisabled && (
               <p className="mt-1 text-[12px] text-text-tertiary">
                 {appleDuplicateMessage ??
-                  getAppleAvailabilityMessage(appleAvailability)}
+                  getAppleAvailabilityMessage(appleAvailability, locale)}
               </p>
             )}
           </div>
         </div>
 
-        {type === "apple" ? (
-          <div className="space-y-1">
-            <p className="text-[12px] text-text-secondary">
-              Uses Apple&apos;s on-device Foundation Model. No API key or
-              configuration needed. Runs privately on your Mac.
-            </p>
-            {(appleDuplicateMessage || appleUnavailableMessage) && (
-              <p className="text-[12px] text-amber-600">
-                {appleDuplicateMessage ?? appleUnavailableMessage}
-              </p>
-            )}
-          </div>
-        ) : type !== "cli" ? (
+        {form.type === "apple" ? (
+          <AppleProviderSection
+            duplicateMessage={appleDuplicateMessage}
+            unavailableMessage={appleUnavailableMessage}
+          />
+        ) : isApiProviderType(form.type) ? (
           <ApiProviderForm
-            type={type}
-            endpoint={endpoint}
-            apiKey={apiKey}
-            defaultModel={defaultModel}
-            headers={headers}
+            type={form.type}
+            hasStoredApiKey={Boolean(
+              initial && isApiProviderType(initial.type),
+            )}
+            endpoint={form.endpoint}
+            apiKey={form.apiKey}
+            defaultModel={form.defaultModel}
+            headers={form.headers}
+            keepBlankHeaderValues={Boolean(initial)}
+            testingConnection={testingConnection}
+            connectionTestError={connectionTestError}
+            connectionTestSuccess={connectionTestSuccess}
             onEndpointChange={(value) => {
-              setEndpoint(value);
-              clearFormFeedback();
+              dispatch({ type: "field", field: "endpoint", value });
+              clearAllFeedback();
             }}
             onApiKeyChange={(value) => {
-              setApiKey(value);
-              clearFormFeedback();
+              dispatch({ type: "field", field: "apiKey", value });
+              clearAllFeedback();
             }}
             onDefaultModelChange={(value) => {
-              setDefaultModel(value);
-              clearFormFeedback();
+              dispatch({ type: "field", field: "defaultModel", value });
+              clearAllFeedback();
             }}
             onAddHeader={() => {
-              setHeaders((current) => [...current, ["", ""]]);
-              clearFormFeedback();
+              dispatch({ type: "addHeader" });
+              clearAllFeedback();
             }}
             onHeaderKeyChange={(index, value) => {
-              setHeaders((current) =>
-                current.map((item, itemIndex) =>
-                  itemIndex === index ? [value, item[1]] : item,
-                ),
-              );
-              clearFormFeedback();
+              dispatch({ type: "setHeaderKey", index, value });
+              clearAllFeedback();
             }}
             onHeaderValueChange={(index, value) => {
-              setHeaders((current) =>
-                current.map((item, itemIndex) =>
-                  itemIndex === index ? [item[0], value] : item,
-                ),
-              );
-              clearFormFeedback();
+              dispatch({ type: "setHeaderValue", index, value });
+              clearAllFeedback();
             }}
             onRemoveHeader={(index) => {
-              setHeaders((current) =>
-                current.filter((_, itemIndex) => itemIndex !== index),
-              );
-              clearFormFeedback();
+              dispatch({ type: "removeHeader", index });
+              clearAllFeedback();
             }}
+            onTestConnection={handleTestConnection}
           />
         ) : (
           <CliProviderForm
-            command={command}
-            args={args}
+            command={form.command}
+            args={form.args}
             testingCommand={testingCommand}
             commandTestError={commandTestError}
             commandTestSuccess={commandTestSuccess}
             onCommandChange={(value) => {
-              setCommand(value);
+              dispatch({ type: "field", field: "command", value });
               clearAllFeedback();
             }}
             onAddArg={() => {
-              setArgs((current) => [...current, ""]);
+              dispatch({ type: "addArg" });
               clearAllFeedback();
             }}
             onArgChange={(index, value) => {
-              setArgs((current) =>
-                current.map((item, itemIndex) =>
-                  itemIndex === index ? value : item,
-                ),
-              );
+              dispatch({ type: "setArg", index, value });
               clearAllFeedback();
             }}
             onRemoveArg={(index) => {
-              setArgs((current) =>
-                current.filter((_, itemIndex) => itemIndex !== index),
-              );
+              dispatch({ type: "removeArg", index });
               clearAllFeedback();
             }}
             onTestCommand={handleTestCommand}
           />
         )}
 
-        <div className="flex justify-end gap-2 pt-2">
-          <button type="button" onClick={onCancel} className="btn btn-ghost">
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setName(initial?.name ?? "");
-              setType(initial?.type ?? "anthropic");
-              setEndpoint(initial?.endpoint ?? "");
-              setApiKey(initial?.apiKey ?? "");
-              setDefaultModel(initial?.defaultModel ?? "");
-              setCommand(initial?.command ?? "");
-              setArgs(initial?.type === "cli" ? (initial.args ?? []) : []);
-              setHeaders(Object.entries(initial?.headers ?? {}));
-              clearAllFeedback();
-            }}
-            disabled={saving || testingCommand}
-            className="btn btn-secondary"
-          >
-            <RotateCcw size={14} />
-            Reset
-          </button>
-          <button
-            type="submit"
-            disabled={saving || testingCommand}
-            className="btn btn-primary"
-          >
-            <Save size={14} />
-            {saving ? "Saving…" : "Save"}
-          </button>
-        </div>
+        <FormFooter
+          saving={saving}
+          disabled={testingCommand || testingConnection}
+          onCancel={onCancel}
+          onReset={() => {
+            dispatch({
+              type: "reset",
+              value: getInitialProviderFormState(initial),
+            });
+            clearAllFeedback();
+          }}
+        />
       </form>
     </div>
   );

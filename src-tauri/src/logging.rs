@@ -85,10 +85,7 @@ fn default_env_filter() -> EnvFilter {
 }
 
 fn log_file_path() -> Result<PathBuf, Box<dyn Error + Send + Sync>> {
-    let base_dir = dirs::data_local_dir()
-        .or_else(|| dirs::home_dir().map(|home| home.join(".local").join("share")))
-        .ok_or("cannot locate local app data directory")?;
-    let log_dir = base_dir.join("clipwise").join("logs");
+    let log_dir = crate::paths::app_data_dir()?.join("logs");
     fs::create_dir_all(&log_dir)?;
     Ok(log_dir.join(LOG_FILE_NAME))
 }

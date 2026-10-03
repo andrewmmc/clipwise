@@ -13,11 +13,14 @@ pub struct AppInfo {
 
 #[cfg_attr(not(test), tauri::command)]
 pub fn get_app_info() -> AppInfo {
-    let version = option_env!("LLM_ACTIONS_VERSION")
+    let version = option_env!("CLIPWISE_VERSION")
+        .or(option_env!("LLM_ACTIONS_VERSION"))
         .map(String::from)
         .unwrap_or_else(|| env!("CARGO_PKG_VERSION").to_string());
 
-    let commit_hash = option_env!("LLM_ACTIONS_COMMIT_HASH").map(String::from);
+    let commit_hash = option_env!("CLIPWISE_COMMIT_HASH")
+        .or(option_env!("LLM_ACTIONS_COMMIT_HASH"))
+        .map(String::from);
 
     AppInfo {
         version,

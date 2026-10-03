@@ -1,6 +1,9 @@
 import { Plus, Trash2 } from "lucide-react";
+import { useId } from "react";
+import { buildCommandPreview } from "../lib/cliPreview";
 import ErrorBox from "./ErrorBox";
 import SuccessBox from "./SuccessBox";
+import { useI18n } from "../lib/i18n";
 
 interface Props {
   command: string;
@@ -21,23 +24,6 @@ const CLI_INPUT_PROPS = {
   spellCheck: false,
 };
 
-/** Quote a token for shell preview if it contains whitespace or shell metacharacters. */
-function shellQuote(token: string): string {
-  if (token === "") return "''";
-  if (/^[A-Za-z0-9_\-./:=@%+,]+$/.test(token)) return token;
-  return `'${token.replace(/'/g, `'\\''`)}'`;
-}
-
-function buildCommandPreview(command: string, args: string[]): string {
-  const trimmedCommand = command.trim();
-  const cleanArgs = args.map((a) => a.trim()).filter((a) => a.length > 0);
-  const parts: string[] = [];
-  if (trimmedCommand) parts.push(trimmedCommand);
-  parts.push(...cleanArgs.map(shellQuote));
-  parts.push(shellQuote("<your prompt>"));
-  return parts.join(" ");
-}
-
 export default function CliProviderForm({
   command,
   args,
@@ -50,23 +36,29 @@ export default function CliProviderForm({
   onRemoveArg,
   onTestCommand,
 }: Props) {
+  const { t } = useI18n();
+  const commandId = useId();
+  const argsId = useId();
   const commandPreview = buildCommandPreview(command, args);
   return (
     <>
       <div>
-        <label className="label label-required">Command</label>
+        <label htmlFor={commandId} className="label label-required">
+          {t("Command")}
+        </label>
         <p className="helper-text mb-2">
-          Find the binary path with{" "}
+          {t("Find the binary path with")}{" "}
           <code className="rounded bg-surface-tertiary px-1 py-0.5">
             which claude
           </code>
         </p>
         <div className="flex gap-2">
           <input
+            id={commandId}
             type="text"
             value={command}
             onChange={(e) => onCommandChange(e.target.value)}
-            placeholder="e.g. claude"
+            placeholder={t("e.g. claude")}
             className="input flex-1 font-mono"
             {...CLI_INPUT_PROPS}
           />
@@ -76,7 +68,7 @@ export default function CliProviderForm({
             disabled={testingCommand}
             className="btn btn-secondary"
           >
-            {testingCommand ? "Testing…" : "Test"}
+            {testingCommand ? t("Testing…") : t("Test")}
           </button>
         </div>
         {commandTestError && (
@@ -89,27 +81,31 @@ export default function CliProviderForm({
 
       <div>
         <div className="mb-2 flex items-center justify-between">
-          <label className="label mb-0">Arguments</label>
+          <label className="label mb-0" id={`${argsId}-label`}>
+            {t("Arguments")}
+          </label>
           <button
             type="button"
             onClick={onAddArg}
             className="btn btn-ghost py-1 text-[12px]"
           >
             <Plus size={12} />
-            Add arg
+            {t("Add arg")}
           </button>
         </div>
         <p className="helper-text mb-2">
-          Configure headless mode to capture stdout (e.g. -p).
+          {t("Configure headless mode to capture stdout (e.g. -p).")}
         </p>
         <div className="space-y-2">
           {args.map((arg, index) => (
             <div key={index} className="flex gap-2">
               <input
+                id={`${argsId}-${index}`}
                 type="text"
                 value={arg}
                 onChange={(e) => onArgChange(index, e.target.value)}
-                placeholder="e.g. --print"
+                placeholder={t("e.g. --print")}
+                aria-label={t("Arguments")}
                 className="input input-sm flex-1 font-mono"
                 {...CLI_INPUT_PROPS}
               />
@@ -117,6 +113,7 @@ export default function CliProviderForm({
                 type="button"
                 onClick={() => onRemoveArg(index)}
                 className="btn-icon btn-icon-danger flex size-[30px] shrink-0 items-center justify-center"
+                aria-label={t("Remove argument")}
               >
                 <Trash2 size={14} />
               </button>
@@ -124,20 +121,21 @@ export default function CliProviderForm({
           ))}
           {args.length === 0 && (
             <p className="helper-text">
-              No arguments. Common: --print -m sonnet
+              {t("No arguments. Common: --print -m sonnet")}
             </p>
           )}
         </div>
       </div>
 
       <div>
-        <label className="label mb-2">Command preview</label>
+        <label className="label mb-2">{t("Command preview")}</label>
         <pre className="overflow-x-auto whitespace-pre-wrap break-all rounded bg-surface-tertiary px-3 py-2 font-mono text-[12px]">
           {commandPreview}
         </pre>
         <p className="helper-text mt-2">
-          Your copied text is appended as the final argument when the action
-          runs.
+          {t(
+            "The system prompt and copied text are sent through standard input so they are not exposed in the process argument list.",
+          )}
         </p>
       </div>
     </>

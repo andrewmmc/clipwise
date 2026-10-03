@@ -11,7 +11,13 @@ import { mockConfig, emptyConfig } from "./test/fixtures";
 
 describe("App", () => {
   beforeEach(() => vi.clearAllMocks());
-  afterEach(() => cleanup());
+  afterEach(() => {
+    cleanup();
+    Object.defineProperty(window.navigator, "language", {
+      configurable: true,
+      value: "en-US",
+    });
+  });
 
   // ── Loading state ─────────────────────────────────────────────────────────────
 
@@ -28,8 +34,12 @@ describe("App", () => {
     await waitFor(() =>
       expect(screen.getByText("Clipwise")).toBeInTheDocument(),
     );
+    expect(screen.getByRole("button", { name: /actions/i })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
     expect(
-      screen.getByRole("button", { name: /actions/i }),
+      screen.getByRole("navigation", { name: "Settings sections" }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /providers/i }),
@@ -45,6 +55,169 @@ describe("App", () => {
     render(<App />);
     await waitFor(() => screen.getByText("Clipwise"));
     expect(screen.getByText("No actions yet")).toBeInTheDocument();
+  });
+
+  it("renders the interface in Traditional Chinese", async () => {
+    mockInvoke.mockResolvedValue({
+      ...emptyConfig,
+      settings: { ...emptyConfig.settings, language: "zh-TW" },
+    });
+    render(<App />);
+
+    await waitFor(() =>
+      expect(screen.getByText("尚未有操作")).toBeInTheDocument(),
+    );
+    expect(screen.getByRole("button", { name: "操作" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "設定" })).toBeInTheDocument();
+  });
+
+  it("shows guided onboarding for an incomplete first-run config", async () => {
+    mockInvoke.mockImplementation((cmd) => {
+      if (cmd === "get_config") {
+        return Promise.resolve({
+          ...emptyConfig,
+          settings: {
+            ...emptyConfig.settings,
+            onboardingCompleted: false,
+          },
+        });
+      }
+      if (cmd === "prepare_apple_provider") {
+        return Promise.resolve({ available: false, reason: "not_supported" });
+      }
+      return Promise.resolve(undefined);
+    });
+
+    render(<App />);
+
+    await waitFor(() =>
+      expect(screen.getByText("Welcome to Clipwise")).toBeInTheDocument(),
+    );
+    expect(screen.getByText("1. Copy")).toBeInTheDocument();
+    expect(screen.getByText("2. Choose")).toBeInTheDocument();
+    expect(screen.getByText("3. Paste")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Finish Setup" })).toBeDisabled();
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: /set up provider/i }),
+      ).toBeInTheDocument(),
+    );
+  });
+
+  it("opens the provider editor from onboarding and returns to the guide", async () => {
+    mockInvoke.mockImplementation((cmd) => {
+      if (cmd === "get_config") {
+        return Promise.resolve({
+          ...emptyConfig,
+          settings: {
+            ...emptyConfig.settings,
+            onboardingCompleted: false,
+          },
+        });
+      }
+      if (cmd === "prepare_apple_provider") {
+        return Promise.resolve({ available: false, reason: "not_supported" });
+      }
+      return Promise.resolve(undefined);
+    });
+    const user = userEvent.setup();
+    render(<App />);
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: /set up provider/i }),
+      ).toBeInTheDocument(),
+    );
+
+    await user.click(screen.getByRole("button", { name: /set up provider/i }));
+    expect(screen.getByText("New Provider")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Back" }));
+    expect(screen.getByText("Welcome to Clipwise")).toBeInTheDocument();
+  });
+
+  it("opens the existing action editor with the chosen onboarding template", async () => {
+    const config = {
+      ...mockConfig,
+      actions: [],
+      settings: { ...mockConfig.settings, onboardingCompleted: false },
+    };
+    mockInvoke.mockImplementation((cmd) => {
+      if (cmd === "get_config") return Promise.resolve(config);
+      if (cmd === "prepare_apple_provider") {
+        return Promise.resolve({ available: false, reason: "not_supported" });
+      }
+      return Promise.resolve(undefined);
+    });
+
+    render(<App />);
+    await waitFor(() => screen.getByText("Welcome to Clipwise"));
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Improve writing" }));
+
+    expect(screen.getByText("New Action")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Improve writing")).toBeInTheDocument();
+    expect(
+      screen.getByDisplayValue(
+        "Improve the writing quality, clarity, and flow of the following text.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("finishes onboarding only after provider and action prerequisites exist", async () => {
+    let config = {
+      ...mockConfig,
+      settings: { ...mockConfig.settings, onboardingCompleted: false },
+    };
+    mockInvoke.mockImplementation((cmd, args) => {
+      if (cmd === "get_config") return Promise.resolve(config);
+      if (cmd === "prepare_apple_provider") {
+        return Promise.resolve({ available: false, reason: "not_supported" });
+      }
+      if (cmd === "save_settings") {
+        const settings = (args as { settings: typeof config.settings })
+          .settings;
+        config = { ...config, settings };
+        return Promise.resolve(undefined);
+      }
+      return Promise.resolve(undefined);
+    });
+
+    render(<App />);
+    await waitFor(() => screen.getByText("Welcome to Clipwise"));
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Finish Setup" }));
+
+    await waitFor(() =>
+      expect(mockInvoke).toHaveBeenCalledWith("save_settings", {
+        settings: expect.objectContaining({ onboardingCompleted: true }),
+      }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("button", { name: "Getting Started" }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(screen.getAllByText("Actions").length).toBeGreaterThan(0);
+  });
+
+  it("reopens the guide from Settings without resetting completion", async () => {
+    mockInvoke.mockResolvedValue(mockConfig);
+    render(<App />);
+    await waitFor(() => screen.getByText("Clipwise"));
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole("button", { name: /settings/i }));
+    await user.click(screen.getByRole("button", { name: "Show Guide" }));
+    expect(screen.getByText("Welcome to Clipwise")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Done" }));
+
+    expect(mockInvoke).not.toHaveBeenCalledWith(
+      "save_settings",
+      expect.anything(),
+    );
+    expect(
+      screen.queryByRole("button", { name: "Getting Started" }),
+    ).not.toBeInTheDocument();
   });
 
   // ── Default tab state ─────────────────────────────────────────────────────────
@@ -66,6 +239,19 @@ describe("App", () => {
       expect(screen.getByText("Failed to load config")).toBeInTheDocument(),
     );
     expect(screen.getByText(/disk error/)).toBeInTheDocument();
+  });
+
+  it("localizes boot errors from the browser language", async () => {
+    Object.defineProperty(window.navigator, "language", {
+      configurable: true,
+      value: "zh-Hant-TW",
+    });
+    mockInvoke.mockRejectedValue(new Error("disk error"));
+    render(<App />);
+    await waitFor(() =>
+      expect(screen.getByText("無法載入設定")).toBeInTheDocument(),
+    );
+    expect(screen.getByRole("button", { name: "重試" })).toBeInTheDocument();
   });
 
   it("shows error with non-Error rejection", async () => {
@@ -195,6 +381,47 @@ describe("App", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("shows Actions content when active tab is no longer available", async () => {
+    const disabledHistoryConfig = {
+      ...mockConfig,
+      settings: { ...mockConfig.settings, historyEnabled: false },
+    };
+    let currentConfig = mockConfig;
+    mockInvoke.mockImplementation((cmd, args) => {
+      if (cmd === "get_config") {
+        return Promise.resolve(currentConfig);
+      }
+      if (cmd === "get_history") {
+        return Promise.resolve([]);
+      }
+      if (cmd === "save_settings") {
+        expect(args).toEqual({
+          settings: expect.objectContaining({ historyEnabled: false }),
+        });
+        currentConfig = disabledHistoryConfig;
+        return Promise.resolve(undefined);
+      }
+      return Promise.resolve(undefined);
+    });
+
+    render(<App />);
+    await waitFor(() => screen.getByText("Clipwise"));
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /history/i }));
+    await waitFor(() => screen.getByText("No history yet"));
+    await user.click(screen.getByRole("button", { name: /settings/i }));
+    await user.click(screen.getByRole("switch", { name: /enable history/i }));
+    await user.click(screen.getByRole("button", { name: "Disable" }));
+
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("button", { name: /history/i }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(screen.getByText("Actions")).toBeInTheDocument();
+  });
+
   it("switching tabs persists active tab state", async () => {
     mockInvoke.mockResolvedValue(mockConfig);
     render(<App />);
@@ -241,5 +468,31 @@ describe("App", () => {
     expect(
       screen.queryByRole("button", { name: /actions/i }),
     ).not.toBeInTheDocument();
+  });
+
+  it("keeps the app visible when a settings refresh fails", async () => {
+    mockInvoke.mockImplementation((cmd) => {
+      if (cmd === "get_config") {
+        return mockInvoke.mock.calls.filter(([name]) => name === "get_config")
+          .length === 1
+          ? Promise.resolve(mockConfig)
+          : Promise.reject(new Error("refresh failed"));
+      }
+      return Promise.resolve(undefined);
+    });
+    const user = userEvent.setup();
+    render(<App />);
+    await waitFor(() => screen.getByText("Clipwise"));
+
+    await user.click(screen.getByRole("button", { name: /settings/i }));
+    await user.click(
+      screen.getByRole("switch", { name: /show notification on complete/i }),
+    );
+
+    await waitFor(() =>
+      expect(screen.getByText("Failed to refresh config")).toBeInTheDocument(),
+    );
+    expect(screen.getByText("refresh failed")).toBeInTheDocument();
+    expect(screen.getByText("Clipwise")).toBeInTheDocument();
   });
 });

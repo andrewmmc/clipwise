@@ -1,23 +1,53 @@
 import { useState } from "react";
+import useAsyncAction from "../hooks/useAsyncAction";
 import { tauriCommands } from "../lib/tauri";
 import type { AppConfig, Action } from "../types/config";
 import useTransientMessage from "../hooks/useTransientMessage";
 import ActionForm from "./ActionForm";
+import ConfirmDeleteActions from "./ConfirmDeleteActions";
 import EmptyState from "./EmptyState";
 import ErrorBox from "./ErrorBox";
+import SectionHeader from "./SectionHeader";
 import SuccessBox from "./SuccessBox";
-import { Plus, Pencil, Trash2, Zap } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronUp,
+  Plus,
+  Pencil,
+  Trash2,
+  Zap,
+} from "lucide-react";
+import type { ActionPreset } from "../lib/actionPresets";
+import { useI18n } from "../lib/i18n";
 
 interface Props {
   config: AppConfig;
-  onRefresh: () => void;
+  onRefresh: () => void | Promise<void>;
+  startCreating?: boolean;
+  creationDraft?: ActionPreset;
+  onCreateComplete?: () => void;
+  onCreateCancel?: () => void;
 }
 
-export default function ActionList({ config, onRefresh }: Props) {
+export default function ActionList({
+  config,
+  onRefresh,
+  startCreating = false,
+  creationDraft,
+  onCreateComplete,
+  onCreateCancel,
+}: Props) {
+  const { t } = useI18n();
   const [editing, setEditing] = useState<Action | null>(null);
-  const [creating, setCreating] = useState(false);
+  const [creating, setCreating] = useState(startCreating);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [reordering, setReordering] = useState(false);
   const [showProviderHint, setShowProviderHint] = useState(false);
+  const {
+    error: mutationError,
+    run: runMutation,
+    clearError,
+  } = useAsyncAction();
   const {
     message: successMessage,
     showMessage: showSuccessMessage,
@@ -26,26 +56,68 @@ export default function ActionList({ config, onRefresh }: Props) {
 
   const hasProviders = config.providers.length > 0;
 
+  const clearListFeedback = () => {
+    clearSuccessMessage();
+    clearError();
+    setShowProviderHint(false);
+  };
+
+  const handleReorder = async (index: number, direction: "up" | "down") => {
+    const targetIndex = direction === "up" ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= config.actions.length) {
+      return;
+    }
+
+    const ids = config.actions.map((action) => action.id);
+    [ids[index], ids[targetIndex]] = [ids[targetIndex], ids[index]];
+
+    setReordering(true);
+    clearListFeedback();
+    try {
+      await runMutation(async () => {
+        await tauriCommands.reorderActions(ids);
+        await onRefresh();
+      });
+    } catch {
+      // useAsyncAction captures the displayed error.
+    } finally {
+      setReordering(false);
+    }
+  };
+
   const handleDelete = async (id: string) => {
-    await tauriCommands.deleteAction(id);
-    setPendingDeleteId(null);
-    onRefresh();
+    try {
+      await runMutation(async () => {
+        await tauriCommands.deleteAction(id);
+        setPendingDeleteId(null);
+        await onRefresh();
+      });
+    } catch {
+      // useAsyncAction captures the displayed error.
+    }
   };
 
   const providerName = (id: string) =>
-    config.providers.find((p) => p.id === id)?.name ?? "Unknown provider";
+    config.providers.find((p) => p.id === id)?.name ?? t("Unknown provider");
 
   if (creating) {
     return (
       <ActionForm
         config={config}
+        draft={creationDraft}
         onSave={async (data) => {
-          await tauriCommands.addAction(data);
-          onRefresh();
-          showSuccessMessage("Action saved successfully.");
-          setCreating(false);
+          await runMutation(async () => {
+            await tauriCommands.addAction(data);
+            await onRefresh();
+            showSuccessMessage(t("Action saved successfully."));
+            setCreating(false);
+            onCreateComplete?.();
+          });
         }}
-        onCancel={() => setCreating(false)}
+        onCancel={() => {
+          setCreating(false);
+          onCreateCancel?.();
+        }}
       />
     );
   }
@@ -56,10 +128,12 @@ export default function ActionList({ config, onRefresh }: Props) {
         config={config}
         initial={editing}
         onSave={async (data) => {
-          await tauriCommands.updateAction({ ...data, id: editing.id });
-          onRefresh();
-          showSuccessMessage("Action saved successfully.");
-          setEditing(null);
+          await runMutation(async () => {
+            await tauriCommands.updateAction({ ...data, id: editing.id });
+            await onRefresh();
+            showSuccessMessage(t("Action saved successfully."));
+            setEditing(null);
+          });
         }}
         onCancel={() => setEditing(null)}
       />
@@ -68,48 +142,66 @@ export default function ActionList({ config, onRefresh }: Props) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-[13px] font-semibold text-text-primary">
-            Actions
-          </h2>
-          <p className="mt-0.5 text-[12px] text-text-tertiary">
-            Transform clipboard text via menu bar.
-          </p>
-        </div>
-        <button
-          onClick={() => {
-            clearSuccessMessage();
-            if (hasProviders) {
-              setShowProviderHint(false);
-              setCreating(true);
-            } else {
-              setShowProviderHint(true);
-            }
-          }}
-          className="btn btn-primary"
-        >
-          <Plus size={14} />
-          Add Action
-        </button>
-      </div>
+      <SectionHeader
+        title={t("Actions")}
+        description={t("Transform clipboard text via menu bar.")}
+        actions={
+          <button
+            onClick={() => {
+              clearListFeedback();
+              if (hasProviders) {
+                setCreating(true);
+              } else {
+                setShowProviderHint(true);
+              }
+            }}
+            className="btn btn-primary"
+          >
+            <Plus size={14} />
+            {t("Add Action")}
+          </button>
+        }
+      />
 
       {successMessage && <SuccessBox message={successMessage} />}
+      {mutationError && <ErrorBox message={mutationError} />}
       {showProviderHint && (
-        <ErrorBox message="Please add a provider first before creating an action." />
+        <ErrorBox
+          message={t("Please add a provider first before creating an action.")}
+        />
       )}
 
       {config.actions.length === 0 ? (
         <EmptyState
           icon={<Zap size={18} />}
-          title="No actions yet"
-          description="Add an action to get started."
+          title={t("No actions yet")}
+          description={t("Add an action to get started.")}
         />
       ) : (
         <div className="space-y-2">
-          {config.actions.map((action) => (
+          {config.actions.map((action, index) => (
             <div key={action.id} className="card p-3">
               <div className="flex items-start justify-between gap-3">
+                <div className="flex shrink-0 flex-col gap-0.5">
+                  <button
+                    type="button"
+                    onClick={() => handleReorder(index, "up")}
+                    disabled={index === 0 || reordering}
+                    className="btn-icon"
+                    title={t("Move up")}
+                  >
+                    <ChevronUp size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleReorder(index, "down")}
+                    disabled={index === config.actions.length - 1 || reordering}
+                    className="btn-icon"
+                    title={t("Move down")}
+                  >
+                    <ChevronDown size={14} />
+                  </button>
+                </div>
                 <div className="min-w-0 flex-1">
                   <p className="text-[13px] font-medium text-text-primary">
                     {action.name}
@@ -124,40 +216,31 @@ export default function ActionList({ config, onRefresh }: Props) {
                 </div>
                 <div className="flex items-center gap-1">
                   {pendingDeleteId === action.id ? (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(action.id)}
-                        className="btn btn-danger px-2 py-1 text-[12px]"
-                      >
-                        Delete
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setPendingDeleteId(null)}
-                        className="btn btn-ghost px-2 py-1 text-[12px]"
-                      >
-                        Cancel
-                      </button>
-                    </>
+                    <ConfirmDeleteActions
+                      onConfirm={() => handleDelete(action.id)}
+                      onCancel={() => setPendingDeleteId(null)}
+                    />
                   ) : (
                     <>
                       <button
                         type="button"
                         onClick={() => {
-                          clearSuccessMessage();
+                          clearListFeedback();
                           setEditing(action);
                         }}
                         className="btn-icon"
-                        title="Edit"
+                        title={t("Edit")}
                       >
                         <Pencil size={14} />
                       </button>
                       <button
                         type="button"
-                        onClick={() => setPendingDeleteId(action.id)}
+                        onClick={() => {
+                          clearListFeedback();
+                          setPendingDeleteId(action.id);
+                        }}
                         className="btn-icon btn-icon-danger"
-                        title="Delete"
+                        title={t("Delete")}
                       >
                         <Trash2 size={14} />
                       </button>

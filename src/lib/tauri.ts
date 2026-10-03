@@ -5,9 +5,9 @@ import type {
   AppConfig,
   AppInfo,
   AppSettings,
+  HistoryEntry,
   Provider,
 } from "../types/config";
-import type { HistoryEntry } from "../types/bindings/HistoryEntry";
 
 export const tauriCommands = {
   getAppInfo: (): Promise<AppInfo> => invoke("get_app_info"),
@@ -27,6 +27,9 @@ export const tauriCommands = {
     invoke("delete_provider", { id }),
   testCliCommand: (command: string): Promise<string> =>
     invoke("test_cli_command", { command }),
+  testProvider: (
+    provider: Omit<Provider, "id"> & { id?: string },
+  ): Promise<string> => invoke("test_provider", { provider }),
 
   // Actions
   addAction: (action: Omit<Action, "id">): Promise<Action> =>
@@ -38,16 +41,19 @@ export const tauriCommands = {
     invoke("reorder_actions", { ids }),
 
   // LLM
-  testAction: (actionId: string, sampleText: string): Promise<string> =>
-    invoke("test_action", { actionId, sampleText }),
+  testAction: (action: Action, sampleText: string): Promise<string> =>
+    invoke("test_action", { action, sampleText }),
 
   // Apple Intelligence
   checkAppleModelAvailability: (): Promise<AppleModelAvailability> =>
     invoke("check_apple_model_availability"),
+  prepareAppleProvider: (): Promise<AppleModelAvailability> =>
+    invoke("prepare_apple_provider"),
 
   // History
   getHistory: (): Promise<HistoryEntry[]> => invoke("get_history"),
   clearHistory: (): Promise<void> => invoke("clear_history"),
+  purgeHistory: (): Promise<void> => invoke("purge_history"),
   deleteHistoryEntry: (id: string): Promise<boolean> =>
     invoke("delete_history_entry", { id }),
   toggleStarEntry: (id: string): Promise<boolean> =>
