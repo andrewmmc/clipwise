@@ -17,7 +17,7 @@ import { useI18n } from "../lib/i18n";
 
 interface Props {
   config: AppConfig;
-  onRefresh: () => void;
+  onRefresh: () => void | Promise<void>;
   startCreating?: boolean;
   onCreateComplete?: () => void;
   onCreateCancel?: () => void;
@@ -72,7 +72,7 @@ export default function ProviderList({
         await tauriCommands.deleteProvider(id);
         setPendingDeleteId(null);
         setDeleteError(null);
-        onRefresh();
+        await onRefresh();
       });
     } catch {
       // useAsyncAction captures the displayed error.
@@ -86,7 +86,7 @@ export default function ProviderList({
         onSave={async (data) => {
           await runMutation(async () => {
             await tauriCommands.addProvider(data);
-            onRefresh();
+            await onRefresh();
             showSuccessMessage(t("Provider saved successfully."));
             setCreating(false);
             onCreateComplete?.();
@@ -108,7 +108,7 @@ export default function ProviderList({
         onSave={async (data) => {
           await runMutation(async () => {
             await tauriCommands.updateProvider({ ...data, id: editing.id });
-            onRefresh();
+            await onRefresh();
             showSuccessMessage(t("Provider saved successfully."));
             setEditing(null);
           });

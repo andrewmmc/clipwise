@@ -96,12 +96,6 @@ img {
   background: var(--surface-primary);
 }
 
-.card-elevated {
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface-tertiary);
-}
-
 /* Buttons */
 .btn {
   display: inline-flex;

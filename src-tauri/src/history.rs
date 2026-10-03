@@ -6,7 +6,7 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{LazyLock, Mutex, MutexGuard};
-use tracing::info;
+use tracing::{info, warn};
 use uuid::Uuid;
 
 const MAX_HISTORY_ENTRIES: usize = 100;
@@ -14,7 +14,7 @@ const MAX_STARRED_ENTRIES: usize = 20;
 const INPUT_TRUNCATE_CHARS: usize = 500;
 const OUTPUT_TRUNCATE_CHARS: usize = 2000;
 
-/// Serializes read-modify-write access to the real history file.
+/// Serializes reads and read-modify-write access to the real history file.
 ///
 /// Each mutation below independently loads history.json, applies a change,
 /// and writes the whole file back. Without a lock, two mutations racing
@@ -22,7 +22,8 @@ const OUTPUT_TRUNCATE_CHARS: usize = 2000;
 /// entry) can interleave their reads and writes, so whichever save happens
 /// last silently overwrites the other's change. This lock only guards
 /// in-process ordering of the public, path-less helpers below, which are the
-/// only ones production code calls against the shared history file; the
+/// only ones production code calls against the shared history file. Reads also
+/// hold the lock because recovering an unreadable file renames it; the
 /// `_at` helpers used by tests operate on independent temp paths and don't
 /// need it.
 static HISTORY_FILE_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
@@ -47,14 +48,50 @@ pub fn history_path() -> Result<PathBuf, AppError> {
 pub fn load_history_from(path: &Path) -> Result<Vec<HistoryEntry>, AppError> {
     if !path.exists() {
         info!(path = %path.display(), "History file missing; returning empty history");
+        return Ok(Vec::new());
     }
-    let history: Vec<HistoryEntry> = load_json_or_default(path)?;
-    info!(
-        path = %path.display(),
-        entry_count = history.len(),
-        "Loaded history"
-    );
-    Ok(history)
+
+    match load_json_or_default::<Vec<HistoryEntry>>(path) {
+        Ok(history) => {
+            info!(
+                path = %path.display(),
+                entry_count = history.len(),
+                "Loaded history"
+            );
+            Ok(history)
+        }
+        Err(err) => match quarantine_invalid_history_at(path) {
+            Ok(backup_path) => {
+                warn!(
+                    error = %err,
+                    path = %path.display(),
+                    backup = %backup_path.display(),
+                    "Quarantined unreadable history file; starting with empty history"
+                );
+                Ok(Vec::new())
+            }
+            Err(quarantine_err) => {
+                warn!(
+                    error = %quarantine_err,
+                    path = %path.display(),
+                    "Failed to quarantine unreadable history file"
+                );
+                Err(err)
+            }
+        },
+    }
+}
+
+fn quarantine_invalid_history_at(path: &Path) -> Result<PathBuf, AppError> {
+    if !path.exists() {
+        return Err(AppError::Config(
+            "Cannot preserve invalid history because the file does not exist".into(),
+        ));
+    }
+
+    let backup_path = path.with_file_name(format!("history.corrupt.{}.json", Uuid::new_v4()));
+    std::fs::rename(path, &backup_path)?;
+    Ok(backup_path)
 }
 
 pub fn save_history_to(history: &[HistoryEntry], path: &Path) -> Result<(), AppError> {
@@ -69,11 +106,17 @@ pub fn save_history_to(history: &[HistoryEntry], path: &Path) -> Result<(), AppE
 
 /// Load history from disk, returning an empty vec if the file doesn't exist.
 pub fn load_history() -> Result<Vec<HistoryEntry>, AppError> {
-    load_history_from(&history_path()?)
+    load_history_serialized_from(&history_path()?)
+}
+
+fn load_history_serialized_from(path: &Path) -> Result<Vec<HistoryEntry>, AppError> {
+    let _guard = lock_history_file();
+    load_history_from(path)
 }
 
 /// Save history to disk, creating parent directories if needed.
 pub fn save_history(history: &[HistoryEntry]) -> Result<(), AppError> {
+    let _guard = lock_history_file();
     save_history_to(history, &history_path()?)
 }
 
@@ -91,21 +134,27 @@ fn truncate_text(text: &str, max_chars: usize) -> String {
 }
 
 fn trim_history(history: Vec<HistoryEntry>) -> Vec<HistoryEntry> {
-    if history.len() <= MAX_HISTORY_ENTRIES {
+    let starred_total = history.iter().filter(|entry| entry.starred).count();
+    if history.len() <= MAX_HISTORY_ENTRIES && starred_total <= MAX_STARRED_ENTRIES {
         return history;
     }
 
-    let starred_count = history.iter().filter(|e| e.starred).count();
-    let non_starred_allowed = MAX_HISTORY_ENTRIES.saturating_sub(starred_count);
+    let starred_allowed = starred_total.min(MAX_STARRED_ENTRIES);
+    let non_starred_allowed = MAX_HISTORY_ENTRIES.saturating_sub(starred_allowed);
+    let mut starred_kept = 0;
     let mut non_starred_kept = 0;
 
     history
         .into_iter()
         .filter(|entry| {
             if entry.starred {
-                return true;
-            }
-            if non_starred_kept < non_starred_allowed {
+                if starred_kept < MAX_STARRED_ENTRIES {
+                    starred_kept += 1;
+                    true
+                } else {
+                    false
+                }
+            } else if non_starred_kept < non_starred_allowed {
                 non_starred_kept += 1;
                 true
             } else {
@@ -236,6 +285,30 @@ pub fn purge_history_at(path: &Path) -> Result<(), AppError> {
     if path.exists() {
         std::fs::remove_file(path)?;
         info!(path = %path.display(), "Purged history");
+    }
+
+    // Recovery backups can contain the same plaintext clipboard data as the
+    // active file, so permanent deletion must remove them as well.
+    let parent = path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .unwrap_or(Path::new("."));
+    let entries = match std::fs::read_dir(parent) {
+        Ok(entries) => entries,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(err) => return Err(err.into()),
+    };
+    for entry in entries {
+        let entry = entry?;
+        let name = entry.file_name();
+        let backup_id = name
+            .to_str()
+            .and_then(|name| name.strip_prefix("history.corrupt."))
+            .and_then(|name| name.strip_suffix(".json"));
+        if backup_id.is_some_and(|id| Uuid::parse_str(id).is_ok()) && entry.file_type()?.is_file() {
+            std::fs::remove_file(entry.path())?;
+            info!(path = %entry.path().display(), "Purged history recovery backup");
+        }
     }
     Ok(())
 }
@@ -548,6 +621,55 @@ mod tests {
     }
 
     #[test]
+    fn test_purge_history_removes_backups_without_active_file() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("history.json");
+        std::fs::write(&path, r#"[{"inputText":"private clipboard text""#).unwrap();
+        assert!(load_history_from(&path).unwrap().is_empty());
+        assert!(!path.exists());
+
+        let second_backup = dir
+            .path()
+            .join(format!("history.corrupt.{}.json", Uuid::new_v4()));
+        std::fs::write(&second_backup, "older clipboard data").unwrap();
+        let config_backup = dir
+            .path()
+            .join(format!("config.corrupt.{}.json", Uuid::new_v4()));
+        std::fs::write(&config_backup, "config backup").unwrap();
+        let unrelated_file = dir.path().join("history.corrupt.notes.json");
+        std::fs::write(&unrelated_file, "notes").unwrap();
+        let unrelated_dir = dir
+            .path()
+            .join(format!("history.corrupt.{}.json", Uuid::new_v4()));
+        std::fs::create_dir(&unrelated_dir).unwrap();
+
+        purge_history_at(&path).unwrap();
+
+        assert!(!second_backup.exists());
+        assert!(config_backup.exists());
+        assert!(unrelated_file.exists());
+        assert!(unrelated_dir.exists());
+        assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 3);
+    }
+
+    #[test]
+    fn test_disabled_history_purges_active_file_and_recovery_backups() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("history.json");
+        std::fs::write(&path, "truncated history with clipboard data").unwrap();
+        assert!(load_history_from(&path).unwrap().is_empty());
+        setup_test_history_file(
+            &dir,
+            vec![make_test_entry_with_starred("id1", "Action", true)],
+        );
+
+        purge_history_if_disabled_at(true, &path).unwrap();
+        assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 2);
+        purge_history_if_disabled_at(false, &path).unwrap();
+        assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 0);
+    }
+
+    #[test]
     fn test_purge_history_if_disabled_removes_existing_history() {
         let dir = TempDir::new().unwrap();
         let path = setup_test_history_file(&dir, vec![make_test_entry("id1", "Action1")]);
@@ -570,23 +692,36 @@ mod tests {
     // ── load_history ───────────────────────────────────────────────────────────
 
     #[test]
-    fn test_load_history_empty_file_returns_error() {
+    fn test_load_history_empty_file_is_quarantined() {
         let dir = TempDir::new().unwrap();
         let path = dir.path().join("history.json");
         std::fs::write(&path, "").unwrap();
 
-        let result = load_history_from(&path);
-        assert!(result.is_err());
+        let history = load_history_from(&path).unwrap();
+        assert!(history.is_empty());
+        assert!(!path.exists());
+        let backups: Vec<_> = std::fs::read_dir(dir.path())
+            .unwrap()
+            .filter_map(|entry| entry.ok())
+            .filter(|entry| {
+                entry
+                    .file_name()
+                    .to_string_lossy()
+                    .starts_with("history.corrupt.")
+            })
+            .collect();
+        assert_eq!(backups.len(), 1);
     }
 
     #[test]
-    fn test_load_history_invalid_json_returns_error() {
+    fn test_load_history_invalid_json_is_quarantined() {
         let dir = TempDir::new().unwrap();
         let path = dir.path().join("history.json");
         std::fs::write(&path, "{ invalid json }").unwrap();
 
-        let result = load_history_from(&path);
-        assert!(result.is_err());
+        let history = load_history_from(&path).unwrap();
+        assert!(history.is_empty());
+        assert!(!path.exists());
     }
 
     #[test]
@@ -774,7 +909,76 @@ mod tests {
         );
     }
 
+    #[test]
+    fn test_trim_history_caps_excess_starred_entries() {
+        let mut history: Vec<HistoryEntry> = (0..25)
+            .map(|i| {
+                make_test_entry_with_starred(&format!("starred-{i}"), &format!("Action{i}"), true)
+            })
+            .collect();
+        history.extend((0..90).map(|i| make_test_entry(&format!("plain-{i}"), "Action")));
+
+        history = trim_history(history);
+
+        assert_eq!(history.len(), MAX_HISTORY_ENTRIES);
+        assert_eq!(
+            history.iter().filter(|entry| entry.starred).count(),
+            MAX_STARRED_ENTRIES
+        );
+        assert!(history.iter().any(|entry| entry.id == "starred-0"));
+        assert!(!history.iter().any(|entry| entry.id == "starred-24"));
+    }
+
     // ── History file lock ───────────────────────────────────────────────────────
+
+    #[test]
+    fn test_history_read_waits_for_recovery_and_write() {
+        use std::sync::mpsc;
+        use std::thread;
+        use std::time::Duration;
+
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("history.json");
+        std::fs::write(&path, "corrupt history").unwrap();
+        let guard = lock_history_file();
+        let reader_path = path.clone();
+        let (started_tx, started_rx) = mpsc::channel();
+        let (result_tx, result_rx) = mpsc::channel();
+        let reader = thread::spawn(move || {
+            started_tx.send(()).unwrap();
+            result_tx
+                .send(load_history_serialized_from(&reader_path))
+                .unwrap();
+        });
+        started_rx.recv_timeout(Duration::from_secs(5)).unwrap();
+        assert!(matches!(
+            result_rx.recv_timeout(Duration::from_millis(50)),
+            Err(mpsc::RecvTimeoutError::Timeout)
+        ));
+
+        // A history mutation recovers the corrupt file and writes a new entry
+        // while holding the same lock used by the production read helper.
+        add_entry_to_path(
+            &path,
+            "NewAction".into(),
+            "Provider".into(),
+            "new input".into(),
+            "new output".into(),
+            true,
+        )
+        .unwrap();
+        drop(guard);
+
+        let history = result_rx
+            .recv_timeout(Duration::from_secs(5))
+            .unwrap()
+            .unwrap();
+        reader.join().unwrap();
+        assert_eq!(history.len(), 1);
+        assert_eq!(history[0].action_name, "NewAction");
+        assert!(path.exists());
+        assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 2);
+    }
 
     #[test]
     fn test_lock_history_file_serializes_concurrent_access() {

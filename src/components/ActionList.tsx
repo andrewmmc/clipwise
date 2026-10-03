@@ -22,7 +22,7 @@ import { useI18n } from "../lib/i18n";
 
 interface Props {
   config: AppConfig;
-  onRefresh: () => void;
+  onRefresh: () => void | Promise<void>;
   startCreating?: boolean;
   creationDraft?: ActionPreset;
   onCreateComplete?: () => void;
@@ -76,7 +76,7 @@ export default function ActionList({
     try {
       await runMutation(async () => {
         await tauriCommands.reorderActions(ids);
-        onRefresh();
+        await onRefresh();
       });
     } catch {
       // useAsyncAction captures the displayed error.
@@ -90,7 +90,7 @@ export default function ActionList({
       await runMutation(async () => {
         await tauriCommands.deleteAction(id);
         setPendingDeleteId(null);
-        onRefresh();
+        await onRefresh();
       });
     } catch {
       // useAsyncAction captures the displayed error.
@@ -108,7 +108,7 @@ export default function ActionList({
         onSave={async (data) => {
           await runMutation(async () => {
             await tauriCommands.addAction(data);
-            onRefresh();
+            await onRefresh();
             showSuccessMessage(t("Action saved successfully."));
             setCreating(false);
             onCreateComplete?.();
@@ -130,7 +130,7 @@ export default function ActionList({
         onSave={async (data) => {
           await runMutation(async () => {
             await tauriCommands.updateAction({ ...data, id: editing.id });
-            onRefresh();
+            await onRefresh();
             showSuccessMessage(t("Action saved successfully."));
             setEditing(null);
           });

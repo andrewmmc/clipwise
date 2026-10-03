@@ -120,6 +120,40 @@ describe("ActionList", () => {
     expect(screen.getByText("Action saved successfully.")).toBeInTheDocument();
   });
 
+  it("waits for onRefresh before completing onboarding create", async () => {
+    let resolveRefresh!: () => void;
+    const delayedRefresh = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveRefresh = resolve;
+        }),
+    );
+    const onCreateComplete = vi.fn();
+    mockInvoke.mockResolvedValue({ ...mockAction, id: "new-id" });
+    const user = userEvent.setup();
+    render(
+      <ActionList
+        config={mockConfig}
+        onRefresh={delayedRefresh}
+        startCreating
+        onCreateComplete={onCreateComplete}
+      />,
+    );
+
+    await user.type(
+      screen.getByPlaceholderText("e.g. Refine wording"),
+      "New Action",
+    );
+    await user.type(screen.getByPlaceholderText(/refine this text/i), "Do it");
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+    await waitFor(() => expect(delayedRefresh).toHaveBeenCalledOnce());
+    expect(onCreateComplete).not.toHaveBeenCalled();
+
+    resolveRefresh();
+    await waitFor(() => expect(onCreateComplete).toHaveBeenCalledOnce());
+  });
+
   // ── Reorder actions ───────────────────────────────────────────────────────
 
   it("disables move up on the first action", () => {

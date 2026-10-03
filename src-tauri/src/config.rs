@@ -7,7 +7,7 @@ use reqwest::header::{HeaderName, HeaderValue};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
-use tracing::info;
+use tracing::{info, warn};
 
 /// Inclusive bounds for provider response limits accepted from settings.
 pub(crate) const MIN_MAX_TOKENS: u32 = 1;
@@ -33,6 +33,24 @@ fn validate_char_limit(label: &str, value: &str, max_chars: usize) -> Result<(),
         )));
     }
     Ok(())
+}
+
+pub(crate) fn is_reserved_provider_header(name: &str) -> bool {
+    name.eq_ignore_ascii_case("authorization") || name.eq_ignore_ascii_case("x-api-key")
+}
+
+/// Drops reserved headers saved before they were rejected, so an older config
+/// still loads instead of failing validation and being quarantined.
+pub(crate) fn strip_reserved_provider_headers(config: &mut AppConfig) {
+    for provider in &mut config.providers {
+        provider.headers.retain(|name, _| {
+            let reserved = is_reserved_provider_header(name);
+            if reserved {
+                warn!(provider_id = %provider.id, header = %name, "Dropping reserved provider header");
+            }
+            !reserved
+        });
+    }
 }
 
 pub(crate) fn validate_settings(settings: &AppSettings) -> Result<(), AppError> {
@@ -70,6 +88,11 @@ pub(crate) fn validate_provider_fields(provider: &Provider) -> Result<(), AppErr
         validate_char_limit("Provider header value", value, MAX_HEADER_VALUE_CHARS)?;
         HeaderName::from_bytes(name.as_bytes())
             .map_err(|_| AppError::Config(format!("Invalid provider header name {name:?}")))?;
+        if is_reserved_provider_header(name) {
+            return Err(AppError::Config(format!(
+                "Provider header {name:?} is reserved and cannot override authentication"
+            )));
+        }
         HeaderValue::from_str(value)
             .map_err(|_| AppError::Config(format!("Invalid value for provider header {name:?}")))?;
     }
@@ -193,7 +216,8 @@ pub fn load_config_from(path: &Path) -> Result<AppConfig, AppError> {
     if !path.exists() {
         info!(path = %path.display(), "Config file missing; using defaults");
     }
-    let config: AppConfig = load_json_or_default(path)?;
+    let mut config: AppConfig = load_json_or_default(path)?;
+    strip_reserved_provider_headers(&mut config);
     validate_config(&config)?;
     info!(
         path = %path.display(),
@@ -294,6 +318,27 @@ mod tests {
         assert_eq!(loaded.actions.len(), 1);
         assert_eq!(loaded.actions[0].name, "Test Action");
         assert_eq!(loaded.settings.max_tokens, 4096);
+    }
+
+    #[test]
+    fn test_load_config_drops_legacy_reserved_headers() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("config.json");
+        std::fs::write(
+            &path,
+            r#"{
+                "providers": [{
+                    "id": "p1", "name": "One", "type": "openai", "apiKey": "key",
+                    "headers": {"Authorization": "Bearer x", "X-Org": "org"}
+                }]
+            }"#,
+        )
+        .unwrap();
+
+        let config = load_config_from(&path).unwrap();
+        let headers = &config.providers[0].headers;
+        assert!(!headers.contains_key("Authorization"));
+        assert_eq!(headers.get("X-Org").map(String::as_str), Some("org"));
     }
 
     #[test]
@@ -531,6 +576,18 @@ mod tests {
         assert!(matches!(
             validate_provider_fields(&provider),
             Err(AppError::Config(_))
+        ));
+    }
+
+    #[test]
+    fn test_reserved_provider_headers_are_rejected() {
+        let mut provider = make_test_config().providers.remove(0);
+        provider
+            .headers
+            .insert("Authorization".into(), "Bearer stolen".into());
+        assert!(matches!(
+            validate_provider_fields(&provider),
+            Err(AppError::Config(message)) if message.contains("reserved")
         ));
     }
 

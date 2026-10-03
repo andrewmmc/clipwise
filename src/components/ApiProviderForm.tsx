@@ -1,4 +1,5 @@
 import { Plus, Trash2 } from "lucide-react";
+import { useId } from "react";
 import ErrorBox from "./ErrorBox";
 import SuccessBox from "./SuccessBox";
 import {
@@ -26,6 +27,7 @@ interface Props {
   onHeaderValueChange: (index: number, value: string) => void;
   onRemoveHeader: (index: number) => void;
   onTestConnection: () => void;
+  keepBlankHeaderValues?: boolean;
 }
 
 export default function ApiProviderForm({
@@ -46,8 +48,13 @@ export default function ApiProviderForm({
   onHeaderValueChange,
   onRemoveHeader,
   onTestConnection,
+  keepBlankHeaderValues = false,
 }: Props) {
   const { t } = useI18n();
+  const endpointId = useId();
+  const apiKeyId = useId();
+  const modelId = useId();
+  const headersId = useId();
   return (
     <>
       <p className="text-[12px] text-text-tertiary">
@@ -79,13 +86,14 @@ export default function ApiProviderForm({
       </div>
 
       <div>
-        <label className="label">
+        <label htmlFor={endpointId} className="label">
           {t("API Endpoint")}{" "}
           <span className="font-normal text-text-tertiary">
             {t("(optional)")}
           </span>
         </label>
         <input
+          id={endpointId}
           type="text"
           value={endpoint}
           onChange={(e) => onEndpointChange(e.target.value)}
@@ -98,10 +106,14 @@ export default function ApiProviderForm({
       </div>
 
       <div>
-        <label className={hasStoredApiKey ? "label" : "label label-required"}>
+        <label
+          htmlFor={apiKeyId}
+          className={hasStoredApiKey ? "label" : "label label-required"}
+        >
           {t("API Key")}
         </label>
         <input
+          id={apiKeyId}
           type="password"
           value={apiKey}
           onChange={(e) => onApiKeyChange(e.target.value)}
@@ -120,8 +132,11 @@ export default function ApiProviderForm({
       </div>
 
       <div>
-        <label className="label">{t("Default Model")}</label>
+        <label htmlFor={modelId} className="label">
+          {t("Default Model")}
+        </label>
         <input
+          id={modelId}
           type="text"
           value={defaultModel}
           onChange={(e) => onDefaultModelChange(e.target.value)}
@@ -132,7 +147,9 @@ export default function ApiProviderForm({
 
       <div>
         <div className="mb-2 flex items-center justify-between">
-          <label className="label mb-0">{t("Custom Headers")}</label>
+          <label className="label mb-0" id={`${headersId}-label`}>
+            {t("Custom Headers")}
+          </label>
           <button
             type="button"
             onClick={onAddHeader}
@@ -146,23 +163,32 @@ export default function ApiProviderForm({
           {headers.map(([key, value], index) => (
             <div key={index} className="flex gap-2">
               <input
+                id={`${headersId}-${index}-name`}
                 type="text"
                 value={key}
                 onChange={(e) => onHeaderKeyChange(index, e.target.value)}
                 placeholder={t("Header name")}
+                aria-label={t("Header name")}
                 className="input input-sm flex-1"
               />
               <input
+                id={`${headersId}-${index}-value`}
                 type="text"
                 value={value}
                 onChange={(e) => onHeaderValueChange(index, e.target.value)}
-                placeholder={t("Value")}
+                placeholder={
+                  keepBlankHeaderValues && key.trim() && !value.trim()
+                    ? t("Leave blank to keep saved value")
+                    : t("Value")
+                }
+                aria-label={t("Value")}
                 className="input input-sm flex-1"
               />
               <button
                 type="button"
                 onClick={() => onRemoveHeader(index)}
                 className="btn-icon btn-icon-danger flex size-[30px] shrink-0 items-center justify-center"
+                aria-label={t("Remove header")}
               >
                 <Trash2 size={14} />
               </button>

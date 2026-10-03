@@ -9,7 +9,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import HistoryList from "./HistoryList";
 import * as tauri from "../lib/tauri";
-import type { HistoryEntry } from "../types/bindings/HistoryEntry";
+import type { HistoryEntry } from "../types/config";
 
 vi.mock("../lib/tauri", () => ({
   tauriCommands: {

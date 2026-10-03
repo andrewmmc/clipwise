@@ -2,9 +2,12 @@ import { describe, it, expect } from "vitest";
 import {
   MAX_USER_PROMPT_LENGTH,
   isApiProviderType,
+  isAppLanguage,
+  isProviderType,
   validateActionForm,
   validateEndpoint,
   validateProviderForm,
+  validateProviderHeaders,
 } from "./validation";
 import type { AppConfig, Provider } from "../types/config";
 
@@ -57,6 +60,77 @@ describe("isApiProviderType", () => {
   it("treats cli and apple as non-API types", () => {
     expect(isApiProviderType("cli")).toBe(false);
     expect(isApiProviderType("apple")).toBe(false);
+  });
+});
+
+describe("isProviderType", () => {
+  it("accepts known provider types", () => {
+    expect(isProviderType("openai")).toBe(true);
+    expect(isProviderType("apple")).toBe(true);
+  });
+
+  it("rejects unknown values", () => {
+    expect(isProviderType("unknown")).toBe(false);
+  });
+});
+
+describe("isAppLanguage", () => {
+  it("accepts supported locales", () => {
+    expect(isAppLanguage("en")).toBe(true);
+    expect(isAppLanguage("zh-TW")).toBe(true);
+  });
+
+  it("rejects unsupported locales", () => {
+    expect(isAppLanguage("zh")).toBe(false);
+    expect(isAppLanguage("fr")).toBe(false);
+  });
+});
+
+describe("validateProviderHeaders", () => {
+  it("accepts unique header names", () => {
+    expect(
+      validateProviderHeaders([
+        ["X-Org", "a"],
+        ["X-Trace", "b"],
+      ]),
+    ).toBeNull();
+  });
+
+  it("rejects duplicate header names", () => {
+    expect(
+      validateProviderHeaders([
+        ["X-Org", "a"],
+        ["x-org", "b"],
+      ]),
+    ).toMatch(/Duplicate header names/);
+  });
+
+  it("rejects reserved auth header names", () => {
+    expect(validateProviderHeaders([["Authorization", "Bearer x"]])).toMatch(
+      /reserved/i,
+    );
+    expect(validateProviderHeaders([["x-api-key", "secret"]])).toMatch(
+      /reserved/i,
+    );
+  });
+
+  it("requires values for new or renamed headers when editing", () => {
+    expect(validateProviderHeaders([["X-New", ""]], "en", ["X-Old"])).toMatch(
+      /Enter a value for header X-New/,
+    );
+    expect(
+      validateProviderHeaders([["X-Old", ""]], "en", ["X-Old"]),
+    ).toBeNull();
+    expect(validateProviderHeaders([["X-New", ""]])).toBeNull();
+  });
+
+  it("ignores empty header names", () => {
+    expect(
+      validateProviderHeaders([
+        ["", "value"],
+        ["X-Org", "a"],
+      ]),
+    ).toBeNull();
   });
 });
 

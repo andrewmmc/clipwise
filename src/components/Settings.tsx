@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import useAsyncAction from "../hooks/useAsyncAction";
 import { tauriCommands } from "../lib/tauri";
 import type { AppConfig, AppSettings } from "../types/config";
+import { isAppLanguage } from "../lib/validation";
 import ConfirmDeleteActions from "./ConfirmDeleteActions";
 import ErrorBox from "./ErrorBox";
 import { BookOpen } from "lucide-react";
@@ -9,7 +10,7 @@ import { useI18n } from "../lib/i18n";
 
 interface Props {
   config: AppConfig;
-  onRefresh: () => void;
+  onRefresh: () => void | Promise<void>;
   onShowGuide?: () => void;
 }
 
@@ -26,13 +27,15 @@ export default function SettingsPanel({
   const [confirmingHistoryDisable, setConfirmingHistoryDisable] =
     useState(false);
   const { error, pending, run } = useAsyncAction();
+  const savingRef = useRef(false);
   const settings =
     settingsState.source === config.settings
       ? settingsState.settings
       : config.settings;
 
   const updateSettings = (nextSettings: Partial<AppSettings>) => {
-    if (pending) return;
+    if (pending || savingRef.current) return;
+    savingRef.current = true;
     const previous = settings;
     const updated = { ...settings, ...nextSettings };
     setSettingsState({ source: config.settings, settings: updated });
@@ -40,10 +43,12 @@ export default function SettingsPanel({
       try {
         await run(async () => {
           await tauriCommands.saveSettings(updated);
-          onRefresh();
+          await onRefresh();
         });
       } catch {
         setSettingsState({ source: config.settings, settings: previous });
+      } finally {
+        savingRef.current = false;
       }
     })();
   };
@@ -192,11 +197,10 @@ export default function SettingsPanel({
               value={settings.language}
               aria-label={t("Language")}
               disabled={pending}
-              onChange={(e) =>
-                updateSettings({
-                  language: e.target.value as AppSettings["language"],
-                })
-              }
+              onChange={(e) => {
+                if (!isAppLanguage(e.target.value)) return;
+                updateSettings({ language: e.target.value });
+              }}
               className="input select !w-48"
             >
               <option value="en">{t("English")}</option>

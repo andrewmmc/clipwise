@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import useCliProviderEnabled from "../hooks/useCliProviderEnabled";
 import useProviderFormState, {
   getInitialProviderFormState,
@@ -7,7 +7,12 @@ import { getAppleAvailabilityMessage } from "../lib/appleAvailability";
 import { getErrorMessage } from "../lib/errors";
 import { PROVIDER_OPTION_LABELS } from "../lib/providers";
 import { tauriCommands } from "../lib/tauri";
-import { isApiProviderType, validateProviderForm } from "../lib/validation";
+import {
+  isApiProviderType,
+  isProviderType,
+  validateProviderForm,
+  validateProviderHeaders,
+} from "../lib/validation";
 import type { AppleModelAvailability, Provider } from "../types/config";
 import { ChevronDown } from "lucide-react";
 import ApiProviderForm from "./ApiProviderForm";
@@ -36,6 +41,8 @@ export default function ProviderForm({
   onCancel,
 }: Props) {
   const { locale, t } = useI18n();
+  const nameId = useId();
+  const typeId = useId();
   const [form, dispatch] = useProviderFormState(initial);
   const [saving, setSaving] = useState(false);
   const [testingCommand, setTestingCommand] = useState(false);
@@ -110,6 +117,9 @@ export default function ProviderForm({
   const appleDuplicateMessage = appleProviderExists
     ? t("Only one Apple Intelligence provider can be configured.")
     : null;
+  const savedHeaderNames = initial
+    ? Object.keys(initial.headers ?? {})
+    : undefined;
   const appleOptionDisabled =
     appleAvailability?.available !== true || appleProviderExists;
 
@@ -140,6 +150,13 @@ export default function ProviderForm({
     );
     if (validationError) {
       setError(validationError);
+      return;
+    }
+    const headersError = isApiProviderType(form.type)
+      ? validateProviderHeaders(form.headers, locale, savedHeaderNames)
+      : null;
+    if (headersError) {
+      setError(headersError);
       return;
     }
     setSaving(true);
@@ -182,6 +199,16 @@ export default function ProviderForm({
     if (validationError) {
       clearConnectionTestSuccess();
       setConnectionTestError(validationError);
+      return;
+    }
+    const headersError = validateProviderHeaders(
+      form.headers,
+      locale,
+      savedHeaderNames,
+    );
+    if (headersError) {
+      clearConnectionTestSuccess();
+      setConnectionTestError(headersError);
       return;
     }
 
@@ -240,8 +267,11 @@ export default function ProviderForm({
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="label label-required">{t("Name")}</label>
+            <label htmlFor={nameId} className="label label-required">
+              {t("Name")}
+            </label>
             <input
+              id={nameId}
               type="text"
               value={form.name}
               onChange={(e) => {
@@ -257,12 +287,16 @@ export default function ProviderForm({
             />
           </div>
           <div>
-            <label className="label label-required">{t("Type")}</label>
+            <label htmlFor={typeId} className="label label-required">
+              {t("Type")}
+            </label>
             <div className="relative">
               <select
+                id={typeId}
                 value={form.type}
                 onChange={(e) => {
-                  const nextType = e.target.value as Provider["type"];
+                  const nextType = e.target.value;
+                  if (!isProviderType(nextType)) return;
                   clearAllFeedback();
                   dispatch({
                     type: "setType",
@@ -322,6 +356,7 @@ export default function ProviderForm({
             apiKey={form.apiKey}
             defaultModel={form.defaultModel}
             headers={form.headers}
+            keepBlankHeaderValues={Boolean(initial)}
             testingConnection={testingConnection}
             connectionTestError={connectionTestError}
             connectionTestSuccess={connectionTestSuccess}

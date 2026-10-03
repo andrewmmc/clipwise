@@ -84,6 +84,7 @@ fn headers_keychain_reference(provider_id: &str) -> String {
 
 fn is_keychain_reference(value: &str) -> bool {
     value.starts_with(KEYCHAIN_REFERENCE_PREFIX)
+        && !value.starts_with(KEYCHAIN_HEADERS_REFERENCE_PREFIX)
 }
 
 pub(crate) fn store_provider_secret(provider: &Provider) -> Result<(), AppError> {
@@ -112,7 +113,7 @@ pub(crate) fn delete_provider_secret(provider_id: &str) -> Result<(), AppError> 
     PlatformSecretBackend.delete(&headers_keychain_reference(provider_id))
 }
 
-pub(crate) fn restore_provider_secret(provider: &Provider) -> Result<(), AppError> {
+pub(crate) fn persist_provider_secrets(provider: &Provider) -> Result<(), AppError> {
     store_provider_secret(provider)
 }
 
@@ -199,6 +200,10 @@ fn hydrate_and_migrate_with(
             migrated = true;
         }
     }
+    // Hydration can restore legacy reserved headers from a Keychain map even
+    // when load_config already stripped them from the persisted config. Remove
+    // them before callers validate or save a migrated config.
+    crate::config::strip_reserved_provider_headers(config);
     Ok(migrated)
 }
 
@@ -404,5 +409,57 @@ mod tests {
             config.providers[0].headers.get("X-New").map(String::as_str),
             Some("new-secret")
         );
+    }
+
+    #[test]
+    fn mixed_credentials_migrate_with_legacy_keychain_headers() {
+        let backend = FakeBackend::default();
+        backend
+            .0
+            .borrow_mut()
+            .insert("keychain:provider-1".into(), "sk-keychain".into());
+        backend.0.borrow_mut().insert(
+            "keychain-headers:provider-1".into(),
+            r#"{"Authorization":"Bearer legacy","X-Private-Token":"header-secret"}"#.into(),
+        );
+        let mut config = config_with_key("keychain:provider-1");
+        config.providers[0]
+            .headers
+            .insert("Authorization".into(), "keychain-headers:provider-1".into());
+        config.providers[0].headers.insert(
+            "X-Private-Token".into(),
+            "keychain-headers:provider-1".into(),
+        );
+        let mut plaintext_provider = config_with_key("sk-plaintext").providers.remove(0);
+        plaintext_provider.id = "provider-2".into();
+        config.providers.push(plaintext_provider);
+
+        let dir = tempfile::TempDir::new().unwrap();
+        let path = dir.path().join("config.json");
+        std::fs::write(&path, serde_json::to_string(&config).unwrap()).unwrap();
+        let mut loaded = crate::config::load_config_from(&path).unwrap();
+
+        assert!(hydrate_and_migrate_with(&mut loaded, &backend).unwrap());
+        assert!(!loaded.providers[0].headers.contains_key("Authorization"));
+        assert_eq!(
+            loaded.providers[0]
+                .headers
+                .get("X-Private-Token")
+                .map(String::as_str),
+            Some("header-secret")
+        );
+        crate::config::save_config_to(&loaded, &path).unwrap();
+        let persisted = crate::config::load_config_from(&path).unwrap();
+        assert_eq!(
+            persisted.providers[1].api_key.as_deref(),
+            Some("keychain:provider-2")
+        );
+    }
+
+    #[test]
+    fn api_key_reference_does_not_match_headers_prefix() {
+        assert!(is_keychain_reference("keychain:provider-1"));
+        assert!(!is_keychain_reference("keychain-headers:provider-1"));
+        assert!(!is_keychain_reference("sk-secret"));
     }
 }

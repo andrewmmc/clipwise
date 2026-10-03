@@ -99,6 +99,49 @@ fn ensure_apple_provider_type_is_immutable(
     Ok(())
 }
 
+pub(crate) fn redact_config_secrets(config: &AppConfig) -> AppConfig {
+    let mut redacted = config.clone();
+    for provider in &mut redacted.providers {
+        redact_provider_secrets(provider);
+    }
+    redacted
+}
+
+pub(crate) fn redact_provider_secrets(provider: &mut Provider) {
+    provider.api_key = None;
+    for value in provider.headers.values_mut() {
+        value.clear();
+    }
+}
+
+/// Blank values mean "keep the stored secret". A blank value under a name with
+/// no stored header (e.g. a renamed header) is rejected rather than silently
+/// dropped, which would delete the secret from the Keychain.
+pub(crate) fn merge_preserved_provider_secrets(
+    provider: &mut Provider,
+    stored: &Provider,
+) -> Result<(), AppError> {
+    if matches!(
+        provider.provider_type,
+        ProviderType::OpenAI | ProviderType::Anthropic
+    ) && provider.api_key.as_deref().unwrap_or("").trim().is_empty()
+    {
+        provider.api_key = stored.api_key.clone();
+    }
+
+    for (name, value) in provider.headers.iter_mut() {
+        if !value.trim().is_empty() {
+            continue;
+        }
+        let stored_value = stored
+            .headers
+            .get(name)
+            .ok_or_else(|| AppError::Config(format!("Enter a value for header {name:?}")))?;
+        value.clone_from(stored_value);
+    }
+    Ok(())
+}
+
 pub(crate) fn replace_provider(config: &mut AppConfig, provider: Provider) -> Result<(), AppError> {
     validate_provider_fields(&provider)?;
     ensure_single_apple_provider(config, &provider)?;
@@ -280,14 +323,7 @@ where
 #[cfg(not(test))]
 #[tauri::command]
 pub async fn get_config(app: AppHandle) -> Result<AppConfig, AppError> {
-    let mut config = run_config_worker(app, |config| {
-        let mut redacted = config.clone();
-        for provider in &mut redacted.providers {
-            provider.api_key = None;
-        }
-        Ok(redacted)
-    })
-    .await?;
+    let mut config = run_config_worker(app, |config| Ok(redact_config_secrets(config))).await?;
     // Reflect changes made in System Settings (including revoked approval) in
     // the UI without overwriting the user's saved preference during startup.
     config.settings.start_at_login = crate::autostart::is_enabled()?;
@@ -398,7 +434,7 @@ pub async fn add_provider(provider: Provider, app: AppHandle) -> Result<Provider
             return Err(save_err);
         }
         let mut redacted_result = result;
-        redacted_result.api_key = None;
+        redact_provider_secrets(&mut redacted_result);
         Ok(redacted_result)
     })
     .await?;
@@ -428,13 +464,7 @@ pub async fn update_provider(provider: Provider, app: AppHandle) -> Result<(), A
             .cloned()
             .ok_or_else(|| AppError::ProviderNotFound(provider.id.clone()))?;
         let mut provider = provider;
-        if matches!(
-            provider.provider_type,
-            ProviderType::OpenAI | ProviderType::Anthropic
-        ) && provider.api_key.as_deref().unwrap_or("").trim().is_empty()
-        {
-            provider.api_key = old_provider.api_key.clone();
-        }
+        merge_preserved_provider_secrets(&mut provider, &old_provider)?;
         replace_provider(config, provider)?;
         let new_provider = config
             .providers
@@ -443,9 +473,9 @@ pub async fn update_provider(provider: Provider, app: AppHandle) -> Result<(), A
             .cloned()
             .expect("updated provider must exist");
 
-        if let Err(secret_err) = secret_store::restore_provider_secret(&new_provider) {
+        if let Err(secret_err) = secret_store::persist_provider_secrets(&new_provider) {
             *config = previous;
-            if let Err(restore_err) = secret_store::restore_provider_secret(&old_provider) {
+            if let Err(restore_err) = secret_store::persist_provider_secrets(&old_provider) {
                 return Err(AppError::Service(format!(
                     "Failed to update provider secrets ({secret_err}) and restore previous Keychain items ({restore_err})"
                 )));
@@ -454,7 +484,7 @@ pub async fn update_provider(provider: Provider, app: AppHandle) -> Result<(), A
         }
         if let Err(save_err) = save_config(config) {
             *config = previous;
-            if let Err(restore_err) = secret_store::restore_provider_secret(&old_provider) {
+            if let Err(restore_err) = secret_store::persist_provider_secrets(&old_provider) {
                 return Err(AppError::Service(format!(
                     "Failed to save provider ({save_err}) and restore its previous Keychain item ({restore_err})"
                 )));
@@ -494,7 +524,7 @@ pub async fn delete_provider(id: String, app: AppHandle) -> Result<(), AppError>
         }
         if let Err(delete_err) = secret_store::delete_provider_secret(&worker_id) {
             *config = previous.clone();
-            if let Err(restore_err) = secret_store::restore_provider_secret(&old_provider) {
+            if let Err(restore_err) = secret_store::persist_provider_secrets(&old_provider) {
                 return Err(AppError::Service(format!(
                     "Failed to delete Keychain items ({delete_err}) and restore them ({restore_err})"
                 )));
@@ -1103,5 +1133,76 @@ mod tests {
             "pre-existing provider p1 should remain"
         );
         assert_eq!(config.providers[0].id, "p1");
+    }
+
+    #[test]
+    fn test_redact_config_secrets_clears_api_key_and_header_values() {
+        let mut provider = stub_provider("p1");
+        provider
+            .headers
+            .insert("X-Private-Token".into(), "header-secret".into());
+        let config = AppConfig {
+            providers: vec![provider],
+            ..AppConfig::default()
+        };
+
+        let redacted = redact_config_secrets(&config);
+        assert!(redacted.providers[0].api_key.is_none());
+        assert_eq!(
+            redacted.providers[0]
+                .headers
+                .get("X-Private-Token")
+                .map(String::as_str),
+            Some("")
+        );
+        assert_eq!(
+            config.providers[0].api_key.as_deref(),
+            Some("key"),
+            "in-memory config should keep secrets"
+        );
+    }
+
+    #[test]
+    fn test_merge_preserved_provider_secrets_keeps_blank_header_values() {
+        let mut stored = stub_provider("p1");
+        stored
+            .headers
+            .insert("X-Private-Token".into(), "header-secret".into());
+        stored.headers.insert("X-Keep".into(), "keep-me".into());
+
+        let mut updated = stored.clone();
+        updated.api_key = None;
+        updated
+            .headers
+            .insert("X-Private-Token".into(), "  ".into());
+        updated.headers.insert("X-New".into(), "fresh".into());
+        updated.headers.remove("X-Keep");
+
+        merge_preserved_provider_secrets(&mut updated, &stored).unwrap();
+        assert_eq!(updated.api_key.as_deref(), Some("key"));
+        assert_eq!(
+            updated.headers.get("X-Private-Token").map(String::as_str),
+            Some("header-secret")
+        );
+        assert_eq!(
+            updated.headers.get("X-New").map(String::as_str),
+            Some("fresh")
+        );
+        assert!(!updated.headers.contains_key("X-Keep"));
+    }
+
+    #[test]
+    fn test_merge_preserved_provider_secrets_rejects_blank_renamed_header() {
+        let mut stored = stub_provider("p1");
+        stored
+            .headers
+            .insert("X-Old".into(), "header-secret".into());
+
+        let mut updated = stored.clone();
+        updated.headers.clear();
+        updated.headers.insert("X-New".into(), String::new());
+
+        let err = merge_preserved_provider_secrets(&mut updated, &stored).unwrap_err();
+        assert!(err.to_string().contains("X-New"), "{err}");
     }
 }

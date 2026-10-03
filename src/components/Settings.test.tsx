@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, waitFor, cleanup } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  cleanup,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { invoke } from "@tauri-apps/api/core";
 
@@ -117,6 +123,39 @@ describe("SettingsPanel", () => {
       screen.getByRole("switch", { name: "Show notification on complete" }),
     );
     await waitFor(() => expect(onRefresh).toHaveBeenCalledOnce());
+  });
+
+  it("ignores a second toggle while a save is in flight", async () => {
+    let resolveSave!: () => void;
+    mockInvoke.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveSave = () => resolve(undefined);
+        }),
+    );
+    render(<SettingsPanel config={mockConfig} onRefresh={onRefresh} />);
+    const notification = screen.getByRole("switch", {
+      name: "Show notification on complete",
+    });
+    const login = screen.getByRole("switch", { name: "Start at login" });
+
+    fireEvent.click(notification);
+    fireEvent.click(login);
+
+    expect(notification).toHaveAttribute("aria-checked", "false");
+    expect(login).toHaveAttribute("aria-checked", "false");
+    expect(mockInvoke).toHaveBeenCalledTimes(1);
+
+    resolveSave();
+    await waitFor(() => expect(onRefresh).toHaveBeenCalledOnce());
+  });
+
+  it("ignores unsupported language values", () => {
+    render(<SettingsPanel config={mockConfig} onRefresh={onRefresh} />);
+    fireEvent.change(screen.getByRole("combobox", { name: "Language" }), {
+      target: { value: "fr" },
+    });
+    expect(mockInvoke).not.toHaveBeenCalled();
   });
 
   it("shows error message when save fails", async () => {

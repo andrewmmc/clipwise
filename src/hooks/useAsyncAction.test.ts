@@ -61,4 +61,11 @@ describe("useAsyncAction", () => {
     });
     expect(result.current.error).toBe("newer failure");
   });
+
+  it("returns a stable clearError callback", () => {
+    const { result, rerender } = renderHook(() => useAsyncAction());
+    const first = result.current.clearError;
+    rerender();
+    expect(result.current.clearError).toBe(first);
+  });
 });

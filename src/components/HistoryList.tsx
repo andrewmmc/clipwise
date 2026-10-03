@@ -5,7 +5,7 @@ import { cx } from "../lib/classNames";
 import { getErrorMessage } from "../lib/errors";
 import { formatHistoryTimestamp } from "../lib/history";
 import { tauriCommands } from "../lib/tauri";
-import type { HistoryEntry } from "../types/bindings/HistoryEntry";
+import type { HistoryEntry } from "../types/config";
 import {
   CircleCheck,
   CircleX,
@@ -332,6 +332,7 @@ export default function HistoryList() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={t("Search action, provider, input, or output…")}
+              aria-label={t("Search action, provider, input, or output…")}
               className="input input-sm w-full pl-8"
             />
           </div>
