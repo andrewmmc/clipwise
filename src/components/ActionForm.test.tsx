@@ -12,7 +12,13 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 
 const mockInvoke = vi.mocked(invoke);
 const { default: ActionForm } = await import("./ActionForm");
-import { emptyConfig, mockConfig, mockAction } from "../test/fixtures";
+import {
+  emptyConfig,
+  mockConfig,
+  mockAction,
+  mockProvider,
+  mockCliProvider,
+} from "../test/fixtures";
 
 describe("ActionForm", () => {
   const onSave = vi.fn();
@@ -98,6 +104,39 @@ describe("ActionForm", () => {
     expect(
       screen.getByText("Anthropic Claude (anthropic)"),
     ).toBeInTheDocument();
+  });
+
+  it("updates model suggestions when the action provider changes", async () => {
+    const user = userEvent.setup();
+    const config = {
+      ...mockConfig,
+      providers: [
+        mockProvider,
+        { ...mockProvider, id: "openai", type: "openai" as const },
+        mockCliProvider,
+      ],
+    };
+    render(<ActionForm config={config} onSave={onSave} onCancel={onCancel} />);
+    const modelInput = screen.getByLabelText(
+      /Model Override/,
+    ) as HTMLInputElement;
+    expect(
+      modelInput.list?.querySelector('option[value="claude-opus-5-5"]'),
+    ).toBeInTheDocument();
+    await user.selectOptions(screen.getByLabelText("Provider"), "openai");
+    expect(
+      modelInput.list?.querySelector('option[value="gpt-6.1-sol"]'),
+    ).toBeInTheDocument();
+    expect(
+      modelInput.list?.querySelector('option[value="claude-opus-5-5"]'),
+    ).toBeNull();
+    await user.type(modelInput, "gpt-6.1-sol");
+    await user.selectOptions(
+      screen.getByLabelText("Provider"),
+      mockCliProvider.id,
+    );
+    expect(modelInput.list).toBeNull();
+    expect(modelInput).toHaveValue("gpt-6.1-sol");
   });
 
   // ── Validation ────────────────────────────────────────────────────────────
@@ -268,13 +307,18 @@ describe("ActionForm", () => {
 
     render(<ActionForm config={config} onSave={onSave} onCancel={onCancel} />);
 
-    await user.selectOptions(screen.getByRole("combobox"), "p2");
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "Provider" }),
+      "p2",
+    );
     await user.type(
       screen.getByPlaceholderText("Leave blank for provider default"),
       "gpt-4o",
     );
 
-    expect(screen.getByRole("combobox")).toHaveValue("p2");
+    expect(screen.getByRole("combobox", { name: "Provider" })).toHaveValue(
+      "p2",
+    );
     expect(screen.getByDisplayValue("gpt-4o")).toBeInTheDocument();
   });
 
@@ -317,7 +361,7 @@ describe("ActionForm", () => {
     );
     await user.click(screen.getByRole("button", { name: /reset/i }));
 
-    expect(screen.getByRole("combobox")).toHaveValue("");
+    expect(screen.getByRole("combobox", { name: "Provider" })).toHaveValue("");
     expect(screen.queryByDisplayValue("Other")).not.toBeInTheDocument();
   });
 

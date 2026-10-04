@@ -41,8 +41,8 @@ const zhTW: Record<string, string> = {
   "Deletes all saved history.": "這將刪除所有已儲存的記錄。",
   Disable: "停用",
   "Max tokens": "最大 token 數",
-  "Maximum tokens in LLM responses (default: 4096).":
-    "LLM 回應的最大 token 數（預設：4096）。",
+  "Maximum response tokens, including reasoning (default: 4096).":
+    "回應的最大 token 數，包含推理（預設：4096）。",
   Language: "語言",
   English: "English",
   "Traditional Chinese": "繁體中文",

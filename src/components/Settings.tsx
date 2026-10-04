@@ -165,7 +165,9 @@ export default function SettingsPanel({
                 {t("Max tokens")}
               </p>
               <p className="text-[12px] text-text-tertiary">
-                {t("Maximum tokens in LLM responses (default: 4096).")}
+                {t(
+                  "Maximum response tokens, including reasoning (default: 4096).",
+                )}
               </p>
             </div>
             <select

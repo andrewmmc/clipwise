@@ -2,6 +2,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { useId } from "react";
 import ErrorBox from "./ErrorBox";
 import SuccessBox from "./SuccessBox";
+import ModelSuggestions from "./ModelSuggestions";
 import {
   API_PROVIDER_DEFAULT_ENDPOINTS,
   API_PROVIDER_DEFAULT_MODELS,
@@ -138,11 +139,13 @@ export default function ApiProviderForm({
         <input
           id={modelId}
           type="text"
+          list={`${modelId}-suggestions`}
           value={defaultModel}
           onChange={(e) => onDefaultModelChange(e.target.value)}
           placeholder={API_PROVIDER_DEFAULT_MODELS[type]}
           className="input"
         />
+        <ModelSuggestions id={`${modelId}-suggestions`} providerType={type} />
       </div>
 
       <div>

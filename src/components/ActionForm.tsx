@@ -10,6 +10,7 @@ import { ChevronDown, FlaskConical } from "lucide-react";
 import EditorHeader from "./EditorHeader";
 import ErrorBox from "./ErrorBox";
 import FormFooter from "./FormFooter";
+import ModelSuggestions from "./ModelSuggestions";
 
 interface Props {
   config: AppConfig;
@@ -43,6 +44,7 @@ export default function ActionForm({
     initial?.userPrompt ?? draft?.userPrompt ?? "",
   );
   const [model, setModel] = useState(initial?.model ?? "");
+  const providerType = config.providers.find((p) => p.id === providerId)?.type;
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [testInput, setTestInput] = useState("");
@@ -235,6 +237,11 @@ export default function ActionForm({
           <input
             id={modelId}
             type="text"
+            list={
+              providerType === "openai" || providerType === "anthropic"
+                ? `${modelId}-suggestions`
+                : undefined
+            }
             value={model}
             onChange={(e) => {
               setModel(e.target.value);
@@ -242,6 +249,10 @@ export default function ActionForm({
             }}
             placeholder={t("Leave blank for provider default")}
             className="input"
+          />
+          <ModelSuggestions
+            id={`${modelId}-suggestions`}
+            providerType={providerType}
           />
         </div>
 

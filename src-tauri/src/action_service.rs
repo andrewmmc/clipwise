@@ -117,7 +117,8 @@ pub(crate) async fn run_action_with_context(
     Ok(result.result)
 }
 
-const PROVIDER_TEST_MAX_TOKENS: u32 = 64;
+// Reasoning models spend output tokens before producing the short test reply.
+const PROVIDER_TEST_MAX_TOKENS: u32 = 4096;
 const PROVIDER_TEST_MESSAGE: &str = "Reply with exactly: {\"result\": \"ok\"}";
 
 #[cfg_attr(test, allow(dead_code))]

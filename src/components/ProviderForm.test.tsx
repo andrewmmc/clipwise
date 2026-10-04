@@ -15,7 +15,10 @@ async function selectAvailableProviderType(
 ) {
   const option = await screen.findByRole("option", { name: label });
   await waitFor(() => expect(option).toBeEnabled());
-  await user.selectOptions(screen.getByRole("combobox"), value);
+  await user.selectOptions(
+    screen.getByRole("combobox", { name: "Type" }),
+    value,
+  );
 }
 
 describe("ProviderForm", () => {
@@ -47,6 +50,43 @@ describe("ProviderForm", () => {
   it("shows 'New Provider' heading in create mode", () => {
     render(<ProviderForm onSave={onSave} onCancel={onCancel} />);
     expect(screen.getByText("New Provider")).toBeInTheDocument();
+  });
+
+  it("suggests current models for the provider type and saves custom IDs", async () => {
+    const user = userEvent.setup();
+    onSave.mockResolvedValue(undefined);
+    render(<ProviderForm onSave={onSave} onCancel={onCancel} />);
+    const modelInput = screen.getByLabelText(
+      "Default Model",
+    ) as HTMLInputElement;
+    expect(
+      modelInput.list?.querySelector('option[value="claude-sonnet-5-5"]'),
+    ).toBeInTheDocument();
+    expect(
+      modelInput.list?.querySelector('option[value="claude-opus-5-5"]'),
+    ).toBeInTheDocument();
+    await selectAvailableProviderType(user, "openai", "OpenAI-compatible");
+    expect(
+      modelInput.list?.querySelector('option[value="gpt-6.1-sol"]'),
+    ).toBeInTheDocument();
+    expect(
+      modelInput.list?.querySelector('option[value="gpt-6-astra"]'),
+    ).toBeInTheDocument();
+    expect(
+      modelInput.list?.querySelector('option[value="claude-sonnet-5-5"]'),
+    ).toBeNull();
+    await user.type(screen.getByLabelText("Name"), "Gateway");
+    await user.type(screen.getByLabelText("API Key"), "test-key");
+    await user.type(modelInput, "openai/gpt-6.1-sol");
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+    await waitFor(() =>
+      expect(onSave).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "openai",
+          defaultModel: "openai/gpt-6.1-sol",
+        }),
+      ),
+    );
   });
 
   it("shows 'Edit Provider' heading in edit mode", () => {
@@ -815,7 +855,10 @@ describe("ProviderForm", () => {
     );
 
     // Switch back to API - state should be preserved
-    await user.selectOptions(screen.getByRole("combobox"), "anthropic");
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "Type" }),
+      "anthropic",
+    );
 
     expect(screen.getByDisplayValue("My Provider")).toBeInTheDocument();
     expect(screen.getByDisplayValue("sk-test-key")).toBeInTheDocument();
@@ -845,7 +888,10 @@ describe("ProviderForm", () => {
     ).toBeInTheDocument();
 
     // Switch back to API - error should clear
-    await user.selectOptions(screen.getByRole("combobox"), "anthropic");
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "Type" }),
+      "anthropic",
+    );
 
     expect(
       screen.queryByText("Command is required for CLI providers."),
@@ -879,7 +925,10 @@ describe("ProviderForm", () => {
     await screen.findByRole("option", {
       name: "CLI (claude/codex/copilot)",
     });
-    await user.selectOptions(screen.getByRole("combobox"), "anthropic");
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "Type" }),
+      "anthropic",
+    );
 
     const endpointInput = screen.getByPlaceholderText(
       "https://api.anthropic.com/v1/messages",
@@ -945,7 +994,7 @@ describe("ProviderForm", () => {
     await user.type(screen.getByPlaceholderText("e.g. Anthropic Claude"), "P");
     await user.type(screen.getByPlaceholderText("sk-..."), "k");
     await user.type(
-      screen.getByPlaceholderText("claude-sonnet-4-20250514"),
+      screen.getByPlaceholderText("claude-sonnet-5-5"),
       "claude-opus",
     );
     await user.click(screen.getByRole("button", { name: /^save$/i }));

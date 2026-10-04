@@ -127,6 +127,15 @@ Clipwise supports two provider modes:
   - **Anthropic** — direct Anthropic API requests
   - **CLI** — local CLI commands like `claude`, `codex`, or custom scripts
 
+Set **Default Model** on a provider, or **Model Override** on an action. Both fields suggest current model IDs and accept custom IDs for gateways and pinned versions:
+
+- **OpenAI:** `gpt-6.1-sol`, `gpt-6-astra`, `gpt-6-sol`, and `gpt-6-luna`. These use the existing Chat Completions endpoint and the newer completion token limit. Leaving the model blank retains the `gpt-4o` fallback.
+- **Anthropic:** `claude-sonnet-5-5` (the fallback when blank), `claude-opus-5-5`, `claude-fable-5-1`, and `claude-haiku-4-5`. Clipwise extracts text blocks from responses, skipping thinking blocks.
+
+Model IDs were checked against the [OpenAI model guide](https://developers.openai.com/api/docs/guides/latest-model) and [Claude model catalog](https://platform.claude.com/docs/en/models/overview) on October 4, 2026. Availability depends on your API account. Saved model selections are preserved; if a provider still specifies the retired `claude-sonnet-4-20250514`, choose a current model in its settings.
+
+**Max tokens** includes reasoning or thinking tokens as well as the final text. Increase it in Settings if a response reaches the limit. Truncated responses produce an error instead of replacing your clipboard with partial output. **Test connection** allows up to 4,096 output tokens so reasoning models have room to answer.
+
 ## Development
 
 > **Note:** This section is for contributors and developers only.

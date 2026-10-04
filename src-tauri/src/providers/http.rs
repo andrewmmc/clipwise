@@ -194,7 +194,7 @@ pub(crate) async fn send_json_and_normalize(
     endpoint: &str,
     body: &Value,
     build_request: impl Fn(&Client, &str) -> RequestBuilder,
-    extract_content: impl FnOnce(&Value) -> Result<&str, AppError>,
+    extract_content: impl FnOnce(&Value) -> Result<String, AppError>,
 ) -> Result<Value, AppError> {
     let body_text = send_json_with_retry(
         client,
@@ -212,7 +212,7 @@ pub(crate) async fn send_json_and_normalize(
         ))
     })?;
     let content = extract_content(&json)?;
-    normalize_response_str(content)
+    normalize_response_str(&content)
 }
 
 #[cfg(test)]

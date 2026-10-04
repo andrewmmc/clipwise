@@ -11,6 +11,17 @@ use tracing::info;
 const DEFAULT_ENDPOINT: &str = "https://api.openai.com/v1/chat/completions";
 const DEFAULT_MODEL: &str = "gpt-4o";
 
+fn uses_completion_token_limit(model: &str) -> bool {
+    // OpenRouter uses qualified IDs. Keep max_tokens for other compatible
+    // providers and older models that may not accept max_completion_tokens.
+    let model = model.strip_prefix("openai/").unwrap_or(model);
+    ["gpt-5", "gpt-6", "o1", "o3", "o4"].iter().any(|prefix| {
+        model.strip_prefix(prefix).is_some_and(|suffix| {
+            suffix.is_empty() || suffix.starts_with('-') || suffix.starts_with('.')
+        })
+    })
+}
+
 pub async fn call_openai(
     provider: &Provider,
     user_message: &str,
@@ -43,14 +54,19 @@ pub async fn call_openai_with_client(
         "Calling OpenAI provider"
     );
 
-    let body = json!({
+    let mut body = json!({
         "model": model_name,
-        "max_tokens": max_tokens,
         "messages": [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": user_message}
         ]
     });
+    let token_limit = if uses_completion_token_limit(model_name) {
+        "max_completion_tokens"
+    } else {
+        "max_tokens"
+    };
+    body[token_limit] = json!(max_tokens);
 
     send_json_and_normalize(
         client,
@@ -65,8 +81,20 @@ pub async fn call_openai_with_client(
                 .header("Content-Type", "application/json")
         },
         |json| {
-            json["choices"][0]["message"]["content"]
+            let choice = &json["choices"][0];
+            if choice["finish_reason"] == "length" {
+                return Err(AppError::Llm(
+                    "Response reached the token limit. Increase Max tokens in Settings; reasoning also uses this budget.".into(),
+                ));
+            }
+            if choice["finish_reason"] == "content_filter"
+                || choice["message"]["refusal"].as_str().is_some()
+            {
+                return Err(AppError::Llm("OpenAI declined this request.".into()));
+            }
+            choice["message"]["content"]
                 .as_str()
+                .map(str::to_owned)
                 .ok_or(AppError::InvalidResponse)
         },
     )
@@ -104,6 +132,87 @@ mod tests {
                 "finish_reason": "stop"
             }]
         })
+    }
+
+    #[tokio::test]
+    async fn test_token_limit_matches_the_selected_model() {
+        let server = wiremock::MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/v1/chat/completions"))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(success_body(r#"{"result":"ok"}"#)),
+            )
+            .mount(&server)
+            .await;
+        let mut provider = make_provider(&server.uri());
+        provider.default_model = Some("gpt-6.1-sol".into());
+        let cases = [
+            (None, "max_completion_tokens"),
+            (Some("gpt-6.1-sol"), "max_completion_tokens"),
+            (Some("gpt-6-astra"), "max_completion_tokens"),
+            (Some("gpt-6-sol"), "max_completion_tokens"),
+            (Some("gpt-6-luna"), "max_completion_tokens"),
+            (Some("openai/gpt-6.1-sol"), "max_completion_tokens"),
+            (Some("gpt-5.2"), "max_completion_tokens"),
+            (Some("o3-mini"), "max_completion_tokens"),
+            (Some("gpt-4o"), "max_tokens"),
+            (Some("custom-gateway-model"), "max_tokens"),
+            (Some("gpt-60-custom"), "max_tokens"),
+        ];
+        for (model, _) in cases {
+            let result =
+                call_openai_with_client(&provider, "hello", model, 4096, &no_proxy_client())
+                    .await
+                    .unwrap();
+            assert_eq!(result["result"], "ok");
+        }
+        let requests = server.received_requests().await.unwrap();
+        assert_eq!(requests.len(), cases.len());
+        for (request, (model, token_key)) in requests.iter().zip(cases) {
+            let body: serde_json::Value = serde_json::from_slice(&request.body).unwrap();
+            assert_eq!(body["model"], model.unwrap_or("gpt-6.1-sol"));
+            assert_eq!(body[token_key], 4096);
+            let other_key = if token_key == "max_tokens" {
+                "max_completion_tokens"
+            } else {
+                "max_tokens"
+            };
+            assert!(body.get(other_key).is_none());
+            assert_eq!(body["messages"][0]["content"], SYSTEM_PROMPT);
+            assert_eq!(body["messages"][1]["content"], "hello");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_incomplete_and_refused_responses_are_not_clipboard_results() {
+        let server = wiremock::MockServer::start().await;
+        for (finish_reason, refusal, expected) in [
+            ("length", serde_json::Value::Null, "token limit"),
+            ("content_filter", serde_json::Value::Null, "declined"),
+            ("stop", json!("Cannot comply"), "declined"),
+        ] {
+            server.reset().await;
+            let mut response = success_body(r#"{"result":"partial"}"#);
+            response["choices"][0]["finish_reason"] = json!(finish_reason);
+            response["choices"][0]["message"]["refusal"] = refusal;
+            Mock::given(method("POST"))
+                .respond_with(ResponseTemplate::new(200).set_body_json(response))
+                .expect(1)
+                .mount(&server)
+                .await;
+            let error = call_openai_with_client(
+                &make_provider(&server.uri()),
+                "hello",
+                Some("gpt-6.1-sol"),
+                4096,
+                &no_proxy_client(),
+            )
+            .await
+            .unwrap_err();
+            assert!(error.to_string().contains(expected));
+            assert!(!error.is_retryable());
+            server.verify().await;
+        }
     }
 
     #[tokio::test]
