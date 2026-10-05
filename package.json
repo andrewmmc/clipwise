@@ -32,8 +32,8 @@
     "gen-types:check": "npm run gen-types && git diff --exit-code src/types/bindings"
   },
   "dependencies": {
-    "@tauri-apps/api": "^2.11.0",
-    "@tauri-apps/plugin-opener": "^2",
+    "@tauri-apps/api": "~2.12.1",
+    "@tauri-apps/plugin-opener": "~2.6.0",
     "lucide-react": "^1.48.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
