@@ -158,7 +158,7 @@ jobs:
           xcrun swiftc -typecheck /tmp/foundation-models-check.swift
 
       - name: Build Tauri app (Developer ID signed + notarized)
-        uses: tauri-apps/tauri-action@v0
+        uses: tauri-apps/tauri-action@v1
         env:
           CLIPWISE_REQUIRE_APPLE_MODEL_RUNNER: "1"
           LLM_ACTIONS_VERSION: ${{ env.APP_VERSION }}
